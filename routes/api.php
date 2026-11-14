@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DosenController;
+use App\Http\Controllers\Api\MahasiswaController; 
 use App\Http\Controllers\Api\BeritaController;
 use App\Http\Controllers\DosenPengajaranController;
 use Illuminate\Http\Request;
@@ -74,4 +75,15 @@ Route::prefix('dosen')->group(function () {
     Route::post('/', [DosenController::class, 'store'])->name('api.dosen.store');
     Route::get('/{id}', [DosenController::class, 'show'])->name('api.dosen.show');
     Route::put('/{id}', [DosenController::class, 'update'])->name('api.dosen.update');
+});
+
+// Admin/Mahasiswa
+Route::prefix('mahasiswa')->group(function () {
+    Route::get('/', [MahasiswaController::class, 'index'])->name('api.mahasiswa.index');
+    Route::get('/opsi', [MahasiswaController::class, 'opsi'])->name('api.mahasiswa.opsi'); // <-- Tambahkan ini
+    Route::post('/', [MahasiswaController::class, 'store'])->name('api.mahasiswa.store');
+    Route::post('/sinkronisasi-kelas', [MahasiswaController::class, 'buatKelasSemester'])->name('api.mahasiswa.sinkronisasi');
+    Route::get('/{id}', [MahasiswaController::class, 'show'])->name('api.mahasiswa.show');
+    Route::put('/{id}', [MahasiswaController::class, 'update'])->name('api.mahasiswa.update');
+    Route::patch('/{id}/status', [MahasiswaController::class, 'toggleStatus'])->name('api.mahasiswa.status');
 });

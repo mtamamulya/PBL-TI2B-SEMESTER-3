@@ -129,9 +129,4 @@ Route::get('/pengajuan/{id}', fn ($id) => redirect()->route('pengajuan.show', $i
 Route::get('/kegiatan/{id}/edit', fn ($id) => redirect()->route('kegiatan.edit', $id))->whereNumber('id');
 Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id))->whereNumber('id');
 
-// Route Sinkronisasi Kelas
-Route::post('/admin/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
-
-Route::patch('/admin/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
-
 require __DIR__.'/admin-kaprodi.php';

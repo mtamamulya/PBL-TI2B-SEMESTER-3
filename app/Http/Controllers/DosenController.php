@@ -27,40 +27,8 @@ class DosenController extends Controller
     /** Detail satu dosen: profil, riwayat pangkat, dan aktivitas (4 tab). */
     public function show(string $id)
     {
-        $row = $this->store->find($id);
-        abort_unless($row, 404);
-
-        $dosen = [
-            'id' => $row['id'],
-            'nama' => $row['nama'],
-            'nip' => $row['nip'],
-            'status' => $row['status'],
-            'foto' => ! empty($row['foto']) ? Storage::disk('public')->url($row['foto']) : null,   // URL foto dosen; null = tampil inisial
-        ];
-
-        $info = [
-            ['Email akun', $row['email']],
-            ['Role', DosenStore::ROLE[$row['role']] ?? 'Dosen'],
-            ['Pangkat / golongan saat ini', $row['jabatan'].', '.$row['golongan']],
-            ['Akun login', $row['status_akun'] === 'aktif' ? 'Aktif' : 'Nonaktif'],
-        ];
-
-        $riwayat = [];
-        foreach ($row['riwayat'] as $i => $r) {
-            $riwayat[] = [
-                'pangkat' => $r['pangkat'],
-                'golongan' => $r['golongan'],
-                'sk' => $r['sk'],
-                'tanggal' => Carbon::parse($r['tanggal'])->locale('id')->translatedFormat('j F Y'),
-                'now' => $i === 0,
-            ];
-        }
-
         return view('admin.dosen-detail', [
-            'dosen' => $dosen,
-            'info' => $info,
-            'riwayat' => $riwayat,
-            'aktivitas' => $this->aktivitas($row),
+            'dosenId' => $id,
         ]);
     }
 
@@ -147,29 +115,13 @@ class DosenController extends Controller
     }
 
     /** Form edit. */
-    public function edit(string $id)
+   public function edit(string $id)
     {
-        $row = $this->store->find($id);
-        abort_unless($row, 404);
-
         return view('admin.dosen-edit', [
-            'dosen' => [
-                'id' => $row['id'],
-                'nama_lengkap' => $row['nama'],
-                'nip' => $row['nip'],
-                'status_dosen' => $row['status'],
-                'email' => $row['email'],
-                'role' => $row['role'],
-                'status_akun' => $row['status_akun'],
-                'foto' => ! empty($row['foto']) ? Storage::disk('public')->url($row['foto']) : null,
-                'pangkat' => '',      // bagian "tambah riwayat baru" selalu kosong saat dibuka
-                'golongan' => '',
-                'nomor_sk' => '',
-                'tanggal_sk' => '',
-            ],
-            'jabatan' => $this->store->opsiPangkat(),
+            'dosenId'  => $id,
+            'jabatan'  => $this->store->opsiPangkat(),
             'golongan' => $this->store->opsiGolongan(),
-            'roles' => DosenStore::ROLE,
+            'roles'    => DosenStore::ROLE,
         ]);
     }
 

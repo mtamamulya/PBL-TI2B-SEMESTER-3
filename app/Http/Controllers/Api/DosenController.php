@@ -167,6 +167,7 @@ class DosenController extends Controller
                     'nip'         => $row['nip'],
                     'email'       => $row['email'],
                     'role'        => DosenStore::ROLE[$row['role']] ?? 'Dosen',
+                    'role_key'    => $row['role'],
                     'jabatan'     => $row['jabatan'],
                     'golongan'    => $row['golongan'],
                     'status'      => $row['status'],
