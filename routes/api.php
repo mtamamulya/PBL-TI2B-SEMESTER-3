@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DosenController;
 use App\Http\Controllers\Api\BeritaController;
 use App\Http\Controllers\DosenPengajaranController;
 use Illuminate\Http\Request;
@@ -66,3 +67,11 @@ Route::get('/berita', [BeritaController::class, 'index']);
 
 // Import rute API tambahan
 require __DIR__.'/api-admin-kaprodi.php';
+
+//Admin/Dosen
+Route::prefix('dosen')->group(function () {
+    Route::get('/', [DosenController::class, 'index'])->name('api.dosen.index');
+    Route::post('/', [DosenController::class, 'store'])->name('api.dosen.store');
+    Route::get('/{id}', [DosenController::class, 'show'])->name('api.dosen.show');
+    Route::put('/{id}', [DosenController::class, 'update'])->name('api.dosen.update');
+});

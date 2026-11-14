@@ -23,17 +23,15 @@
         <p class="text-xl font-medium tracking-[-0.15px] text-[#A8A8A8] md:text-2xl md:leading-[30px]">Dashboard / Data Dosen / Detail / Edit</p>
     </div>
 
-    <form method="POST" action="{{ route('admin.dosen.update', $dosen['id']) }}" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
+    <form id="formEditDosen" method="POST" action="{{ route('api.dosen.update', $dosen['id']) }}" enctype="multipart/form-data" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
         @csrf
         @method('PUT')
 
         <div class="flex w-full flex-col gap-6">
 
-            @if ($errors->any())
-                <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                    Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.
-                </div>
-            @endif
+            <div id="api-alert" class="hidden rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.
+            </div>
 
             {{-- ============ 1. Identitas Dosen ============ --}}
             <section class="flex flex-col gap-6 rounded-md border border-black/[0.06] bg-white px-4 pb-6 pt-4">
@@ -235,6 +233,9 @@
         var img = document.getElementById('foto-preview');
         var ph = document.getElementById('foto-placeholder');
         var info = document.getElementById('foto-info');
+        var formEdit = document.getElementById('formEditDosen');
+        var alertBox = document.getElementById('api-alert');
+
         if (!input) return;
 
         input.addEventListener('change', function () {
@@ -252,6 +253,74 @@
             img.classList.remove('hidden');
             ph.classList.add('hidden');
         });
+
+        if (formEdit) {
+            formEdit.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                alertBox.classList.add('hidden');
+                formEdit.querySelectorAll('.api-field-error').forEach(function (el) { el.remove(); });
+
+                var btnSubmit = formEdit.querySelector('button[type="submit"]');
+                var teksAsli = btnSubmit.textContent;
+                btnSubmit.disabled = true;
+                btnSubmit.textContent = 'Menyimpan...';
+
+                // Ambil semua input teks/select menjadi objek JSON
+                var formData = new FormData(formEdit);
+                var payload = {};
+                formData.forEach(function (value, key) {
+                    if (key !== '_token' && key !== '_method' && key !== 'foto') {
+                        payload[key] = value;
+                    }
+                });
+
+                try {
+                    var res = await fetch(formEdit.action, {
+                        method: 'PUT',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    var json = await res.json();
+
+                    if (res.status === 422 && json.errors) {
+                        alertBox.textContent = 'Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.';
+                        alertBox.classList.remove('hidden');
+
+                        Object.keys(json.errors).forEach(function (field) {
+                            var inputEl = formEdit.querySelector('[name="' + field + '"]');
+                            if (inputEl) {
+                                var p = document.createElement('p');
+                                p.className = 'api-field-error text-sm text-[#FF3F3F]';
+                                p.textContent = json.errors[field][0];
+                                inputEl.closest('.flex.flex-col').appendChild(p);
+                            }
+                        });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        return;
+                    }
+
+                    if (!res.ok) {
+                        alertBox.textContent = json.message || 'Terjadi kesalahan saat menyimpan perubahan.';
+                        alertBox.classList.remove('hidden');
+                        return;
+                    }
+
+                    // Berhasil (200 OK) -> kembali ke halaman detail dosen
+                    window.location.href = @js(route('admin.dosen.show', $dosen['id']));
+                } catch (err) {
+                    alertBox.textContent = 'Gagal terhubung ke server API.';
+                    alertBox.classList.remove('hidden');
+                } finally {
+                    btnSubmit.disabled = false;
+                    btnSubmit.textContent = teksAsli;
+                }
+            });
+        }
     })();
 </script>
 @endpush

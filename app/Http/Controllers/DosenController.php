@@ -19,16 +19,9 @@ class DosenController extends Controller
     /** Daftar dosen. (Hanya kolom yang dibutuhkan tabel — tidak mengirim hash sandi dll.) */
     public function index()
     {
-        $dosen = array_map(fn ($r) => [
-            'id' => $r['id'],
-            'nip' => $r['nip'],
-            'nama' => $r['nama'],
-            'jabatan' => $r['jabatan'],
-            'golongan' => $r['golongan'],
-            'status' => $r['status'],
-        ], $this->store->all());
-
-        return view('admin.dosen', ['dosen' => $dosen, 'jabatan' => $this->store->opsiPangkat()]);
+        return view('admin.dosen', [
+            'jabatan' => $this->store->opsiPangkat(),
+        ]);
     }
 
     /** Detail satu dosen: profil, riwayat pangkat, dan aktivitas (4 tab). */
