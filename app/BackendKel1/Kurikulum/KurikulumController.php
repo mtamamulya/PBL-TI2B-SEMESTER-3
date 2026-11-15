@@ -2,6 +2,7 @@
 
 namespace App\BackendKel1\Kurikulum;
 
+use App\BackendKel1\MataKuliah\MataKuliahController;
 use App\Http\Controllers\Controller;
 use App\Models\Kurikulum;
 use App\Models\MataKuliah;
@@ -9,7 +10,6 @@ use App\Support\ApiResponse;
 use App\Support\LinkFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\BackendKel1\MataKuliah\MataKuliahController;
 
 /** GET /api/v1/kurikulum, /kurikulum/{id}, /kurikulum/{id}/mata-kuliah (baca saja, tanpa token). */
 class KurikulumController extends Controller
