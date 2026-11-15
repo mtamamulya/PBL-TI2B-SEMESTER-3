@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\BackendKel1\Akreditasi;
 
 use App\Http\Controllers\Controller;
 use App\Models\Akreditasi;

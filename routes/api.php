@@ -1,8 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\BeritaController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,21 +24,6 @@ Route::get('/ping', function () {
 });
 
 // Autentikasi API (token Sanctum)
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('api.login');
-
-// Rute yang membutuhkan login
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
-
-    // Profil user yang sedang login (dari rekan tim)
-    Route::get('/me', function (Request $request) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Data profil user berhasil diambil',
-            'data' => $request->user(),
-        ], 200);
-    });
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -54,9 +36,5 @@ Route::prefix('integrasi')
         // TODO: Daftarkan endpoint API fitur di sini
     });
 
-// Rute Publik (Tidak perlu login)
-Route::get('/berita', [BeritaController::class, 'index']);
-
-// Import rute API tambahan
-require __DIR__.'/api-admin-kaprodi.php';
 require app_path('BackendKel3/routes.php');
+require app_path('BackendKel1/routes.php');
