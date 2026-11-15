@@ -19,6 +19,9 @@ class AdminPrestasiController extends Controller
 {
     /** Relasi yang diperlukan oleh halaman daftar, detail, dan edit. */
     private const RELASI = [
+        'user.dosen',
+        'user.mahasiswa',
+        'kegiatan.detail.isianKategori',
         'kegiatan.kategori',
         'kegiatan.user.dosen',
         'kegiatan.user.mahasiswa',
@@ -119,7 +122,7 @@ class AdminPrestasiController extends Controller
     private function formatRow(Prestasi $item): array
     {
         $kegiatan = $item->kegiatan;
-        $pemilik = $kegiatan?->user;
+        $pemilik = $item->user;
         $tanggal = $kegiatan?->tanggal_selesai;
         $formData = $item->form_data ?? [];
 
@@ -152,6 +155,7 @@ class AdminPrestasiController extends Controller
         return [
             'id' => $item->id_prestasi,
             'id_kegiatan' => $item->id_kegiatan,
+            'id_user' => $item->id_user,
             'sumber' => $formData['sumber'] ?? ($kegiatan ? 'sebelumnya' : 'mandiri'),
             'kegiatan' => $formData['kegiatan'] ?? $kegiatan?->nama_kegiatan ?? '',
             'nama_lomba' => $formData['nama_lomba'] ?? $item->getAttribute('capaian') ?? $kegiatan?->nama_kegiatan ?? '',
@@ -211,7 +215,8 @@ class AdminPrestasiController extends Controller
         $kegiatan = Kegiatan::with([
             'user.dosen',
             'user.mahasiswa',
-        ])->orderBy('nama_kegiatan')->get();
+        ])->whereHas('statusTerkini', fn ($status) => $status->where('status', 'diterima'))
+            ->orderBy('nama_kegiatan')->get();
 
         return [
             'kegiatanOptions' => $kegiatan,
@@ -221,7 +226,9 @@ class AdminPrestasiController extends Controller
                 'nama' => $k->nama_kegiatan,
                 'penyelenggara' => $this->namaUser($k->user) ?? '',
             ])->all(),
-            'tingkatList' => ['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
+            'pemilikList' => User::with(['dosen', 'mahasiswa'])->orderBy('email')->get()
+                ->map(fn (User $user) => ['id' => $user->getKey(), 'nama' => $this->namaUser($user), 'email' => $user->email]),
+            'tingkatList' => ['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
             'capaianList' => ['Juara 1', 'Juara 2', 'Juara 3', 'Harapan 1', 'Harapan 2', 'Harapan 3', 'Finalis', 'Peserta'],
             'jenisList' => ['Akademik', 'Nonakademik'],
             'jenisDokList' => ['Sertifikat', 'Dokumentasi kegiatan'],
@@ -237,6 +244,7 @@ class AdminPrestasiController extends Controller
     {
         $rules = [
             'sumber' => ['required', Rule::in(['sebelumnya', 'mandiri'])],
+            'id_user' => ['required', 'integer', Rule::exists('users', 'id_user')],
             'kegiatan' => ['required_if:sumber,sebelumnya', 'nullable', 'string', 'max:150'],
             'id_kegiatan' => [
                 'required_if:sumber,sebelumnya', 'nullable', 'integer',
@@ -246,7 +254,7 @@ class AdminPrestasiController extends Controller
             'penyelenggara' => ['required', 'string', 'max:150'],
             'lokasi' => ['required', 'string', 'max:150'],
             'dosen' => ['nullable', 'string', 'max:100'],
-            'tingkat' => ['required', Rule::in(['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'])],
+            'tingkat' => ['required', Rule::in(['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'])],
             'capaian' => ['required', Rule::in(['Juara 1', 'Juara 2', 'Juara 3', 'Harapan 1', 'Harapan 2', 'Harapan 3', 'Finalis', 'Peserta'])],
             'jenis' => ['required', Rule::in(['Akademik', 'Nonakademik'])],
             'kategori' => ['nullable', 'string', 'max:100'],
@@ -374,7 +382,17 @@ class AdminPrestasiController extends Controller
             'id_kegiatan' => $data['sumber'] === 'sebelumnya' ? $data['id_kegiatan'] : null,
             'jenis_prestasi' => $data['jenis'] === 'Akademik' ? 'akademik' : 'non-akademik',
             'bidang_lomba' => $data['kategori'] ?? null,
-            'catatan' => $data['deskripsi'] ?? null,
+            'id_user' => $data['id_user'],
+            'created_by' => $item?->created_by ?? auth()->id(),
+            'nama_lomba' => $data['nama_lomba'],
+            'penyelenggara' => $data['penyelenggara'],
+            'lokasi' => $data['lokasi'],
+            'dosen_pembimbing' => $data['dosen'] ?? null,
+            'tingkat_kejuaraan' => strtolower($data['tingkat']),
+            'tanggal_mulai' => $data['tanggal_mulai'],
+            'tanggal_selesai' => $data['tanggal_selesai'],
+            'bentuk_partisipasi' => strtolower($data['bentuk']),
+            'deskripsi' => $data['deskripsi'] ?? null,
             'capaian' => $data['capaian'],
             'form_data' => $formData,
         ];
@@ -401,6 +419,7 @@ class AdminPrestasiController extends Controller
                 $item->buktiPrestasi()->create([
                     'id_jenis_dokumen' => $jenis->id_jenis_dokumen,
                     'link' => $dokumen['url'],
+                    'nama_file' => mb_substr(basename(parse_url($dokumen['url'], PHP_URL_PATH) ?? '') ?: $dokumen['jenis'], 0, 255),
                 ]);
             }
         });

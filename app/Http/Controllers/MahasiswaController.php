@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Validator;
@@ -216,35 +217,13 @@ class MahasiswaController extends Controller
 
     public function prestasiTambah()
     {
-        $demoActivities = collect([
-            ['FKBSE 2025', 'Pengabdian', 'Himpunan Mahasiswa TRK'],
-            ['KMIPN VIII 2026', 'Lomba', 'Politeknik Negeri'],
-            ['IMAKEN Progress In Action 2026', 'Volunteer', 'IMAKEN'],
-            ['Google Singapura', 'Kunjungan Industri', 'Google Asia Pacific'],
-            ['KKL Schneider Electric', 'Kuliah Kerja Lapangan', 'Schneider Electric Indonesia'],
-            ['Amazon Web Service', 'Magang', 'Amazon Web Services'],
-            ['Hackathon Nasional 2025', 'Lomba', 'Kementerian Kominfo'],
-            ['Workshop IoT & Embedded System', 'Pelatihan', 'Lab Embedded TRK'],
-            ['Studi Independen AI Micro-Credential', 'Magang', 'Kampus Merdeka x AI Center'],
-            ['Pengabdian Desa Digital Banyumanik', 'Pengabdian', 'Jurusan Elektro Polines'],
-            ['Seminar International TRK Tech', 'Seminar', 'TRK Polines'],
-            ['Lomba Karya Tulis Ilmiah 2025', 'Penelitian', 'Universitas Indonesia'],
-            ['Lomba CTF Cyber Security 2024', 'Lomba', 'BSSN'],
-            ['Pelatihan Cloud Architecture AWS', 'Pelatihan', 'AWS Educate'],
-            ['Volunteer Mengajar AI Sekolah Dasar', 'Volunteer', 'Komunitas AI Semarang'],
-            ['Bootcamp Fullstack Web Developer', 'Pelatihan', 'Dicoding Indonesia'],
-            ['Kunjungan Industri Telkomsel Digital', 'Kunjungan Industri', 'Telkomsel Smart Office'],
-            ['Kompetisi Robotics & Automation', 'Lomba', 'ITB Robotics Club'],
-        ])->map(fn (array $activity) => [
-            'label' => $activity[0].' • '.$activity[1],
-            'nama' => $activity[0],
-            'penyelenggara' => $activity[2],
-        ]);
-        $submittedActivities = app(PengajuanController::class)->activityOptions()
-            ->map(fn (array $activity) => [
-                'label' => ($activity['title'] ?? 'Pengajuan').' • '.($activity['category'] ?? 'Kegiatan'),
-                'nama' => $activity['title'] ?? 'Pengajuan',
-                'penyelenggara' => $activity['penyelenggara'] ?? '',
+        $kegiatanList = Kegiatan::untukPrestasi(request()->user())
+            ->with(['kategori', 'detail.isianKategori'])->orderBy('nama_kegiatan')->get()
+            ->map(fn (Kegiatan $activity) => [
+                'id' => $activity->getKey(),
+                'label' => $activity->nama_kegiatan.' • '.$activity->kategori->nama_kategori.' (#'.$activity->getKey().')',
+                'nama' => $activity->nama_kegiatan,
+                'penyelenggara' => $activity->nilaiIsian('penyelenggara') ?? '',
             ]);
 
         return view('mahasiswa.mahasiswa.prestasi-tambah', [
@@ -255,7 +234,7 @@ class MahasiswaController extends Controller
             'jenisDokList' => ['Sertifikat', 'Dokumentasi kegiatan'],
             'daftarMahasiswa' => ['Ivan Sigit Santoso', 'Anisa Aulia Nurusyifa', config('mahasiswa.nama'), 'Dewi Lestari', 'Fajar Nugroho', 'Rizky Pratama', 'Salsabila Putri'],
             'peranList' => ['Ketua', 'Anggota'],
-            'kegiatanList' => $demoActivities->concat($submittedActivities)->unique('label')->values(),
+            'kegiatanList' => $kegiatanList,
         ]);
     }
 
@@ -316,7 +295,8 @@ class MahasiswaController extends Controller
 
         $validator = Validator::make($request->all(), [
             'sumber' => ['required', Rule::in(['sebelumnya', 'mandiri'])],
-            'kegiatan' => ['required_if:sumber,sebelumnya', 'nullable', 'string', 'max:150'],
+            'id_kegiatan' => ['exclude_unless:sumber,sebelumnya', 'required', 'integer'],
+            'kegiatan' => ['required_if:sumber,sebelumnya', 'nullable', 'string'],
             'nama_lomba' => ['required', 'string', 'max:150'],
             'penyelenggara' => ['required', 'string', 'max:150'],
             'lokasi' => ['required', 'string', 'max:150'],
@@ -379,6 +359,10 @@ class MahasiswaController extends Controller
         ]);
 
         $validator->after(function ($validator) use ($request) {
+            if ($request->input('sumber') === 'sebelumnya' && ! $validator->errors()->has('id_kegiatan')
+                && ! Kegiatan::untukPrestasi($request->user())->whereKey($request->integer('id_kegiatan'))->exists()) {
+                $validator->errors()->add('kegiatan', 'Pilih kegiatan yang sudah diterima dan Anda ikuti.');
+            }
             $dokumenList = $request->input('dokumen', []);
             $jumlahDokumenBaru = 0;
             if (is_array($dokumenList)) {

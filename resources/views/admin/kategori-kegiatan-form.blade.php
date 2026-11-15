@@ -595,7 +595,7 @@
         $('kk-nama').value = ROW.name ?? '';
         $('kk-jenis').value = ROW.jenis;
         $('kk-ket').value = ROW.description ?? '';
-        $('kk-template').value = ROW.template_surat ?? '';
+        $('kk-template').value = ROW.isi_surat ?? '';
     }
     // Default "Butuh surat" (perilaku sekarang); data lama tanpa kebutuhan ikut default
     const kebAwal = ROW?.kebutuhan === 'kegiatan' ? 'kegiatan' : 'surat';
@@ -634,7 +634,7 @@
             jenis: $('kk-jenis').value,
             kebutuhan: kebutuhan(), // 'surat' | 'kegiatan' (KEBUTUHAN)
             description: $('kk-ket').value.trim(),
-            template_surat: $('kk-template').value.trim(),
+            isi_surat: $('kk-template').value.trim(),
             isian: isian.filter((f) => f.label.trim()).map((f) => ({
                 kunci: f.key, label: f.label.trim(), tipe: f.tipe, wajib: f.wajib,
                 jumlah: f.jumlah, // 0 = satu isian, 1 = lebih dari satu (JUMLAH_ISIAN)

@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class Kegiatan extends Model
@@ -56,6 +59,52 @@ class Kegiatan extends Model
 
         return $query->where(fn (Builder $q) => $q->where('id_user', $user->getKey())
             ->orWhereHas('anggota', fn (Builder $q) => $q->where('id_user', $user->getKey())));
+    }
+
+    public function scopeUntukPrestasi(Builder $query, ?User $pemilik): Builder
+    {
+        return $query->untukUser($pemilik)
+            ->whereHas('statusTerkini', fn (Builder $status) => $status->where('status', 'diterima'));
+    }
+
+    /** Satu baris per kegiatan, termasuk kegiatan yang belum memiliki tanggal. */
+    public static function tabelDenganTanggal(): QueryBuilder
+    {
+        $kegiatan = DB::table('kegiatan')->select('kegiatan.*');
+        foreach (['tanggal_mulai', 'tanggal_selesai'] as $input) {
+            $tanggal = DB::table('detail_kegiatan as d')
+                ->join('isian_kategori as i', 'i.id_isian_kategori', '=', 'd.id_isian_kategori')
+                ->whereColumn('d.id_kegiatan', 'kegiatan.id_kegiatan')
+                ->where('i.input', $input)
+                ->orderBy('d.id_detail_kegiatan')->limit(1)->select('d.isian');
+            $kegiatan->selectSub($tanggal, $input);
+        }
+
+        return $kegiatan;
+    }
+
+    public function scopeDenganTanggal(Builder $query): Builder
+    {
+        return $query->fromSub(self::tabelDenganTanggal(), 'kegiatan');
+    }
+
+    private function tanggalDetail(string $input): ?Carbon
+    {
+        $nilai = array_key_exists($input, $this->attributes)
+            ? $this->attributes[$input]
+            : $this->nilaiIsian($input);
+
+        return $nilai && Carbon::hasFormat($nilai, 'Y-m-d') ? Carbon::createFromFormat('!Y-m-d', $nilai) : null;
+    }
+
+    public function getTanggalMulaiAttribute(): ?Carbon
+    {
+        return $this->tanggalDetail('tanggal_mulai');
+    }
+
+    public function getTanggalSelesaiAttribute(): ?Carbon
+    {
+        return $this->tanggalDetail('tanggal_selesai');
     }
 
     public function kategori(): BelongsTo

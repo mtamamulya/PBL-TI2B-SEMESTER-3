@@ -105,10 +105,16 @@ class DynamicActivityErdTest extends TestCase
     {
         $activity = $this->activity();
         $kind = DB::table('jenis_dokumen')->insertGetId(['nama_jenis_dokumen' => 'Sertifikat'], 'id_jenis_dokumen');
-        $first = $activity->prestasi()->create(['jenis_prestasi' => 'akademik', 'capaian' => 'Juara 1']);
-        $activity->prestasi()->create(['jenis_prestasi' => 'akademik', 'capaian' => 'Best Paper']);
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()]);
+        $data = [
+            'id_user' => $activity->id_user, 'created_by' => $activity->id_user, 'jenis_prestasi' => 'akademik',
+            'nama_lomba' => 'Lomba riset', 'penyelenggara' => 'Polines', 'lokasi' => 'Semarang', 'tingkat_kejuaraan' => 'nasional',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'bentuk_partisipasi' => 'individu',
+        ];
+        $first = $activity->prestasi()->create(['capaian' => 'Juara 1'] + $data);
+        $activity->prestasi()->create(['capaian' => 'Best Paper'] + $data);
         $proof = $first->buktiPrestasi()->create(['id_jenis_dokumen' => $kind, 'link' => 'sertifikat.pdf', 'nama_file' => 'sertifikat.pdf']);
-        $activity->berita()->create(['judul_berita' => 'Berita kegiatan', 'isi_berita' => 'Isi', 'sampul' => 'sampul.jpg']);
+        $activity->berita()->create(['id_user' => $activity->id_user, 'judul_berita' => 'Berita kegiatan', 'isi_berita' => 'Isi', 'sampul' => 'sampul.jpg']);
 
         $this->assertCount(2, $activity->fresh()->prestasi);
         $this->assertSame($first->getKey(), $proof->prestasi->getKey());
@@ -116,12 +122,52 @@ class DynamicActivityErdTest extends TestCase
         $this->assertCount(1, $activity->fresh()->berita);
     }
 
+    public function test_only_participants_of_a_currently_accepted_activity_can_link_an_achievement(): void
+    {
+        $activity = $this->activity();
+        $member = $this->activity()->user;
+        $outsider = $this->activity()->user;
+        $activity->anggota()->create(['id_user' => $member->getKey(), 'peran' => 'anggota']);
+        $eligible = fn (User $user) => Kegiatan::whereKey($activity->getKey())->untukPrestasi($user)->exists();
+
+        $this->assertFalse($eligible($member));
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()->subDay()]);
+        $this->assertTrue($eligible($activity->user));
+        $this->assertTrue($eligible($member));
+        $this->assertFalse($eligible($outsider));
+        $activity->timeline()->create(['status' => 'direvisi', 'tanggal_status' => now()]);
+        $this->assertFalse($eligible($activity->user));
+    }
+
+    public function test_admin_can_record_an_achievement_only_for_an_eligible_owner(): void
+    {
+        DB::table('roles')->insert(['id_role' => 1, 'nama_role' => 'admin']);
+        $activity = $this->activity();
+        $outsider = $this->activity()->user;
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()]);
+        $data = [
+            'sumber' => 'sebelumnya', 'id_kegiatan' => $activity->getKey(), 'kegiatan' => $activity->nama_kegiatan,
+            'id_user' => $outsider->getKey(), 'nama_lomba' => 'Lomba riset', 'penyelenggara' => 'Polines',
+            'lokasi' => 'Semarang', 'tingkat' => 'Nasional', 'capaian' => 'Juara 1', 'jenis' => 'Akademik',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'bentuk' => 'Individu',
+            'dokumen' => [['jenis' => 'Sertifikat', 'url' => 'https://drive.google.com/file/d/bukti/view']],
+        ];
+
+        $admin = User::create(['id_role' => 1, 'email' => 'admin-prestasi@test.local', 'password' => 'password', 'status' => true]);
+        $this->actingAs($admin);
+        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasErrors('id_kegiatan');
+        $this->assertDatabaseCount('prestasi', 0);
+        $activity->anggota()->create(['id_user' => $outsider->getKey(), 'peran' => 'anggota']);
+        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasNoErrors()->assertRedirect(route('admin.prestasi'));
+        $this->assertDatabaseHas('prestasi', ['id_kegiatan' => $activity->getKey(), 'id_user' => $outsider->getKey(), 'created_by' => $admin->getKey()]);
+    }
+
     public function test_document_cannot_point_to_an_answer_of_another_activity(): void
     {
         $activity = $this->activity();
         $other = $this->activity();
         $field = $this->field($other, 'dokumen');
-        $detail = $other->detail()->create(['id_isian_kategori' => $field->getKey()]);
+        $detail = $other->detail()->create(['id_isian_kategori' => $field->getKey(), 'isian' => 'Foto kegiatan lain']);
         $kind = DB::table('jenis_dokumen')->insertGetId(['nama_jenis_dokumen' => 'Foto'], 'id_jenis_dokumen');
         $this->expectException(ValidationException::class);
         Dokumen::create([

@@ -23,7 +23,7 @@ class LandingDashboardController extends Controller
 
         // 3. Hitung Jumlah Kegiatan (Resmi = Disetujui)
         $jumlahKegiatan = Kegiatan::whereHas('statusTerkini', function ($q) {
-            $q->where('status', 'Disetujui');
+            $q->where('status', 'diterima');
         })->count();
 
         // 4. Hitung Pengajuan (Menunggu Validasi = Diajukan)
@@ -39,10 +39,11 @@ class LandingDashboardController extends Controller
         ];
 
         // 5. Data Grafik Kegiatan Per Tahun (Hanya yang Disetujui)
-        $kegiatanRaw = Kegiatan::whereHas('statusTerkini', function ($q) {
-            $q->where('status', 'Disetujui');
+        $kegiatanRaw = Kegiatan::denganTanggal()->whereHas('statusTerkini', function ($q) {
+            $q->where('status', 'diterima');
         })
-            ->selectRaw('YEAR(tanggal_mulai) as tahun, count(*) as jumlah')
+            ->whereNotNull('tanggal_mulai')
+            ->selectRaw('substr(tanggal_mulai, 1, 4) as tahun, count(*) as jumlah')
             ->groupBy('tahun')
             ->orderBy('tahun', 'asc')
             ->pluck('jumlah', 'tahun')

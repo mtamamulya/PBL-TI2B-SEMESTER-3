@@ -214,7 +214,7 @@ class AdminTinjauPengajuanController extends Controller
             if (strcasecmp($kat['name'], $kategori) !== 0) {
                 continue;
             }
-            if ($perluTemplate && empty($kat['template_surat'])) {
+            if ($perluTemplate && empty($kat['isi_surat'])) {
                 continue;
             }
             if ($jenis !== '' && strcasecmp($kat['jenis'] ?? '', $jenis) === 0) {
@@ -228,7 +228,7 @@ class AdminTinjauPengajuanController extends Controller
 
     private function cariTemplate(array $k): ?string
     {
-        return $this->cariKategori($k, true)['template_surat'] ?? null;
+        return $this->cariKategori($k, true)['isi_surat'] ?? null;
     }
 
     /** Apakah kategori ini menyertakan lampiran daftar peserta. */

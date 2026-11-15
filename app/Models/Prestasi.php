@@ -19,12 +19,13 @@ class Prestasi extends Model
         'id_user', 'created_by', 'id_kegiatan', 'capaian', 'jenis_prestasi',
         'bidang_lomba', 'nama_lomba', 'penyelenggara', 'lokasi', 'dosen_pembimbing',
         'tingkat_kejuaraan', 'tanggal_mulai', 'tanggal_selesai',
-        'bentuk_partisipasi', 'deskripsi',
+        'bentuk_partisipasi', 'deskripsi', 'form_data',
     ];
 
     protected function casts(): array
     {
         return [
+            'form_data' => 'array',
             'tanggal_mulai' => 'date',
             'tanggal_selesai' => 'date',
         ];

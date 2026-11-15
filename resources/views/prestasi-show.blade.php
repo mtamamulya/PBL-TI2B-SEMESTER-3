@@ -67,7 +67,7 @@
                             'Jenis prestasi' => ucfirst($record->jenis_prestasi),
                             'Bidang lomba' => $record->bidang_lomba,
                             'Kegiatan' => $record->kegiatan?->nama_kegiatan,
-                            'Lokasi' => $record->kegiatan?->lokasi,
+                            'Lokasi' => $record->kegiatan?->nilaiIsian('lokasi'),
                             'Tanggal mulai' => $record->kegiatan?->tanggal_mulai?->format('d M Y'),
                             'Tanggal selesai' => $record->kegiatan?->tanggal_selesai?->format('d M Y'),
                             'Dibuat' => $record->created_at?->format('d M Y'),

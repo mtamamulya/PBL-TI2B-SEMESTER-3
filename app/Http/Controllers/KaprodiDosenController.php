@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Kegiatan;
 use App\Repositories\DosenStore;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB; // Pastikan import DB di bagian atas file
@@ -90,7 +91,7 @@ class KaprodiDosenController extends Controller
 
             // Gunakan Query Builder untuk melakukan JOIN secara manual sesuai struktur tabel yang dikirim
             $kegiatans = DB::table('anggota_kegiatan')
-                ->join('kegiatan', 'anggota_kegiatan.id_kegiatan', '=', 'kegiatan.id_kegiatan')
+                ->joinSub(Kegiatan::tabelDenganTanggal(), 'kegiatan', 'anggota_kegiatan.id_kegiatan', '=', 'kegiatan.id_kegiatan')
                 ->leftJoin('kategori', 'kegiatan.id_kategori', '=', 'kategori.id_kategori')
                 ->leftJoin('jenis_kegiatan', 'kategori.id_jenis_kegiatan', '=', 'jenis_kegiatan.id_jenis_kegiatan')
                 ->where('anggota_kegiatan.id_user', $idUser)
