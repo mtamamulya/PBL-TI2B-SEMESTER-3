@@ -51,8 +51,8 @@ class DynamicActivityErdTest extends TestCase
         $this->assertSame($activity->getKey(), $skim->detailKegiatan->first()->kegiatan->getKey());
         $this->assertSame($activity->id_kategori, $skim->kategori->getKey());
         $this->assertSame($activity->getKey(), $activity->user->kegiatan->first()->getKey());
-        $this->assertFalse(Schema::hasTable('skim'));
-        $this->assertFalse(Schema::hasTable('kelompok_bidang'));
+        $this->assertTrue(Schema::hasTable('skim'));
+        $this->assertTrue(Schema::hasTable('kelompok_bidang'));
         $this->assertFalse(Schema::hasTable('kegiatan_dosen'));
     }
 
@@ -84,30 +84,82 @@ class DynamicActivityErdTest extends TestCase
         $activity->detail()->create(['id_isian_kategori' => $field->getKey(), 'isian' => 'bukan angka']);
     }
 
-    public function test_documents_and_multiple_achievements_use_the_correct_parents(): void
+    public function test_deleting_a_detail_deletes_its_document(): void
     {
         $activity = $this->activity();
         $field = $this->field($activity, 'dokumentasi');
-        $detail = $activity->detail()->create(['id_isian_kategori' => $field->getKey()]);
+        $detail = $activity->detail()->create(['id_isian_kategori' => $field->getKey(), 'isian' => 'Foto kegiatan']);
         $kind = DB::table('jenis_dokumen')->insertGetId(['nama_jenis_dokumen' => 'Foto'], 'id_jenis_dokumen');
         $document = $detail->dokumen()->create([
             'id_kegiatan' => $activity->getKey(), 'id_jenis_dokumen' => $kind,
             'nama_file' => 'foto.jpg', 'tipe_dokumen' => 'image/jpeg', 'link_dokumen' => 'foto.jpg',
         ]);
-        $first = $activity->prestasi()->create(['jenis_prestasi' => 'akademik', 'capaian' => 'Juara 1']);
-        $activity->prestasi()->create(['jenis_prestasi' => 'akademik', 'capaian' => 'Best Paper']);
-        $proof = $first->buktiPrestasi()->create(['id_jenis_dokumen' => $kind, 'link' => 'sertifikat.pdf', 'nama_file' => 'sertifikat.pdf']);
-        $activity->berita()->create(['judul_berita' => 'Berita kegiatan', 'isi_berita' => 'Isi', 'sampul' => 'sampul.jpg']);
-
         $this->assertSame($detail->getKey(), $document->detailKegiatan->getKey());
         $this->assertSame($activity->getKey(), $document->kegiatan->getKey());
+        $detail->delete();
+        $this->assertModelMissing($document);
+        $this->assertModelExists($activity);
+    }
+
+    public function test_multiple_achievements_use_the_correct_parents(): void
+    {
+        $activity = $this->activity();
+        $kind = DB::table('jenis_dokumen')->insertGetId(['nama_jenis_dokumen' => 'Sertifikat'], 'id_jenis_dokumen');
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()]);
+        $data = [
+            'id_user' => $activity->id_user, 'created_by' => $activity->id_user, 'jenis_prestasi' => 'akademik',
+            'nama_lomba' => 'Lomba riset', 'penyelenggara' => 'Polines', 'lokasi' => 'Semarang', 'tingkat_kejuaraan' => 'nasional',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'bentuk_partisipasi' => 'individu',
+        ];
+        $first = $activity->prestasi()->create(['capaian' => 'Juara 1'] + $data);
+        $activity->prestasi()->create(['capaian' => 'Best Paper'] + $data);
+        $proof = $first->buktiPrestasi()->create(['id_jenis_dokumen' => $kind, 'link' => 'sertifikat.pdf', 'nama_file' => 'sertifikat.pdf']);
+        $activity->berita()->create(['id_user' => $activity->id_user, 'judul_berita' => 'Berita kegiatan', 'isi_berita' => 'Isi', 'sampul' => 'sampul.jpg']);
+
         $this->assertCount(2, $activity->fresh()->prestasi);
         $this->assertSame($first->getKey(), $proof->prestasi->getKey());
         $this->assertSame($kind, $proof->jenisDokumen->getKey());
         $this->assertCount(1, $activity->fresh()->berita);
-        $detail->delete();
-        $this->assertNull($document->fresh()->id_detail_kegiatan);
-        $this->assertSame('foto.jpg', $document->fresh()->nama_file);
+    }
+
+    public function test_only_participants_of_a_currently_accepted_activity_can_link_an_achievement(): void
+    {
+        $activity = $this->activity();
+        $member = $this->activity()->user;
+        $outsider = $this->activity()->user;
+        $activity->anggota()->create(['id_user' => $member->getKey(), 'peran' => 'anggota']);
+        $eligible = fn (User $user) => Kegiatan::whereKey($activity->getKey())->untukPrestasi($user)->exists();
+
+        $this->assertFalse($eligible($member));
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()->subDay()]);
+        $this->assertTrue($eligible($activity->user));
+        $this->assertTrue($eligible($member));
+        $this->assertFalse($eligible($outsider));
+        $activity->timeline()->create(['status' => 'direvisi', 'tanggal_status' => now()]);
+        $this->assertFalse($eligible($activity->user));
+    }
+
+    public function test_admin_can_record_an_achievement_only_for_an_eligible_owner(): void
+    {
+        DB::table('roles')->insert(['id_role' => 1, 'nama_role' => 'admin']);
+        $activity = $this->activity();
+        $outsider = $this->activity()->user;
+        $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()]);
+        $data = [
+            'sumber' => 'sebelumnya', 'id_kegiatan' => $activity->getKey(), 'kegiatan' => $activity->nama_kegiatan,
+            'id_user' => $outsider->getKey(), 'nama_lomba' => 'Lomba riset', 'penyelenggara' => 'Polines',
+            'lokasi' => 'Semarang', 'tingkat' => 'Nasional', 'capaian' => 'Juara 1', 'jenis' => 'Akademik',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'bentuk' => 'Individu',
+            'dokumen' => [['jenis' => 'Sertifikat', 'url' => 'https://drive.google.com/file/d/bukti/view']],
+        ];
+
+        $admin = User::create(['id_role' => 1, 'email' => 'admin-prestasi@test.local', 'password' => 'password', 'status' => true]);
+        $this->actingAs($admin);
+        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasErrors('id_kegiatan');
+        $this->assertDatabaseCount('prestasi', 0);
+        $activity->anggota()->create(['id_user' => $outsider->getKey(), 'peran' => 'anggota']);
+        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasNoErrors()->assertRedirect(route('admin.prestasi'));
+        $this->assertDatabaseHas('prestasi', ['id_kegiatan' => $activity->getKey(), 'id_user' => $outsider->getKey(), 'created_by' => $admin->getKey()]);
     }
 
     public function test_document_cannot_point_to_an_answer_of_another_activity(): void
@@ -115,7 +167,7 @@ class DynamicActivityErdTest extends TestCase
         $activity = $this->activity();
         $other = $this->activity();
         $field = $this->field($other, 'dokumen');
-        $detail = $other->detail()->create(['id_isian_kategori' => $field->getKey()]);
+        $detail = $other->detail()->create(['id_isian_kategori' => $field->getKey(), 'isian' => 'Foto kegiatan lain']);
         $kind = DB::table('jenis_dokumen')->insertGetId(['nama_jenis_dokumen' => 'Foto'], 'id_jenis_dokumen');
         $this->expectException(ValidationException::class);
         Dokumen::create([
@@ -137,15 +189,17 @@ class DynamicActivityErdTest extends TestCase
             $migration = require database_path('migrations/2026_11_04_000001_apply_dynamic_activity_erd.php');
             $migration->down();
             $activity = $this->activity();
-            $activity->update(['lokasi' => 'Semarang', 'tanggal_mulai' => '2026-11-04']);
-            $skim = DB::table('skim')->insertGetId(['nama_skim' => 'Penelitian Terapan', 'ranah' => 'penelitian'], 'id_skim');
+            foreach (['lokasi' => 'Semarang', 'tanggal_mulai' => '2026-11-04', 'penyelenggara' => 'LPPM'] as $name => $value) {
+                $field = $this->field($activity, $name);
+                $activity->detail()->create(['id_isian_kategori' => $field->getKey(), 'isian' => $value]);
+            }
+            $skim = DB::table('skim')->insertGetId(['nama_skim' => 'Penelitian Terapan'], 'id_skim');
             $bidang = DB::table('kelompok_bidang')->insertGetId(['nama_kelompok_bidang' => 'Teknologi Informasi'], 'id_kelompok_bidang');
             DB::table('kegiatan_dosen')->insert([
                 'id_kegiatan' => $activity->getKey(), 'id_skim' => $skim, 'id_kelompok_bidang' => $bidang,
                 'afiliasi' => 'Polines', 'tahun_anggaran' => 2026, 'tahun_pelaksanaan_ke' => 1, 'lama_kegiatan_tahun' => 2,
                 'dana_dikti' => 0, 'dana_pt' => 1234567.89, 'dana_institusi_lain' => 0, 'mitra' => 'Desa A',
             ]);
-            DB::table('detail_kegiatan')->insert(['id_kegiatan' => $activity->getKey(), 'penyelenggara' => 'LPPM', 'tingkat_kejuaraan' => 'nasional']);
             $old = (array) DB::table('kegiatan_dosen')->first();
             $migration->up();
 
@@ -158,11 +212,12 @@ class DynamicActivityErdTest extends TestCase
             $this->assertSame('Semarang', $activity->nilaiIsian('lokasi'));
             $this->assertSame('2026-11-04', $activity->nilaiIsian('tanggal_mulai'));
             $this->assertEquals($old, (array) DB::table('legacy_kegiatan_dosen')->first());
-            $this->assertDatabaseCount('legacy_detail_kegiatan', 1);
+            $this->assertEquals($skim, $activity->skim->getKey());
+            $this->assertEquals($bidang, $activity->kelompokBidang->getKey());
 
             $migration->down();
             $this->assertEquals($old, (array) DB::table('kegiatan_dosen')->first());
-            $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $activity->getKey(), 'penyelenggara' => 'LPPM']);
+            $this->assertSame('LPPM', $activity->fresh()->nilaiIsian('penyelenggara'));
             $this->assertDatabaseHas('skim', ['id_skim' => $skim]);
             $this->assertDatabaseHas('kelompok_bidang', ['id_kelompok_bidang' => $bidang]);
         });

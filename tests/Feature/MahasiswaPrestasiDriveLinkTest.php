@@ -71,21 +71,21 @@ class MahasiswaPrestasiDriveLinkTest extends TestCase
             ->assertSessionHasNoErrors();
     }
 
-    public function test_prestasi_form_lists_dummy_and_session_submitted_activities(): void
+    public function test_prestasi_form_only_lists_eligible_activities(): void
     {
-        $this->withSession(['pengajuan.items' => [[
-            'id' => 101,
-            'title' => 'Pengajuan Lomba dari sesi',
-            'category' => 'Lomba',
-            'status' => 'Diajukan',
-            'submitted_at' => now()->toIso8601String(),
-            'data' => ['organizer' => 'Penyelenggara sesi'],
-            'documents' => [],
-        ]]])
-            ->get(route('mahasiswa.prestasi.tambah'))
-            ->assertOk()
-            ->assertSee('Kompetisi Robotics &amp; Automation • Lomba', false)
-            ->assertSee('Pengajuan Lomba dari sesi • Lomba');
+        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Mahasiswa'], 'id_jenis_kegiatan');
+        $kategori = DB::table('kategori')->insertGetId(['id_jenis_kegiatan' => $jenis, 'nama_kategori' => 'Lomba'], 'id_kategori');
+        foreach (['diterima', 'diajukan'] as $status) {
+            $id = DB::table('kegiatan')->insertGetId(['id_user' => auth()->id(), 'id_kategori' => $kategori, 'nama_kegiatan' => 'Lomba '.$status], 'id_kegiatan');
+            DB::table('timeline')->insert(['id_kegiatan' => $id, 'status' => $status, 'tanggal_status' => now()]);
+        }
+
+        $this->get(route('mahasiswa.prestasi.tambah'))->assertOk()
+            ->assertSee('Lomba diterima • Lomba')->assertDontSee('Lomba diajukan • Lomba');
+        $data = $this->dataPrestasi([['url' => 'https://drive.google.com/file/d/example/view', 'jenis' => 'Sertifikat']]);
+        $this->post(route('mahasiswa.prestasi.simpan'), array_merge($data, [
+            'sumber' => 'sebelumnya', 'kegiatan' => 'Lomba diajukan', 'id_kegiatan' => $id,
+        ]))->assertSessionHasErrors('kegiatan');
     }
 
     public function test_prestasi_edit_form_keeps_existing_documents_and_new_types(): void
