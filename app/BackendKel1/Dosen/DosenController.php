@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\BackendKel1\Dosen;
 
 use App\Http\Controllers\Controller;
 use App\Repositories\DosenStore;

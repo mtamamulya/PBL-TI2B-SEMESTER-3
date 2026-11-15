@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\BackendKel1\Kurikulum;
 
+use App\BackendKel1\MataKuliah\MataKuliahController;
 use App\Http\Controllers\Controller;
 use App\Models\Kurikulum;
 use App\Models\MataKuliah;

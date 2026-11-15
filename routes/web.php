@@ -135,3 +135,4 @@ Route::post('/admin/mahasiswa/buat-kelas', [LandingMahasiswaController::class, '
 Route::patch('/admin/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
 require __DIR__.'/admin-kaprodi.php';
+require __DIR__.'/api-docs.php';
