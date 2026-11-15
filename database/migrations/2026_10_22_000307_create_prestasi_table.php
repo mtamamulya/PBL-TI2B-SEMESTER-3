@@ -35,10 +35,18 @@ return new class extends Migration
             $table->text('deskripsi')->nullable();
             $table->timestamps();
         });
+
+        Schema::table('anggota_kegiatan', function (Blueprint $table) {
+            $table->foreign('id_prestasi')->references('id_prestasi')->on('prestasi')->cascadeOnDelete();
+        });
     }
 
     public function down(): void
     {
+        Schema::table('anggota_kegiatan', function (Blueprint $table) {
+            $table->dropForeign(['id_prestasi']);
+        });
+
         Schema::dropIfExists('prestasi');
     }
 };
