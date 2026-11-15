@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BeritaController;
-use App\Http\Controllers\DosenPengajaranController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -42,12 +41,6 @@ Route::middleware('auth:sanctum')->group(function () {
             'data' => $request->user(),
         ], 200);
     });
-
-    // Pengajaran (Kelompok 3)
-    Route::get('pengajaran/opsi', [DosenPengajaranController::class, 'opsiFormApi'])->name('api.pengajaran.opsi');
-    Route::apiResource('pengajaran', DosenPengajaranController::class)
-        ->only(['index', 'store', 'show', 'update'])
-        ->names('api.pengajaran');
 });
 
 /*
@@ -66,3 +59,4 @@ Route::get('/berita', [BeritaController::class, 'index']);
 
 // Import rute API tambahan
 require __DIR__.'/api-admin-kaprodi.php';
+require app_path('BackendKel3/routes.php');
