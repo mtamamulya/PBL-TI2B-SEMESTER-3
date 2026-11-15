@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class Kegiatan extends Model
@@ -70,7 +71,13 @@ class Kegiatan extends Model
     /** Satu baris per kegiatan, termasuk kegiatan yang belum memiliki tanggal. */
     public static function tabelDenganTanggal(): QueryBuilder
     {
-        $kegiatan = DB::table('kegiatan')->select('kegiatan.*');
+        // Older installations still retain physical date columns. Exclude them
+        // so the derived table exposes each detail-based date exactly once.
+        $columns = array_map(
+            fn (string $column) => 'kegiatan.'.$column,
+            array_values(array_diff(Schema::getColumnListing('kegiatan'), ['tanggal_mulai', 'tanggal_selesai']))
+        );
+        $kegiatan = DB::table('kegiatan')->select($columns);
         foreach (['tanggal_mulai', 'tanggal_selesai'] as $input) {
             $tanggal = DB::table('detail_kegiatan as d')
                 ->join('isian_kategori as i', 'i.id_isian_kategori', '=', 'd.id_isian_kategori')
