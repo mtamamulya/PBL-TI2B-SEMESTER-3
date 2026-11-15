@@ -17,8 +17,9 @@ return new class extends Migration
                 ->constrained('isian_kategori', 'id_isian_kategori')
                 ->restrictOnDelete();
 
-            $table->text('isian');
+            $table->text('isian')->nullable();
             $table->timestamps();
+            $table->index(['id_kegiatan', 'id_isian_kategori']);
         });
     }
 
