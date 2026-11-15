@@ -60,6 +60,7 @@
               x-data="formPrestasi(@js([
                   'sumber'          => $v('sumber', 'mandiri'),
                   'kegiatan'        => $v('kegiatan'),
+                  'idKegiatan'      => $v('id_kegiatan'),
                   'namaLomba'       => $v('nama_lomba'),
                   'penyelenggara'   => $v('penyelenggara'),
                   'deskripsi'       => $v('deskripsi'),
@@ -74,6 +75,7 @@
               x-on:submit="cekKirim($event)"
               class="flex flex-col gap-4">
             @csrf
+            <input type="hidden" name="id_kegiatan" x-bind:value="idKegiatan">
             @if ($edit)
                 @method('PUT')
             @endif
@@ -452,6 +454,7 @@
         return {
             sumber: cfg.sumber,
             kegiatan: cfg.kegiatan,
+            idKegiatan: cfg.idKegiatan,
             namaLomba: cfg.namaLomba,
             penyelenggara: cfg.penyelenggara,
             deskripsi: cfg.deskripsi,
@@ -526,6 +529,7 @@
             // Jika kegiatan yang dipilih ada di daftar, isi nama lomba dan penyelenggara otomatis.
             pilihKegiatan() {
                 const k = this.kegiatanList.find(x => x.label === this.kegiatan);
+                this.idKegiatan = k?.id ?? '';
                 if (k) {
                     this.namaLomba = k.nama;
                     this.penyelenggara = k.penyelenggara;

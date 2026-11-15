@@ -115,15 +115,14 @@
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <label for="pemilik" class="{{ $label }}">Nama pemilik prestasi {!! $wajib !!}</label>
-                        <input id="pemilik" name="pemilik" list="daftar-pemilik" autocomplete="off" value="{{ $v('pemilik') }}"
-                               placeholder="Nama pemilik prestasi (individu atau ketua tim)" class="{{ $in('pemilik') }}">
-                        <datalist id="daftar-pemilik">
-                            @foreach ($daftarMahasiswa as $n)
-                                <option value="{{ $n }}"></option>
+                        <label for="id_user" class="{{ $label }}">Nama pemilik prestasi {!! $wajib !!}</label>
+                        <select id="id_user" name="id_user" class="{{ $in('id_user') }}" required>
+                            <option value="">Pilih pemilik prestasi</option>
+                            @foreach ($pemilikList as $pemilik)
+                                <option value="{{ $pemilik['id'] }}" @selected((string) $v('id_user') === (string) $pemilik['id'])>{{ $pemilik['nama'] }}@if ($pemilik['email'] !== $pemilik['nama']) ({{ $pemilik['email'] }})@endif</option>
                             @endforeach
-                        </datalist>
-                        {!! $galat('pemilik') ?: '<span class="' . $hint . '">Ketik nama atau pilih dari daftar. Untuk tim, isi nama ketua; anggota lain ditambahkan di bawah.</span>' !!}
+                        </select>
+                        {!! $galat('id_user') !!}
                     </div>
 
                     <div class="flex flex-col gap-1.5">

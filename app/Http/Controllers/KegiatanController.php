@@ -30,7 +30,7 @@ class KegiatanController extends Controller
 
         $kegiatan = Kegiatan::untukUser($request->user())
             ->with(['kategori.jenisKegiatan', 'statusTerkini', 'detail.isianKategori', 'prestasi', 'dokumen', 'anggota.user.mahasiswa', 'anggota.user.dosen'])
-            ->withCount('anggota')->orderByDesc('tanggal_mulai')->orderByDesc('id_kegiatan')->get();
+            ->withCount('anggota')->denganTanggal()->orderByDesc('tanggal_mulai')->orderByDesc('id_kegiatan')->get();
         $databaseActivities = $kegiatan->map(fn ($k) => [
             'id' => $isDosen ? $k->getKey() : 'kegiatan-'.$k->getKey(),
             'name' => $k->nama_kegiatan,

@@ -59,8 +59,8 @@ class DashboardController extends Controller
             'pengajuanRoute' => $user->dosen ? 'pengajuan.dosen' : 'pengajuan.index',
             'totalPengajuan' => (clone $pengajuan)->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count(),
             'totalKegiatan' => (clone $query)->count(),
-            'totalPrestasi' => Prestasi::whereHas('kegiatan', fn ($q) => $q->untukUser($user)
-                ->whereBetween('tanggal_mulai', [$semesterStart, $semesterStart->copy()->addMonths(6)->subDay()]))->count(),
+            'totalPrestasi' => Prestasi::whereHas('kegiatan', fn ($q) => $q->untukUser($user)->denganTanggal()
+                ->whereBetween('tanggal_mulai', [$semesterStart->toDateString(), $semesterStart->copy()->addMonths(6)->subDay()->toDateString()]))->count(),
             'pengajuanTerbaru' => $pengajuan->with('statusTerkini')->latest('created_at')->orderByDesc('id_kegiatan')->limit(5)->get(),
         ]);
     }

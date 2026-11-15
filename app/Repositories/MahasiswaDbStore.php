@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Kegiatan;
 use App\Models\Mahasiswa;
 use App\Models\Role;
 use App\Models\User;
@@ -277,7 +278,7 @@ class MahasiswaDbStore extends MahasiswaStore
         }
 
         // Query kegiatan yang dibuat mahasiswa atau di mana mahasiswa menjadi anggota
-        $rows = DB::table('kegiatan as k')
+        $rows = DB::query()->fromSub(Kegiatan::tabelDenganTanggal(), 'k')
             ->leftJoin('anggota_kegiatan as a', fn ($j) => $j->on('a.id_kegiatan', '=', 'k.id_kegiatan')->where('a.id_user', '=', $idUser))
             ->leftJoin('kategori as kt', 'kt.id_kategori', '=', 'k.id_kategori')
             ->where(fn ($q) => $q->where('k.id_user', $idUser)->orWhereNotNull('a.id_anggota_kegiatan'))
