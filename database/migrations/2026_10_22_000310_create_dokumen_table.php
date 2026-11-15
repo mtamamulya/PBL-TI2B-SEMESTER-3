@@ -31,7 +31,6 @@ return new class extends Migration
             $table->string('nama_file');
             $table->string('tipe_dokumen')->nullable();
             $table->string('link_dokumen')->nullable();
-            $table->boolean('is_lampiran')->default(false);
 
             $table->timestamps();
         });
