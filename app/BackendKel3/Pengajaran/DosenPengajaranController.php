@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\BackendKel3\Pengajaran;
 
+use App\Http\Controllers\Controller;
 use App\Models\EnrollmentKelasMataKuliah;
 use App\Models\EnrollmentMataKuliah;
 use App\Models\EnrollmentTingkatKelas;
