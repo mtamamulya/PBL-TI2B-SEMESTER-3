@@ -9,17 +9,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('isian_kategori', function (Blueprint $table) {
-            $table->id('id_isian_kategori');
-            $table->foreignId('id_kategori')->constrained('kategori', 'id_kategori')->restrictOnDelete();
-            $table->string('input', 150);
-            $table->string('jenis_input', 40)->default('teks');
-            $table->enum('aturan', ['NULL', 'NOT NULL'])->default('NULL');
-            // NULL means no fixed upper limit, e.g. multiple documentation files.
-            $table->unsignedInteger('jumlah_isian')->nullable()->default(1);
-            $table->timestamps();
-            $table->unique(['id_kategori', 'input']);
-        });
         Schema::rename('detail_kegiatan', 'legacy_detail_kegiatan');
         Schema::create('detail_kegiatan', function (Blueprint $table) {
             $table->id('id_detail_kegiatan');
@@ -42,14 +31,6 @@ return new class extends Migration
         });
         Schema::table('prestasi', fn (Blueprint $table) => $table->text('capaian')->nullable());
         Schema::table('berita', fn (Blueprint $table) => $table->string('sampul', 500)->nullable());
-        Schema::create('bukti_prestasi', function (Blueprint $table) {
-            $table->id('id_bukti_prestasi');
-            $table->foreignId('id_prestasi')->constrained('prestasi', 'id_prestasi')->cascadeOnDelete();
-            $table->foreignId('id_jenis_dokumen')->constrained('jenis_dokumen', 'id_jenis_dokumen')->restrictOnDelete();
-            $table->string('link', 500);
-            $table->string('nama_file', 255)->nullable();
-            $table->timestamps();
-        });
         DB::transaction(function () {
             $this->transferExistingAnswers();
             foreach (DB::table('prestasi')->whereNotNull('catatan')->cursor() as $prestasi) {
@@ -138,7 +119,6 @@ return new class extends Migration
         Schema::rename('legacy_skim', 'skim');
         Schema::rename('legacy_kelompok_bidang', 'kelompok_bidang');
         Schema::rename('legacy_kegiatan_dosen', 'kegiatan_dosen');
-        Schema::dropIfExists('bukti_prestasi');
         Schema::table('berita', fn (Blueprint $table) => $table->dropColumn('sampul'));
         Schema::table('prestasi', fn (Blueprint $table) => $table->dropColumn('capaian'));
         Schema::table('dokumen', function (Blueprint $table) {
@@ -148,6 +128,5 @@ return new class extends Migration
         Schema::table('kategori', fn (Blueprint $table) => $table->dropColumn('kebutuhan'));
         Schema::drop('detail_kegiatan');
         Schema::rename('legacy_detail_kegiatan', 'detail_kegiatan');
-        Schema::drop('isian_kategori');
     }
 };
