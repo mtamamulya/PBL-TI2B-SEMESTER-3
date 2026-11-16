@@ -18,12 +18,14 @@ class KurikulumController extends Controller
     {
         $request->validate([
             'status' => ['nullable', 'in:aktif,nonaktif'],
+            'angkatan' => ['nullable', 'integer', 'between:2000,2100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'q' => ['nullable', 'string', 'max:100'],
         ]);
 
         $p = Kurikulum::query()
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status') === 'aktif'))
+            ->when($request->filled('angkatan'), fn ($q) => KurikulumAngkatan::saring($q, (int) $request->query('angkatan')))
             ->when($request->filled('q'), fn ($q) => $q->where('nama_kurikulum', 'like', '%'.$request->query('q').'%'))
             ->orderByDesc('id_kurikulum')
             ->paginate((int) $request->query('per_page', 15));

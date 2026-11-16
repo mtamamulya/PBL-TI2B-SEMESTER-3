@@ -163,6 +163,7 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - $ref: '#/components/parameters/Angkatan'
         - $ref: '#/components/parameters/PerPage'
         - $ref: '#/components/parameters/Page'
       responses:
@@ -357,9 +358,10 @@ paths:
       parameters:
         - name: id_kurikulum
           in: query
-          description: Saring berdasarkan kurikulum.
+          description: Saring berdasarkan kurikulum. Tidak boleh dikirim bersama `angkatan`.
           schema:
             type: integer
+        - $ref: '#/components/parameters/Angkatan'
         - name: semester
           in: query
           schema:
@@ -639,6 +641,19 @@ components:
         minimum: 1
         maximum: 100
         default: 15
+    Angkatan:
+      name: angkatan
+      in: query
+      description: |
+        Angkatan (tahun masuk mahasiswa, 4 digit). Memilih kurikulum yang berlaku bagi angkatan itu:
+        kurikulum dengan tahun mulai terbesar yang masih kurang dari atau sama dengan angkatan.
+        Angkatan yang belum punya kurikulum menghasilkan daftar kosong (200, bukan galat).
+        Pada `/mata-kuliah` tidak boleh dikirim bersama `id_kurikulum` (422).
+      schema:
+        type: integer
+        minimum: 2000
+        maximum: 2100
+        example: 2024
     Page:
       name: page
       in: query
