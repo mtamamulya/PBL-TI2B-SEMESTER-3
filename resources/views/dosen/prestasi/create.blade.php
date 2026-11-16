@@ -3,13 +3,6 @@
 @section('title', 'Tambah Prestasi')
 
 @php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    // Kegiatan yang pernah diikuti (untuk "Dari kegiatan sebelumnya")
-    $kegiatanLama = [
-        'KMIPN VIII 2026 · Lomba'        => ['nama' => 'KMIPN VIII 2026',      'penyelenggara' => 'Kemendikbudristek',          'mulai' => '2026-09-12', 'selesai' => '2026-09-14'],
-        'Seminar nasional AI · Seminar'  => ['nama' => 'Seminar nasional AI',  'penyelenggara' => 'Politeknik Negeri Semarang', 'mulai' => '2026-09-12', 'selesai' => '2026-09-12'],
-        'Lomba karya ilmiah · Lomba'     => ['nama' => 'Lomba karya ilmiah',   'penyelenggara' => 'Universitas Diponegoro',     'mulai' => '2026-07-15', 'selesai' => '2026-07-16'],
-    ];
     $daftarKategori = ['Teknologi', 'IoT', 'Jaringan', 'Olahraga', 'Seni'];
     $kandidat = [
         'Kuwat Santoso , S.T., M.Kom.' => 'Dosen',
@@ -18,7 +11,7 @@
         'Anisa Aulia Nurusyifa'        => 'Mahasiswa',
         'Mukhlis Pratama Mulya'        => 'Mahasiswa',
     ];
-    $pengaju = 'Kuwat Santoso , S.T., M.Kom.'; // akun yang login
+    $pengaju = 'Kuwat Santoso , S.T., M.Kom.';
 
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
@@ -38,14 +31,13 @@
         <p class="text-2xl text-gray-400">Dashboard / Prestasi / Tambah</p>
     </div>
 
-    <form x-data="formPrestasi(@js($kegiatanLama), @js($kandidat), @js($pengaju))" x-on:submit.prevent="simpan()"
+    <form x-data="formPrestasi(@js($kandidat), @js($pengaju))" x-init="muatAwal()" x-on:submit.prevent="simpan()"
           method="POST" action="#" enctype="multipart/form-data"
           class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
         @csrf
 
         <p class="text-sm text-gray-500"><span class="text-red-500">*</span> Wajib diisi. Kolom bertanda opsional boleh dikosongkan.</p>
 
-        {{-- 1. SUMBER KEGIATAN --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-sumber">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">1</span>
@@ -66,7 +58,6 @@
                 </label>
             </div>
 
-            {{-- Hanya muncul kalau memilih "Dari kegiatan sebelumnya" --}}
             <div x-show="sumber === 'kegiatan'" x-cloak class="flex flex-col gap-2">
                 <label for="kegiatan-lama" class="{{ $labelClass }}">Kegiatan sebelumnya</label>
                 <div class="relative">
@@ -74,16 +65,15 @@
                     <input id="kegiatan-lama" name="kegiatan_sebelumnya" type="text" list="daftar-kegiatan" x-model="pilihKegiatan"
                            placeholder="Cari dan pilih kegiatan" class="{{ $inputClass }} pl-10">
                     <datalist id="daftar-kegiatan">
-                        @foreach ($kegiatanLama as $label => $k)
-                            <option value="{{ $label }}"></option>
-                        @endforeach
+                        <template x-for="k in kegiatanLama" :key="k.id">
+                            <option :value="k.nama_kegiatan"></option>
+                        </template>
                     </datalist>
                 </div>
                 <p class="{{ $hintClass }}">Nama kegiatan, penyelenggara, dan tanggal akan terisi otomatis dan masih bisa kamu ubah sesuai sertifikat.</p>
             </div>
         </section>
 
-        {{-- 2. INFORMASI PRESTASI --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-info">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">2</span>
@@ -109,7 +99,7 @@
                 <div class="flex flex-col gap-2">
                     <label for="tingkat" class="{{ $labelClass }}">Tingkat prestasi {!! $wajib !!}</label>
                     <div class="relative">
-                        <select id="tingkat" name="tingkat" required class="{{ $selectClass }}">
+                        <select id="tingkat" name="tingkat" x-model="tingkat" required class="{{ $selectClass }}">
                             <option value="">Pilih tingkat prestasi</option>
                             @foreach (['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'] as $t)
                                 <option>{{ $t }}</option>
@@ -121,7 +111,7 @@
                 <div class="flex flex-col gap-2">
                     <label for="jenis" class="{{ $labelClass }}">Jenis prestasi {!! $wajib !!}</label>
                     <div class="relative">
-                        <select id="jenis" name="jenis" required class="{{ $selectClass }}">
+                        <select id="jenis" name="jenis" x-model="jenis" required class="{{ $selectClass }}">
                             <option value="">Pilih jenis prestasi</option>
                             <option>Akademik</option>
                             <option>Nonakademik</option>
@@ -141,14 +131,14 @@
 
                 <div class="flex flex-col gap-2">
                     <label for="capaian" class="{{ $labelClass }}">Capaian / peringkat {!! $wajib !!}</label>
-                    <input id="capaian" name="capaian" type="text" required
+                    <input id="capaian" name="capaian" type="text" required x-model="capaian"
                            placeholder="Contoh: Juara 1" class="{{ $inputClass }}">
                     <p class="{{ $hintClass }}">Contoh: Juara 1, Harapan 2, Finalis, Peserta terbaik.</p>
                 </div>
 
                 <div class="flex flex-col gap-2">
                     <label for="kategori" class="{{ $labelClass }}">Kategori / bidang <span class="font-normal text-gray-500">(opsional)</span></label>
-                    <input id="kategori" name="kategori" type="text" list="daftar-kategori"
+                    <input id="kategori" name="kategori" type="text" list="daftar-kategori" x-model="kategori"
                            placeholder="Pilih atau tulis kategori" class="{{ $inputClass }}">
                     <datalist id="daftar-kategori">
                         @foreach ($daftarKategori as $k)
@@ -173,6 +163,12 @@
                 </div>
 
                 <div class="flex flex-col gap-2 md:col-span-2">
+                    <label for="lokasi" class="{{ $labelClass }}">Lokasi {!! $wajib !!}</label>
+                    <input id="lokasi" name="lokasi" type="text" required x-model="lokasi"
+                           placeholder="Contoh: Semarang" class="{{ $inputClass }}">
+                </div>
+
+                <div class="flex flex-col gap-2 md:col-span-2">
                     <label for="deskripsi" class="{{ $labelClass }}">Deskripsi <span class="font-normal text-gray-500">(opsional)</span></label>
                     <textarea id="deskripsi" name="deskripsi" rows="4" maxlength="1000" x-model="deskripsi"
                               placeholder="Jelaskan pencapaian, kontribusi Anda, dan informasi tambahan yang relevan."
@@ -182,7 +178,6 @@
             </div>
         </section>
 
-        {{-- 3. ANGGOTA TIM (hanya kalau bentuk partisipasi = Tim) --}}
         <section x-show="bentuk === 'Tim'" x-cloak class="{{ $sectionClass }}" aria-labelledby="h-anggota">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">3</span>
@@ -246,22 +241,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="(a, i) in anggota" :key="a.nama">
+                        <template x-for="(a, i) in anggota" :key="i">
                             <tr class="border-t border-gray-300">
-                                <td class="px-2.5 py-2.5">
-                                    <span x-text="a.nama"></span>
-                                    <template x-if="bentuk === 'Tim'">
-                                        <span>
-                                            <input type="hidden" :name="`anggota[${i}][nama]`" :value="a.nama">
-                                            <input type="hidden" :name="`anggota[${i}][peran]`" :value="a.peran">
-                                            <input type="hidden" :name="`anggota[${i}][status]`" :value="a.status">
-                                        </span>
-                                    </template>
-                                </td>
+                                <td class="px-2.5 py-2.5" x-text="a.nama"></td>
                                 <td class="px-2.5 py-2.5" x-text="a.peran"></td>
                                 <td class="px-2.5 py-2.5" x-text="a.status"></td>
                                 <td class="px-2.5 py-1.5">
-                                    {{-- ketua (akun yang login) tidak bisa dihapus --}}
                                     <template x-if="!a.kunci">
                                         <button type="button" x-on:click="hapus(i)" :aria-label="`Hapus ${a.nama}`"
                                                 class="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-red-100 text-red-500 hover:bg-red-200">
@@ -276,7 +261,6 @@
             </div>
         </section>
 
-        {{-- 3/4. UNGGAH DOKUMEN (nomor 4 kalau ada bagian Anggota tim, 3 kalau Individu) --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-dokumen">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}" x-text="bentuk === 'Tim' ? 4 : 3"></span>
@@ -287,7 +271,6 @@
                 <div class="overflow-hidden rounded-lg border border-gray-200">
                     <div class="flex items-center justify-between gap-3 bg-[#02215c] px-3.5 py-3 text-white">
                         <h3 class="text-sm font-semibold" x-text="`Dokumen ${i + 1}`"></h3>
-                        {{-- dokumen pertama tidak bisa dihapus --}}
                         <template x-if="i > 0">
                             <button type="button" x-on:click="hapusDokumen(i)" :aria-label="`Hapus Dokumen ${i + 1}`"
                                     class="flex cursor-pointer items-center gap-1.5 rounded-md bg-red-500 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-red-600">
@@ -301,7 +284,7 @@
                         <div class="flex flex-col gap-2">
                             <label :for="`jenis-${d.id}`" class="{{ $labelClass }}">Jenis dokumen {!! $wajib !!}</label>
                             <div class="relative">
-                                <select :id="`jenis-${d.id}`" :name="`dokumen[${i}][jenis]`" required x-model="d.jenis" class="{{ $selectClass }}">
+                                <select :id="`jenis-${d.id}`" required x-model="d.jenis" class="{{ $selectClass }}">
                                     <option value="">Pilih jenis dokumen</option>
                                     <option>Sertifikat</option>
                                     <option>Piagam</option>
@@ -314,7 +297,7 @@
                         </div>
                         <div class="flex flex-col gap-2">
                             <label :for="`tautan-${d.id}`" class="{{ $labelClass }}">Tautan dokumen {!! $wajib !!}</label>
-                            <input :id="`tautan-${d.id}`" :name="`dokumen[${i}][tautan]`" type="url" required x-model="d.tautan"
+                            <input :id="`tautan-${d.id}`" type="url" required x-model="d.tautan"
                                    placeholder="https://drive.google.com/..." class="{{ $inputClass }}">
                             <p class="{{ $hintClass }}">Tempel tautan Google Drive, OneDrive, atau cloud lain. Pastikan akses tautan dibuka untuk yang memiliki tautan.</p>
                         </div>
@@ -331,7 +314,6 @@
             </div>
         </section>
 
-        {{-- TOMBOL --}}
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
             <p class="text-sm text-gray-500">Periksa kembali sebelum menyimpan.</p>
             <div class="flex flex-wrap items-center justify-end gap-3">
@@ -348,28 +330,45 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('formPrestasi', (kegiatanLama, kandidat, pengaju) => ({
+        Alpine.data('formPrestasi', (kandidat, pengaju) => ({
             sumber: '',
             bentuk: '',
-            nama: '', penyelenggara: '', mulai: '', selesai: '', deskripsi: '',
-
-            // Pilih kegiatan lama => isi nama, penyelenggara, dan tanggal (masih bisa diubah)
+            nama: '', penyelenggara: '', tingkat: '', jenis: '', mulai: '', selesai: '', capaian: '', kategori: '', lokasi: '', deskripsi: '',
+            kegiatanLama: [],
             pilihKegiatan: '',
+
+            async muatAwal() {
+                try {
+                    const res = await fetch('/api/v1/prestasi', {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+                        }
+                    });
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                        this.kegiatanLama = json.data;
+                    }
+                } catch (e) {
+                    console.error('Gagal memuat data awal:', e);
+                }
+            },
+
             init() {
                 this.$watch('pilihKegiatan', v => {
-                    const k = kegiatanLama[v];
+                    const k = this.kegiatanLama.find(item => item.nama_kegiatan === v);
                     if (!k) return;
-                    this.nama = k.nama; this.penyelenggara = k.penyelenggara;
-                    this.mulai = k.mulai; this.selesai = k.selesai;
+                    this.nama = k.nama_kegiatan;
+                    this.penyelenggara = k.penyelenggara || '';
+                    this.mulai = k.tanggal_mulai ? k.tanggal_mulai.substring(0, 10) : '';
+                    this.selesai = k.tanggal_selesai ? k.tanggal_selesai.substring(0, 10) : '';
                 });
-                // status anggota terisi otomatis kalau nama ada di daftar
                 this.$watch('cari', v => {
                     const nama = Object.keys(kandidat).find(n => n.toLowerCase() === v.trim().toLowerCase());
                     if (nama) this.status = kandidat[nama];
                 });
             },
 
-            // Anggota. Pengaju (akun yang login) selalu jadi Ketua dan terkunci.
             anggota: [
                 { nama: pengaju, peran: 'Ketua', status: 'Dosen', kunci: true },
             ],
@@ -389,7 +388,6 @@
             },
             hapus(i) { this.anggota.splice(i, 1); },
 
-            // Dokumen. Dokumen 1 selalu ada, sisanya bisa ditambah / dihapus.
             nextId: 2,
             dokumen: [
                 { id: 1, jenis: '', tautan: '' },
@@ -398,12 +396,49 @@
                 this.dokumen.push({ id: this.nextId++, jenis: '', tautan: '' });
             },
             hapusDokumen(i) { this.dokumen.splice(i, 1); },
-// Simpan (simulasi).
-            tersimpan: false,
-            simpan() {
-                this.tersimpan = true;
-                this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Data berhasil disimpan', pesan: 'Simulasi: data belum masuk database.' });
-            },
+
+            async simpan() {
+                const payload = {
+                    sumber: this.sumber,
+                    nama_prestasi: this.nama,
+                    penyelenggara: this.penyelenggara,
+                    tingkat: this.tingkat,
+                    jenis: this.jenis,
+                    tanggal_mulai: this.mulai,
+                    tanggal_selesai: this.selesai,
+                    capaian: this.capaian,
+                    kategori: this.kategori,
+                    bentuk: this.bentuk,
+                    lokasi: this.lokasi,
+                    deskripsi: this.deskripsi,
+                    anggota: this.bentuk === 'Tim' ? this.anggota : [],
+                    dokumen: this.dokumen
+                };
+
+                try {
+                    const response = await fetch('/api/v1/prestasi', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        alert('Prestasi berhasil disimpan ke database!');
+                        window.location.href = "{{ route('prestasi.index') }}";
+                    } else {
+                        alert('Gagal menyimpan: ' + (result.message || JSON.stringify(result.errors)));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Terjadi kesalahan koneksi ke server.');
+                }
+            }
         }));
     });
 </script>
