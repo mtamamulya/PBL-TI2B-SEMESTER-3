@@ -140,7 +140,7 @@
         @endforeach
     </div>
 
-    <!-- Grafik Kegiatan per Semester (Dengan Efek Hover Fokus & Zoom Card) -->
+    <!-- Grafik Kegiatan per Semester -->
     <section class="semester-chart flex flex-col gap-2 rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all duration-300 ease-out hover:border-[#D1D5DB] hover:shadow-lg sm:p-4 lg:hover:scale-[1.01]">
         <div class="flex flex-col gap-0.5">
             <h2 class="text-xl font-bold text-[#111827]">Kegiatan per semester</h2>
@@ -180,13 +180,23 @@
 
     <!-- Section Tabel Kegiatan -->
     <section class="flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 class="text-xl font-bold text-[#111827]">Daftar kegiatan</h2>
-            <!-- Button Lihat Semua / Batasi Tampilan -->
-            <button @click="showAll = !showAll; page = 1"
-                    class="rounded-lg bg-[#EFF6FF] px-4 py-2 text-xs font-semibold text-[#2563EB] hover:bg-blue-100 transition">
-                <span x-text="showAll ? 'Batasi tampilan' : 'Lihat semua'"></span>
-            </button>
+            
+            <div class="flex flex-wrap items-center gap-2 lg:gap-3">
+                <!-- Button Tambah Kegiatan (Tanpa Surat) -->
+                <a href="{{ route('kegiatan.create') }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg bg-[#2277FF] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1A5BCC] shadow-sm">
+                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Tambah kegiatan
+                </a>
+
+                <!-- Button Lihat Semua / Batasi Tampilan -->
+                <button @click="showAll = !showAll; page = 1"
+                        class="rounded-lg bg-[#EFF6FF] px-4 py-2 text-xs font-semibold text-[#2563EB] hover:bg-blue-100 transition">
+                    <span x-text="showAll ? 'Batasi tampilan' : 'Lihat semua'"></span>
+                </button>
+            </div>
         </div>
 
         <!-- Form Filter & Pencarian -->
@@ -449,7 +459,6 @@
                             <div class="flex justify-between"><span class="text-[#6B7280]">Kegiatan terkait</span><span class="font-semibold text-[#111827] text-right" x-text="activeItem?.name"></span></div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
@@ -512,7 +521,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         getDateDisplay() {
-            if (this.appliedStartDate && this.appliedEndDate) return `${this.formatDateStr(this.appliedStartDate)} - ${this.formatDateStr(this.appliedEndDate)}`;
+            if (this.appliedStartDate && this.appliedEndDate) return `${this.formatDateStr(this.appliedStartDate)}\n${this.formatDateStr(this.appliedEndDate)}`;
             if (this.appliedStartDate) return `Mulai ${this.formatDateStr(this.appliedStartDate)}`;
             if (this.appliedEndDate) return `Hingga ${this.formatDateStr(this.appliedEndDate)}`;
             return 'Semua Tanggal';
