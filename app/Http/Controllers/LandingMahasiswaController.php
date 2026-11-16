@@ -20,7 +20,7 @@ class LandingMahasiswaController extends Controller
 
         return [
             'status' => $response->getStatusCode(),
-            'body'   => json_decode($response->getContent(), true) ?? [],
+            'body' => json_decode($response->getContent(), true) ?? [],
         ];
     }
 
@@ -31,7 +31,7 @@ class LandingMahasiswaController extends Controller
 
         return view('admin.mahasiswa', [
             'students' => $res['body']['data'] ?? [],
-            'levels'   => $res['body']['levels'] ?? MahasiswaStore::TINGKAT,
+            'levels' => $res['body']['levels'] ?? MahasiswaStore::TINGKAT,
         ]);
     }
 
@@ -43,10 +43,10 @@ class LandingMahasiswaController extends Controller
 
         return view('admin.mahasiswa-detail', [
             'mahasiswa' => $res['body']['data'],
-            'academic'  => $res['body']['academic'],
-            'identity'  => $res['body']['identity'],
-            'history'   => $res['body']['history'],
-            'kegiatan'  => $res['body']['kegiatan'],
+            'academic' => $res['body']['academic'],
+            'identity' => $res['body']['identity'],
+            'history' => $res['body']['history'],
+            'kegiatan' => $res['body']['kegiatan'],
         ]);
     }
 
@@ -54,7 +54,7 @@ class LandingMahasiswaController extends Controller
     public function create()
     {
         return view('admin.mahasiswa-tambah', [
-            'tahun'      => range((int) date('Y'), (int) date('Y') - 9),
+            'tahun' => range((int) date('Y'), (int) date('Y') - 9),
             'statusAkad' => $this->store->opsiStatus(),
         ]);
     }
@@ -89,10 +89,10 @@ class LandingMahasiswaController extends Controller
         }
 
         return view('admin.mahasiswa-edit', [
-            'mahasiswa'  => $mahasiswa,
-            'tahun'      => $tahun,
+            'mahasiswa' => $mahasiswa,
+            'tahun' => $tahun,
             'statusAkad' => $this->store->opsiStatus(),
-            'fotoUrl'    => $res['body']['fotoUrl'] ?? null,
+            'fotoUrl' => $res['body']['fotoUrl'] ?? null,
         ]);
     }
 

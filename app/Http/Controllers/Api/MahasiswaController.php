@@ -22,21 +22,21 @@ class MahasiswaController extends Controller
     public function index(): JsonResponse
     {
         $students = array_map(fn ($r) => [
-            'id'        => $r['id'],
-            'nim'       => $r['nim'],
-            'name'      => $r['nama'],
-            'nama'      => $r['nama'],
-            'level'     => $r['level'],
+            'id' => $r['id'],
+            'nim' => $r['nim'],
+            'name' => $r['nama'],
+            'nama' => $r['nama'],
+            'level' => $r['level'],
             'className' => $r['kelas'],
-            'kelas'     => $r['kelas'],
-            'status'    => $r['status'],
+            'kelas' => $r['kelas'],
+            'status' => $r['status'],
         ], $this->store->all());
 
         return response()->json([
             'success' => true,
             'message' => 'Daftar data mahasiswa berhasil diambil.',
-            'levels'  => MahasiswaStore::TINGKAT,
-            'data'    => $students,
+            'levels' => MahasiswaStore::TINGKAT,
+            'data' => $students,
         ], 200);
     }
 
@@ -56,13 +56,13 @@ class MahasiswaController extends Controller
         $fotoProfil = $mhsModel && $mhsModel->user ? $mhsModel->user->foto_profil : ($row['foto'] ?? null);
 
         $mahasiswa = [
-            'id'       => $row['id'],
-            'nama'     => $row['nama'],
-            'nim'      => $row['nim'],
+            'id' => $row['id'],
+            'nama' => $row['nama'],
+            'nim' => $row['nim'],
             'angkatan' => $row['angkatan'],
-            'email'    => $row['email'],
-            'status'   => $row['status'],
-            'foto'     => $fotoProfil,
+            'email' => $row['email'],
+            'status' => $row['status'],
+            'foto' => $fotoProfil,
         ];
 
         $academic = [
@@ -81,14 +81,14 @@ class MahasiswaController extends Controller
         $kegiatan = $this->store->kegiatan($id) ?? [];
 
         return response()->json([
-            'success'   => true,
-            'message'   => 'Detail data mahasiswa berhasil diambil.',
-            'data'      => $mahasiswa,
-            'academic'  => $academic,
-            'identity'  => $identity,
-            'history'   => $history,
-            'kegiatan'  => $kegiatan,
-            'fotoUrl'   => ! empty($fotoProfil) ? Storage::disk('public')->url($fotoProfil) : null,
+            'success' => true,
+            'message' => 'Detail data mahasiswa berhasil diambil.',
+            'data' => $mahasiswa,
+            'academic' => $academic,
+            'identity' => $identity,
+            'history' => $history,
+            'kegiatan' => $kegiatan,
+            'fotoUrl' => ! empty($fotoProfil) ? Storage::disk('public')->url($fotoProfil) : null,
         ], 200);
     }
 
@@ -96,25 +96,25 @@ class MahasiswaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nama'     => ['required', 'string', 'max:100'],
-            'nim'      => $this->aturanNim($request, ''),
+            'nama' => ['required', 'string', 'max:100'],
+            'nim' => $this->aturanNim($request, ''),
             'angkatan' => ['required', 'integer', 'between:2000,'.((int) date('Y') + 1)],
-            'status'   => ['required', Rule::in($this->store->opsiStatus())],
-            'email'    => ['required', 'email', 'max:150', 'ends_with:@mhs.polines.ac.id', function ($attr, $value, $fail) {
+            'status' => ['required', Rule::in($this->store->opsiStatus())],
+            'email' => ['required', 'email', 'max:150', 'ends_with:@mhs.polines.ac.id', function ($attr, $value, $fail) {
                 if ($this->store->usedByOther('email', $value, '')) {
                     $fail('Email sudah dipakai akun lain.');
                 }
             }],
             'password' => ['required', 'string', 'min:8'],
         ], [
-            'nama.required'     => 'Nama lengkap wajib diisi.',
-            'nim.required'      => 'NIM wajib diisi.',
+            'nama.required' => 'Nama lengkap wajib diisi.',
+            'nim.required' => 'NIM wajib diisi.',
             'angkatan.required' => 'Angkatan wajib dipilih.',
-            'email.required'    => 'Email akun wajib diisi.',
-            'email.email'       => 'Format email tidak valid.',
-            'email.ends_with'   => 'Email harus menggunakan domain institusi @mhs.polines.ac.id.',
+            'email.required' => 'Email akun wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.ends_with' => 'Email harus menggunakan domain institusi @mhs.polines.ac.id.',
             'password.required' => 'Password wajib diisi.',
-            'password.min'      => 'Password minimal 8 karakter.',
+            'password.min' => 'Password minimal 8 karakter.',
         ]);
 
         $row = $this->store->create($data);
@@ -122,7 +122,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Mahasiswa baru berhasil ditambahkan.',
-            'data'    => $row,
+            'data' => $row,
         ], 201);
     }
 
@@ -139,29 +139,29 @@ class MahasiswaController extends Controller
         }
 
         $data = $request->validate([
-            'nama'       => ['required', 'string', 'max:100'],
-            'nim'        => $this->aturanNim($request, $id),
-            'angkatan'   => ['required', 'integer', 'between:2000,'.((int) date('Y') + 1)],
-            'status'     => ['required', Rule::in($this->store->opsiStatus())],
-            'email'      => ['required', 'email', 'max:150', 'ends_with:@mhs.polines.ac.id', function ($attr, $value, $fail) use ($id) {
+            'nama' => ['required', 'string', 'max:100'],
+            'nim' => $this->aturanNim($request, $id),
+            'angkatan' => ['required', 'integer', 'between:2000,'.((int) date('Y') + 1)],
+            'status' => ['required', Rule::in($this->store->opsiStatus())],
+            'email' => ['required', 'email', 'max:150', 'ends_with:@mhs.polines.ac.id', function ($attr, $value, $fail) use ($id) {
                 if ($this->store->usedByOther('email', $value, $id)) {
                     $fail('Email sudah dipakai akun lain.');
                 }
             }],
-            'password'   => ['nullable', 'string', 'min:8'],
-            'foto'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'password' => ['nullable', 'string', 'min:8'],
+            'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'hapus_foto' => ['nullable', 'boolean'],
         ], [
-            'nama.required'     => 'Nama lengkap wajib diisi.',
-            'nim.required'      => 'NIM wajib diisi.',
+            'nama.required' => 'Nama lengkap wajib diisi.',
+            'nim.required' => 'NIM wajib diisi.',
             'angkatan.required' => 'Angkatan wajib dipilih.',
-            'email.required'    => 'Email akun wajib diisi.',
-            'email.email'       => 'Format email tidak valid.',
-            'email.ends_with'   => 'Email harus menggunakan domain institusi @mhs.polines.ac.id.',
-            'password.min'      => 'Password baru minimal 8 karakter.',
-            'foto.image'        => 'File harus berupa gambar.',
-            'foto.mimes'        => 'Foto harus berformat JPG, PNG, atau WebP.',
-            'foto.max'          => 'Ukuran foto maksimal 2 MB.',
+            'email.required' => 'Email akun wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.ends_with' => 'Email harus menggunakan domain institusi @mhs.polines.ac.id.',
+            'password.min' => 'Password baru minimal 8 karakter.',
+            'foto.image' => 'File harus berupa gambar.',
+            'foto.mimes' => 'Foto harus berformat JPG, PNG, atau WebP.',
+            'foto.max' => 'Ukuran foto maksimal 2 MB.',
         ]);
 
         $fotoLama = $lama['foto'] ?? null;
@@ -184,7 +184,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Perubahan data mahasiswa berhasil disimpan.',
-            'data'    => $this->store->find($id),
+            'data' => $this->store->find($id),
         ], 200);
     }
 
@@ -205,8 +205,8 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Status mahasiswa berhasil diperbarui.',
-            'data'    => [
-                'id'     => $id,
+            'data' => [
+                'id' => $id,
                 'status' => $terbaru['status'] ?? null,
             ],
         ], 200);
@@ -242,7 +242,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => $pesan.'.',
-            'data'    => $r,
+            'data' => $r,
         ], 200);
     }
 
@@ -269,8 +269,8 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Opsi form mahasiswa berhasil diambil.',
-            'data'    => [
-                'tahun'  => range((int) date('Y'), (int) date('Y') - 9),
+            'data' => [
+                'tahun' => range((int) date('Y'), (int) date('Y') - 9),
                 'status' => $this->store->opsiStatus(),
             ],
         ], 200);

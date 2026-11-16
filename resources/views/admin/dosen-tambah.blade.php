@@ -22,13 +22,16 @@
         <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Data Dosen', 'admin.dosen'], ['Tambah']]" />
     </div>
 
-    <form id="formTambahDosen" method="POST" action="{{ route('api.dosen.store') }}" enctype="multipart/form-data" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">        @csrf
+    <form method="POST" action="{{ route('admin.dosen.store') }}" enctype="multipart/form-data" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
+        @csrf
 
         <div class="flex w-full flex-col gap-6">
 
-            <div id="api-alert" class="hidden rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                Dosen belum disimpan. Periksa isian yang bertanda merah di bawah.
-            </div>
+            @if ($errors->any())
+                <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                    Dosen belum disimpan. Periksa isian yang bertanda merah di bawah.
+                </div>
+            @endif
 
             {{-- ============ 1. Identitas Dosen ============ --}}
             <section class="flex flex-col gap-6 rounded-md border border-black/[0.06] bg-white px-4 pb-6 pt-4">
@@ -208,12 +211,8 @@
         var ph = document.getElementById('foto-placeholder');
         var info = document.getElementById('foto-info');
         var nama = document.getElementById('nama_lengkap');
-        var form = document.getElementById('formTambahDosen');
-        var alertBox = document.getElementById('api-alert');
-
         if (!input) return;
 
-        // Inisial pada lingkaran mengikuti nama yang diketik (selama belum ada foto)
         if (nama) nama.addEventListener('input', function () {
             if (img.classList.contains('hidden')) ph.textContent = (nama.value.trim().charAt(0) || 'D').toUpperCase();
         });
@@ -233,65 +232,6 @@
             img.classList.remove('hidden');
             ph.classList.add('hidden');
         });
-
-        if (form) {
-            form.addEventListener('submit', async function (e) {
-                e.preventDefault();
-
-                // Bersihkan pesan error lama
-                alertBox.classList.add('hidden');
-                form.querySelectorAll('.api-field-error').forEach(function (el) { el.remove(); });
-
-                var btnSubmit = form.querySelector('button[type="submit"]');
-                var teksAsli = btnSubmit.textContent;
-                btnSubmit.disabled = true;
-                btnSubmit.textContent = 'Menyimpan...';
-
-                try {
-                    var res = await fetch(form.action, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json'
-                        },
-                        body: new FormData(form)
-                    });
-
-                    var json = await res.json();
-
-                    if (res.status === 422 && json.errors) {
-                        alertBox.textContent = 'Dosen belum disimpan. Periksa isian yang bertanda merah di bawah.';
-                        alertBox.classList.remove('hidden');
-
-                        Object.keys(json.errors).forEach(function (field) {
-                            var inputEl = form.querySelector('[name="' + field + '"]');
-                            if (inputEl) {
-                                var p = document.createElement('p');
-                                p.className = 'api-field-error text-sm text-[#FF3F3F]';
-                                p.textContent = json.errors[field][0];
-                                inputEl.closest('.flex.flex-col').appendChild(p);
-                            }
-                        });
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return;
-                    }
-
-                    if (!res.ok) {
-                        alertBox.textContent = json.message || 'Terjadi kesalahan saat menyimpan data.';
-                        alertBox.classList.remove('hidden');
-                        return;
-                    }
-
-                    // Berhasil (201 Created) -> arahkan kembali ke daftar dosen
-                    window.location.href = @js(route('admin.dosen'));
-                } catch (err) {
-                    alertBox.textContent = 'Gagal terhubung ke server API.';
-                    alertBox.classList.remove('hidden');
-                } finally {
-                    btnSubmit.disabled = false;
-                    btnSubmit.textContent = teksAsli;
-                }
-            });
-        }
     })();
 </script>
 @endpush

@@ -216,8 +216,7 @@
 <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
 <script>
 (function () {
-    var cacheData = []; // menyimpan salinan data dari API untuk kebutuhan modal status
-    var URL_API_DOSEN = @js(route('api.dosen.index'));
+    var data = @json($dosen);
     var URL_DETAIL = @js(route('admin.dosen.show', ['id' => '__ID__']));
     var URL_STATUS = @js(\Illuminate\Support\Facades\Route::has('admin.dosen.status') ? route('admin.dosen.status', ['id' => '__ID__']) : null);
     var CSRF = @json(csrf_token());
@@ -249,16 +248,10 @@
     });
 
     var table = new DataTable('#tabel', {
-        ajax: {
-        url: URL_API_DOSEN,
-            dataSrc: function (json) {
-                cacheData = json.data || [];
-                return cacheData;
-            }
-        },
+        data: data,
         autoWidth: false,
         pageLength: 10,
-        order: [],                     // tanpa urutan awal = urutan asli dari server
+        order: [],                     
         columns: [
             { data: 'nip',  render: TXT, className: 'truncate', orderable: false },   // NIP tidak bisa diurutkan (sama seperti sebelumnya)
             { data: 'nama', render: TXT, className: 'truncate' },
@@ -332,7 +325,7 @@
 
     $('tabel').addEventListener('click', function (e) {
         var b = e.target.closest('button[data-act]'); if (!b) return;
-        var r = cacheData.filter(function (x) { return String(x.id) === b.dataset.id; })[0];
+        var r = data.filter(function (x) { return String(x.id) === b.dataset.id; })[0];
 
         if (b.dataset.act === 'view') {
             window.location.href = URL_DETAIL.replace('__ID__', encodeURIComponent(b.dataset.id));

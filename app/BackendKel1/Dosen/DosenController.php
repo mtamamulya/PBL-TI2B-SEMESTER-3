@@ -15,8 +15,98 @@ class DosenController extends Controller
     public function __construct(private DosenStore $store) {}
 
     /**
+     * GET /api/v1/dosen
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $dosen = array_map(fn ($r) => [
+            'id' => $r['id'],
+            'nip' => $r['nip'],
+            'nama' => $r['nama'],
+            'jabatan' => $r['jabatan'],
+            'golongan' => $r['golongan'],
+            'status' => $r['status'],
+        ], $this->store->all());
+
+        if ($request->filled('q')) {
+            $q = mb_strtolower($request->query('q'));
+            $dosen = array_filter($dosen, fn ($d) => str_contains(mb_strtolower($d['nama']), $q) ||
+                str_contains(mb_strtolower($d['nip']), $q)
+            );
+        }
+
+        if ($request->filled('jabatan') && $request->query('jabatan') !== 'all') {
+            $dosen = array_filter($dosen, fn ($d) => $d['jabatan'] === $request->query('jabatan'));
+        }
+
+        if ($request->filled('status') && $request->query('status') !== 'all') {
+            $dosen = array_filter($dosen, fn ($d) => $d['status'] === $request->query('status'));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data dosen berhasil diambil.',
+            'meta' => [
+                'total' => count($dosen),
+                'opsi_pangkat' => $this->store->opsiPangkat(),
+                'opsi_golongan' => $this->store->opsiGolongan(),
+                'roles' => DosenStore::ROLE,
+            ],
+            'data' => array_values($dosen),
+        ], 200);
+    }
+
+    /**
+     * GET /api/v1/dosen/{id}
+     */
+    public function show(string $id): JsonResponse
+    {
+        $row = $this->store->find($id);
+
+        if (! $row) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data dosen tidak ditemukan.',
+            ], 404);
+        }
+
+        $riwayat = [];
+        foreach ($row['riwayat'] as $i => $r) {
+            $riwayat[] = [
+                'pangkat' => $r['pangkat'],
+                'golongan' => $r['golongan'],
+                'sk' => $r['sk'],
+                'tanggal' => $r['tanggal'],
+                'tanggal_formatted' => Carbon::parse($r['tanggal'])->locale('id')->translatedFormat('j F Y'),
+                'now' => $i === 0,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Detail dosen berhasil diambil.',
+            'data' => [
+                'profil' => [
+                    'id' => $row['id'],
+                    'nama' => $row['nama'],
+                    'nip' => $row['nip'],
+                    'email' => $row['email'],
+                    'role' => DosenStore::ROLE[$row['role']] ?? 'Dosen',
+                    'role_key' => $row['role'],
+                    'jabatan' => $row['jabatan'],
+                    'golongan' => $row['golongan'],
+                    'status' => $row['status'],
+                    'status_akun' => $row['status_akun'],
+                    'foto' => ! empty($row['foto']) ? Storage::disk('public')->url($row['foto']) : null,
+                ],
+                'riwayat' => $riwayat,
+                'aktivitas' => $this->aktivitas($row),
+            ],
+        ], 200);
+    }
+
+    /**
      * POST /api/v1/dosen
-     * Menyimpan dosen baru (mendukung multipart/form-data untuk upload foto).
      */
     public function store(Request $request): JsonResponse
     {
@@ -64,125 +154,29 @@ class DosenController extends Controller
         }
 
         $row = $this->store->create([
-            'nama'     => $data['nama_lengkap'],
-            'nip'      => $data['nip'],
-            'status'   => $data['status_dosen'],
-            'email'    => $data['email'],
-            'role'     => $data['role'],
+            'nama' => $data['nama_lengkap'],
+            'nip' => $data['nip'],
+            'status' => $data['status_dosen'],
+            'email' => $data['email'],
+            'role' => $data['role'],
             'password' => $data['password'],
-            'foto'     => $fotoPath,
-            'pangkat'  => $data['pangkat'],
+            'foto' => $fotoPath,
+            'pangkat' => $data['pangkat'],
             'golongan' => $data['golongan'],
-            'sk'       => $data['nomor_sk'],
-            'tanggal'  => $data['tanggal_sk'],
+            'sk' => $data['nomor_sk'],
+            'tanggal' => $data['tanggal_sk'],
         ]);
 
         return response()->json([
-            'status'  => 'success',
+            'success' => true,
             'message' => 'Dosen baru berhasil ditambahkan.',
-            'data'    => $row,
+            'data' => $row,
         ], 201);
     }
 
     /**
-     * GET /api/dosen
-     * Query daftar dosen + opsi filter pangkat dalam format JSON.
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $semuaDosen = $this->store->all();
-
-        // Mapping kolom yang aman untuk dikonsumsi API (tanpa hash password)
-        $dosen = array_map(fn ($r) => [
-            'id'       => $r['id'],
-            'nip'      => $r['nip'],
-            'nama'     => $r['nama'],
-            'jabatan'  => $r['jabatan'],
-            'golongan' => $r['golongan'],
-            'status'   => $r['status'],
-        ], $semuaDosen);
-
-        // Opsional: dukung filter langsung lewat query string API (?q=...&jabatan=...&status=...)
-        if ($request->filled('q')) {
-            $q = mb_strtolower($request->query('q'));
-            $dosen = array_filter($dosen, fn ($d) =>
-                str_contains(mb_strtolower($d['nama']), $q) ||
-                str_contains(mb_strtolower($d['nip']), $q)
-            );
-        }
-
-        if ($request->filled('jabatan') && $request->query('jabatan') !== 'all') {
-            $dosen = array_filter($dosen, fn ($d) => $d['jabatan'] === $request->query('jabatan'));
-        }
-
-        if ($request->filled('status') && $request->query('status') !== 'all') {
-            $dosen = array_filter($dosen, fn ($d) => $d['status'] === $request->query('status'));
-        }
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Data dosen berhasil diambil.',
-            'meta'    => [
-                'total'        => count($dosen),
-                'opsi_pangkat' => $this->store->opsiPangkat(),
-            ],
-            'data'    => array_values($dosen),
-        ], 200);
-    }
-
-    /**
-     * GET /api/dosen/{id}
-     * Query detail satu dosen beserta riwayat pangkat dan aktivitasnya.
-     */
-    public function show(string $id): JsonResponse
-    {
-        $row = $this->store->find($id);
-
-        if (! $row) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Data dosen tidak ditemukan.',
-            ], 404);
-        }
-
-        $riwayat = [];
-        foreach ($row['riwayat'] as $i => $r) {
-            $riwayat[] = [
-                'pangkat'           => $r['pangkat'],
-                'golongan'          => $r['golongan'],
-                'sk'                => $r['sk'],
-                'tanggal'           => $r['tanggal'],
-                'tanggal_formatted' => Carbon::parse($r['tanggal'])->locale('id')->translatedFormat('j F Y'),
-                'now'               => $i === 0,
-            ];
-        }
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Detail dosen berhasil diambil.',
-            'data'    => [
-                'profil' => [
-                    'id'          => $row['id'],
-                    'nama'        => $row['nama'],
-                    'nip'         => $row['nip'],
-                    'email'       => $row['email'],
-                    'role'        => DosenStore::ROLE[$row['role']] ?? 'Dosen',
-                    'role_key'    => $row['role'],
-                    'jabatan'     => $row['jabatan'],
-                    'golongan'    => $row['golongan'],
-                    'status'      => $row['status'],
-                    'status_akun' => $row['status_akun'],
-                    'foto'        => ! empty($row['foto']) ? Storage::disk('public')->url($row['foto']) : null,
-                ],
-                'riwayat'   => $riwayat,
-                'aktivitas' => $this->aktivitas($row),
-            ],
-        ], 200);
-    }
-
-    /**
-     * PUT / PATCH / POST (dengan _method=PUT) /api/v1/dosen/{id}
-     * Memperbarui data dosen, akun login, foto profil, serta riwayat pangkat baru (opsional).
+     * PUT /api/v1/dosen/{id}
+     * Memperbarui data dosen (dapat diakses oleh Admin atau Dosen yang bersangkutan).
      */
     public function update(Request $request, string $id): JsonResponse
     {
@@ -190,9 +184,23 @@ class DosenController extends Controller
 
         if (! $lama) {
             return response()->json([
-                'status'  => 'error',
+                'success' => false,
                 'message' => 'Data dosen tidak ditemukan.',
             ], 404);
+        }
+
+        $user = $request->user();
+        $isAdmin = ($user->role->nama_role ?? $user->role ?? '') === 'admin'
+            || (int) ($user->id_role ?? 0) === 1;
+
+        $isPemilik = (isset($lama['id_user']) && (string) $lama['id_user'] === (string) $user->id)
+            || (($lama['email'] ?? '') === $user->email);
+
+        if (! $isAdmin && ! $isPemilik) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk mengubah data dosen ini.',
+            ], 403);
         }
 
         $data = $request->validate([
@@ -202,17 +210,16 @@ class DosenController extends Controller
                     $fail('NIP sudah dipakai dosen lain.');
                 }
             }],
-            'status_dosen' => ['required', Rule::in(['aktif', 'nonaktif'])],
+            'status_dosen' => [$isAdmin ? 'required' : 'nullable', Rule::in(['aktif', 'nonaktif'])],
             'email' => ['required', 'email', 'max:150', function ($attr, $value, $fail) use ($id) {
                 if ($this->store->usedByOther('email', $value, $id)) {
                     $fail('Email sudah dipakai akun lain.');
                 }
             }],
-            'role' => ['required', Rule::in(array_keys(DosenStore::ROLE))],
-            'status_akun' => ['required', Rule::in(['aktif', 'nonaktif'])],
+            'role' => [$isAdmin ? 'required' : 'nullable', Rule::in(array_keys(DosenStore::ROLE))],
+            'status_akun' => [$isAdmin ? 'required' : 'nullable', Rule::in(['aktif', 'nonaktif'])],
             'password' => ['nullable', 'string', 'min:8'],
             'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            // Riwayat pangkat baru: opsional, tetapi kalau diisi salah satu wajib lengkap semua
             'pangkat' => ['nullable', 'required_with:golongan,nomor_sk,tanggal_sk', Rule::in($this->store->opsiPangkat())],
             'golongan' => ['nullable', 'required_with:pangkat,nomor_sk,tanggal_sk', Rule::in($this->store->opsiGolongan())],
             'nomor_sk' => ['nullable', 'required_with:pangkat,golongan,tanggal_sk', 'string', 'max:100'],
@@ -236,14 +243,13 @@ class DosenController extends Controller
 
         $riwayatBaru = ! empty($data['pangkat'])
             ? [
-                'pangkat'  => $data['pangkat'],
+                'pangkat' => $data['pangkat'],
                 'golongan' => $data['golongan'],
-                'sk'       => $data['nomor_sk'],
-                'tanggal'  => $data['tanggal_sk'],
+                'sk' => $data['nomor_sk'],
+                'tanggal' => $data['tanggal_sk'],
             ]
             : null;
 
-        // Jika upload foto baru: simpan lalu hapus foto lama
         $fotoPath = null;
         if ($request->hasFile('foto')) {
             $fotoPath = $request->file('foto')->store('foto-dosen', 'public');
@@ -253,20 +259,20 @@ class DosenController extends Controller
         }
 
         $updated = $this->store->update($id, [
-            'nama'        => $data['nama_lengkap'],
-            'nip'         => $data['nip'],
-            'status'      => $data['status_dosen'],
-            'email'       => $data['email'],
-            'role'        => $data['role'],
-            'status_akun' => $data['status_akun'],
-            'password'    => $data['password'] ?? null,
-            'foto'        => $fotoPath,
+            'nama' => $data['nama_lengkap'],
+            'nip' => $data['nip'],
+            'status' => $isAdmin ? $data['status_dosen'] : $lama['status'],
+            'email' => $data['email'],
+            'role' => $isAdmin ? $data['role'] : $lama['role'],
+            'status_akun' => $isAdmin ? $data['status_akun'] : $lama['status_akun'],
+            'password' => $data['password'] ?? null,
+            'foto' => $fotoPath,
         ], $riwayatBaru);
 
         return response()->json([
-            'status'  => 'success',
+            'success' => true,
             'message' => 'Perubahan data dosen berhasil disimpan.',
-            'data'    => $updated ?? $this->store->find($id),
+            'data' => $updated ?? $this->store->find($id),
         ], 200);
     }
 
@@ -276,14 +282,10 @@ class DosenController extends Controller
             'penelitian' => ['label' => 'Penelitian', 'items' => []],
             'pengabdian' => ['label' => 'Pengabdian', 'items' => []],
             'pengajaran' => ['label' => 'Pengajaran', 'items' => []],
-            'kegiatan'   => ['label' => 'Kegiatan', 'items' => []],
+            'kegiatan' => ['label' => 'Kegiatan', 'items' => []],
         ];
 
-        if (config('admin.data_source', 'json') === 'database') {
-            return $strukturKosong;
-        }
-
-        if ((int) $row['id'] > 100) {
+        if (config('admin.data_source', 'json') === 'database' || (int) $row['id'] > 100) {
             return $strukturKosong;
         }
 

@@ -1,18 +1,20 @@
 {{--
     resources/views/admin/dosen-edit.blade.php
-    Form edit dosen -> memuat data via GET /api/v1/dosen/{id} dan menyimpan via PUT /api/v1/dosen/{id}.
+    Form edit dosen -> PUT /admin/dosen/{id} (DosenController@update via ApiClient).
+    Nilai terisi ulang otomatis (old) bila validasi gagal.
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Edit Dosen')
 
 @php
-    $id    = $dosenId ?? ($dosen['id'] ?? request()->route('id'));
-    $field = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
-    $label = 'text-base font-medium leading-[22px] tracking-[-0.18px] text-[#0A0A0A]';
-    $hint  = 'text-base leading-[22px] tracking-[-0.18px] text-[#A8A8A8]';
-    $error = 'text-sm text-[#FF3F3F]';
-    $chev  = '<svg class="pointer-events-none absolute right-4 top-1/2 size-[18px] -translate-y-1/2 text-[#1C2024]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+    $field    = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
+    $label    = 'text-base font-medium leading-[22px] tracking-[-0.18px] text-[#0A0A0A]';
+    $hint     = 'text-base leading-[22px] tracking-[-0.18px] text-[#A8A8A8]';
+    $error    = 'text-sm text-[#FF3F3F]';
+    $chev     = '<svg class="pointer-events-none absolute right-4 top-1/2 size-[18px] -translate-y-1/2 text-[#1C2024]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+    $fotoLama = $dosen['foto'] ?? null;
+    $inisial  = strtoupper(mb_substr(trim($dosen['nama_lengkap'] ?? '') ?: 'D', 0, 1));
 @endphp
 
 @section('content')
@@ -22,15 +24,17 @@
         <p class="text-xl font-medium tracking-[-0.15px] text-[#A8A8A8] md:text-2xl md:leading-[30px]">Dashboard / Data Dosen / Detail / Edit</p>
     </div>
 
-    <form id="formEditDosen" method="POST" action="{{ route('api.dosen.update', $id) }}" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
+    <form method="POST" action="{{ route('admin.dosen.update', $dosen['id']) }}" enctype="multipart/form-data" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
         @csrf
         @method('PUT')
 
         <div class="flex w-full flex-col gap-6">
 
-            <div id="api-alert" class="hidden rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.
-            </div>
+            @if ($errors->any())
+                <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                    Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.
+                </div>
+            @endif
 
             {{-- ============ 1. Identitas Dosen ============ --}}
             <section class="flex flex-col gap-6 rounded-md border border-black/[0.06] bg-white px-4 pb-6 pt-4">
@@ -42,12 +46,12 @@
                 <div class="flex flex-col gap-4 md:flex-row md:items-start">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nama_lengkap" class="{{ $label }}">Nama lengkap<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nama_lengkap" name="nama_lengkap" required value="{{ old('nama_lengkap') }}" placeholder="Memuat data..." class="{{ $field }} h-[36px]">
+                        <input id="nama_lengkap" name="nama_lengkap" required value="{{ old('nama_lengkap', $dosen['nama_lengkap']) }}" class="{{ $field }} h-[36px]">
                         @error('nama_lengkap') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nip" class="{{ $label }}">NIP<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nip" name="nip" required inputmode="numeric" value="{{ old('nip') }}" placeholder="Memuat data..." class="{{ $field }} h-[36px]">
+                        <input id="nip" name="nip" required inputmode="numeric" value="{{ old('nip', $dosen['nip']) }}" class="{{ $field }} h-[36px]">
                         @error('nip') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                 </div>
@@ -58,7 +62,7 @@
                         <div class="relative">
                             <select id="status_dosen" name="status_dosen" class="{{ $field }} h-10 appearance-none pr-10">
                                 @foreach (['aktif' => 'Aktif', 'nonaktif' => 'Tidak Aktif'] as $v => $t)
-                                    <option value="{{ $v }}" @selected(old('status_dosen') === $v)>{{ $t }}</option>
+                                    <option value="{{ $v }}" @selected(old('status_dosen', $dosen['status_dosen']) === $v)>{{ $t }}</option>
                                 @endforeach
                             </select>
                             {!! $chev !!}
@@ -79,7 +83,7 @@
                 <div class="flex flex-col gap-4 md:flex-row md:items-start">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="email" class="{{ $label }}">Email akun<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="email" name="email" type="email" placeholder="nama@polines.ac.id" pattern="[^@\s]+@polines\.ac\.id" title="Gunakan email institusi @polines.ac.id" required value="{{ old('email') }}" class="{{ $field }} h-[36px]">
+                        <input id="email" name="email" type="email" placeholder="nama@polines.ac.id" pattern="[^@\s]+@polines\.ac\.id" title="Gunakan email institusi @polines.ac.id" required value="{{ old('email', $dosen['email']) }}" class="{{ $field }} h-[36px]">
                         <p class="{{ $hint }}">Gunakan institusi (@polines.ac.id)</p>
                         @error('email') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
@@ -88,7 +92,7 @@
                         <div class="relative">
                             <select id="role" name="role" class="{{ $field }} h-10 appearance-none pr-10">
                                 @foreach ($roles as $v => $t)
-                                    <option value="{{ $v }}" @selected(old('role') === $v)>{{ $t }}</option>
+                                    <option value="{{ $v }}" @selected(old('role', $dosen['role']) === $v)>{{ $t }}</option>
                                 @endforeach
                             </select>
                             {!! $chev !!}
@@ -100,7 +104,7 @@
                         <div class="relative">
                             <select id="status_akun" name="status_akun" class="{{ $field }} h-10 appearance-none pr-10">
                                 @foreach (['aktif' => 'Aktif', 'nonaktif' => 'Nonaktif'] as $v => $t)
-                                    <option value="{{ $v }}" @selected(old('status_akun') === $v)>{{ $t }}</option>
+                                    <option value="{{ $v }}" @selected(old('status_akun', $dosen['status_akun']) === $v)>{{ $t }}</option>
                                 @endforeach
                             </select>
                             {!! $chev !!}
@@ -125,8 +129,9 @@
                         <div class="flex items-center gap-4">
                             <div class="relative size-[96px] shrink-0">
                                 <div class="flex size-full items-center justify-center overflow-hidden rounded-full bg-[#E4C9AE] text-4xl font-semibold text-[#7A4A1E]">
-                                    <img id="foto-preview" alt="Foto profil" class="hidden size-full object-cover">
-                                    <span id="foto-placeholder">D</span>
+                                    <img id="foto-preview" alt="Foto profil" src="{{ $fotoLama }}"
+                                        class="{{ $fotoLama ? '' : 'hidden' }} size-full object-cover">
+                                    <span id="foto-placeholder" class="{{ $fotoLama ? 'hidden' : '' }}">{{ $inisial }}</span>
                                 </div>
 
                                 <button type="button" onclick="document.getElementById('foto').click()" title="Ganti foto" aria-label="Ganti foto profil"
@@ -136,7 +141,7 @@
                             </div>
 
                             <p id="foto-info" class="{{ $hint }}">
-                                Memuat foto profil...
+                                {{ $fotoLama ? 'Foto saat ini. Klik pensil untuk mengganti.' : 'Belum ada foto. Klik pensil untuk memilih. JPG, PNG, atau WebP, maksimal 2 MB.' }}
                             </p>
                         </div>
 
@@ -170,7 +175,7 @@
                             <select id="pangkat" name="pangkat" class="{{ $field }} h-10 appearance-none pr-10">
                                 <option value="">Pilih pangkat</option>
                                 @foreach ($jabatan as $o)
-                                    <option value="{{ $o }}" @selected(old('pangkat') === $o)>{{ $o }}</option>
+                                    <option value="{{ $o }}" @selected(old('pangkat', $dosen['pangkat']) === $o)>{{ $o }}</option>
                                 @endforeach
                             </select>
                             {!! $chev !!}
@@ -183,7 +188,7 @@
                             <select id="golongan" name="golongan" class="{{ $field }} h-10 appearance-none pr-10">
                                 <option value="">Pilih golongan</option>
                                 @foreach ($golongan as $o)
-                                    <option value="{{ $o }}" @selected(old('golongan') === $o)>{{ $o }}</option>
+                                    <option value="{{ $o }}" @selected(old('golongan', $dosen['golongan']) === $o)>{{ $o }}</option>
                                 @endforeach
                             </select>
                             {!! $chev !!}
@@ -195,13 +200,13 @@
                 <div class="flex flex-col gap-4 md:flex-row md:items-start">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nomor_sk" class="{{ $label }}">Nomor SK</label>
-                        <input id="nomor_sk" name="nomor_sk" value="{{ old('nomor_sk') }}" placeholder="Nomor SK kenaikan pangkat" class="{{ $field }} h-[36px]">
+                        <input id="nomor_sk" name="nomor_sk" value="{{ old('nomor_sk', $dosen['nomor_sk']) }}" placeholder="Nomor SK kenaikan pangkat" class="{{ $field }} h-[36px]">
                         @error('nomor_sk') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="tanggal_sk" class="{{ $label }}">Tanggal SK</label>
                         <div class="relative">
-                            <input id="tanggal_sk" name="tanggal_sk" type="date" value="{{ old('tanggal_sk') }}" class="{{ $field }} h-[36px] pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0">
+                            <input id="tanggal_sk" name="tanggal_sk" type="date" value="{{ old('tanggal_sk', $dosen['tanggal_sk']) }}" class="{{ $field }} h-[36px] pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0">
                             <button type="button" aria-label="Pilih tanggal" onclick="const i = document.getElementById('tanggal_sk'); try { i.showPicker(); } catch (e) { i.focus(); }" class="absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-[#A8A8A8] hover:text-[#2277FF]"><svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /><path d="M11 15h1" /><path d="M12 15v3" /></svg></button>
                         </div>
                         @error('tanggal_sk') <p class="{{ $error }}">{{ $message }}</p> @enderror
@@ -212,7 +217,7 @@
 
         {{-- Tombol --}}
         <div class="flex w-full flex-wrap items-center justify-end gap-4">
-            <a href="{{ route('admin.dosen.show', $id) }}" class="rounded-md bg-[#FF3F3F] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
+            <a href="{{ route('admin.dosen.show', $dosen['id']) }}" class="rounded-md bg-[#FF3F3F] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
             <button type="submit" class="rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Simpan Perubahan</button>
         </div>
     </form>
@@ -222,138 +227,27 @@
 @push('scripts')
 <script>
     (function () {
-        var URL_GET_DOSEN = @js(route('api.dosen.show', $id));
-        var URL_REDIRECT_DETAIL = @js(route('admin.dosen.show', $id));
-
         var input = document.getElementById('foto');
         var img = document.getElementById('foto-preview');
         var ph = document.getElementById('foto-placeholder');
         var info = document.getElementById('foto-info');
-        var formEdit = document.getElementById('formEditDosen');
-        var alertBox = document.getElementById('api-alert');
+        if (!input) return;
 
-        // 1. Ambil data dosen dari API (GET /api/v1/dosen/{id})
-        (async function muatDataDosen() {
-            try {
-                var res = await fetch(URL_GET_DOSEN, {
-                    headers: { 'Accept': 'application/json' }
-                });
-                var json = await res.json();
-
-                if (!res.ok || !json.data || !json.data.profil) {
-                    alertBox.textContent = json.message || 'Gagal memuat data dosen dari API.';
-                    alertBox.classList.remove('hidden');
-                    return;
-                }
-
-                var p = json.data.profil;
-                document.getElementById('nama_lengkap').value = p.nama || '';
-                document.getElementById('nip').value = p.nip || '';
-                document.getElementById('status_dosen').value = p.status || 'aktif';
-                document.getElementById('email').value = p.email || '';
-                if (p.role_key) document.getElementById('role').value = p.role_key;
-                document.getElementById('status_akun').value = p.status_akun || 'aktif';
-
-                if (p.foto) {
-                    img.src = p.foto;
-                    img.classList.remove('hidden');
-                    ph.classList.add('hidden');
-                    if (info) info.textContent = 'Foto saat ini. Klik pensil untuk mengganti.';
-                } else {
-                    ph.textContent = (p.nama || 'D').trim().charAt(0).toUpperCase();
-                    if (info) info.textContent = 'Belum ada foto. Klik pensil untuk memilih. JPG, PNG, atau WebP, maksimal 2 MB.';
-                }
-            } catch (err) {
-                alertBox.textContent = 'Gagal terhubung ke server API.';
-                alertBox.classList.remove('hidden');
+        input.addEventListener('change', function () {
+            var f = input.files && input.files[0];
+            if (!f) return;
+            if (f.size > 2 * 1024 * 1024) {
+                info.textContent = 'Ukuran foto melebihi 2 MB. Pilih foto lain.';
+                info.classList.add('text-[#E11D2E]');
+                input.value = '';
+                return;
             }
-        })();
-
-        // 2. Preview foto lokal saat dipilih
-        if (input) {
-            input.addEventListener('change', function () {
-                var f = input.files && input.files[0];
-                if (!f) return;
-                if (f.size > 2 * 1024 * 1024) {
-                    info.textContent = 'Ukuran foto melebihi 2 MB. Pilih foto lain.';
-                    info.classList.add('text-[#E11D2E]');
-                    input.value = '';
-                    return;
-                }
-                info.classList.remove('text-[#E11D2E]');
-                info.textContent = f.name;
-                img.src = URL.createObjectURL(f);
-                img.classList.remove('hidden');
-                ph.classList.add('hidden');
-            });
-        }
-
-        // 3. Submit perubahan ke API (PUT /api/v1/dosen/{id})
-        if (formEdit) {
-            formEdit.addEventListener('submit', async function (e) {
-                e.preventDefault();
-
-                alertBox.classList.add('hidden');
-                formEdit.querySelectorAll('.api-field-error').forEach(function (el) { el.remove(); });
-
-                var btnSubmit = formEdit.querySelector('button[type="submit"]');
-                var teksAsli = btnSubmit.textContent;
-                btnSubmit.disabled = true;
-                btnSubmit.textContent = 'Menyimpan...';
-
-                var formData = new FormData(formEdit);
-                var payload = {};
-                formData.forEach(function (value, key) {
-                    if (key !== '_token' && key !== '_method' && key !== 'foto') {
-                        payload[key] = value;
-                    }
-                });
-
-                try {
-                    var res = await fetch(formEdit.action, {
-                        method: 'PUT',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    var json = await res.json();
-
-                    if (res.status === 422 && json.errors) {
-                        alertBox.textContent = 'Perubahan belum disimpan. Periksa isian yang bertanda merah di bawah.';
-                        alertBox.classList.remove('hidden');
-
-                        Object.keys(json.errors).forEach(function (field) {
-                            var inputEl = formEdit.querySelector('[name="' + field + '"]');
-                            if (inputEl) {
-                                var p = document.createElement('p');
-                                p.className = 'api-field-error text-sm text-[#FF3F3F]';
-                                p.textContent = json.errors[field][0];
-                                inputEl.closest('.flex.flex-col').appendChild(p);
-                            }
-                        });
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return;
-                    }
-
-                    if (!res.ok) {
-                        alertBox.textContent = json.message || 'Terjadi kesalahan saat menyimpan perubahan.';
-                        alertBox.classList.remove('hidden');
-                        return;
-                    }
-
-                    window.location.href = URL_REDIRECT_DETAIL;
-                } catch (err) {
-                    alertBox.textContent = 'Gagal terhubung ke server API.';
-                    alertBox.classList.remove('hidden');
-                } finally {
-                    btnSubmit.disabled = false;
-                    btnSubmit.textContent = teksAsli;
-                }
-            });
-        }
+            info.classList.remove('text-[#E11D2E]');
+            info.textContent = f.name;
+            img.src = URL.createObjectURL(f);
+            img.classList.remove('hidden');
+            ph.classList.add('hidden');
+        });
     })();
 </script>
 @endpush

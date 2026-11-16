@@ -2,250 +2,149 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\DosenStore;
-use Carbon\Carbon;
+use App\Support\ApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class DosenController extends Controller
 {
-    /** Email akun dosen harus email institusi: nama@polines.ac.id (tepat domain ini, bukan subdomain atau domain lain). */
-    private const ATURAN_EMAIL = 'regex:/^[A-Za-z0-9._%+\-]+@polines\.ac\.id$/i';
-
-    public function __construct(private DosenStore $store) {}
-
-    /** Daftar dosen. (Hanya kolom yang dibutuhkan tabel — tidak mengirim hash sandi dll.) */
+    /**
+     * Daftar dosen (memanggil GET /api/v1/dosen via ApiClient).
+     */
     public function index()
     {
+        $hasil = ApiClient::pengguna()->get('/dosen');
+
         return view('admin.dosen', [
-            'jabatan' => $this->store->opsiPangkat(),
+            'dosen' => $hasil['data'] ?? [],
+            'jabatan' => $hasil['meta']['opsi_pangkat'] ?? [],
         ]);
-    }
-
-    /** Detail satu dosen: profil, riwayat pangkat, dan aktivitas (4 tab). */
-    public function show(string $id)
-    {
-        return view('admin.dosen-detail', [
-            'dosenId' => $id,
-        ]);
-    }
-
-    /** Form tambah dosen. */
-    public function create()
-    {
-        return view('admin.dosen-tambah', [
-            'jabatan' => $this->store->opsiPangkat(),
-            'golongan' => $this->store->opsiGolongan(),
-            'roles' => DosenStore::ROLE,
-        ]);
-    }
-
-    /** Simpan dosen baru. */
-    public function store(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'nama_lengkap' => ['required', 'string', 'max:100'],
-            'nip' => ['required', 'regex:/^\d{8,20}$/', function ($attr, $value, $fail) {
-                if ($this->store->exists('nip', $value)) {
-                    $fail('NIP sudah terdaftar.');
-                }
-            }],
-            'status_dosen' => ['required', Rule::in(['aktif', 'nonaktif'])],
-            'email' => ['required', 'email', 'max:150', self::ATURAN_EMAIL, function ($attr, $value, $fail) {
-                if ($this->store->exists('email', $value)) {
-                    $fail('Email sudah dipakai akun lain.');
-                }
-            }],
-            'role' => ['required', Rule::in(array_keys(DosenStore::ROLE))],
-            'password' => ['required', 'string', 'min:8'],
-            'pangkat' => ['required', Rule::in($this->store->opsiPangkat())],
-            'golongan' => ['required', Rule::in($this->store->opsiGolongan())],
-            'nomor_sk' => ['required', 'string', 'max:100'],
-            'tanggal_sk' => ['required', 'date'],
-            'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ], [
-            'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
-            'nip.required' => 'NIP wajib diisi.',
-            'nip.regex' => 'NIP harus berupa angka 8–20 digit.',
-            'email.required' => 'Email akun wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
-            'email.regex' => 'Email harus memakai email institusi @polines.ac.id.',
-            'password.required' => 'Password wajib diisi.',
-            'password.min' => 'Password minimal 8 karakter.',
-            'pangkat.required' => 'Pangkat wajib dipilih.',
-            'golongan.required' => 'Golongan wajib dipilih.',
-            'nomor_sk.required' => 'Nomor SK wajib diisi.',
-            'tanggal_sk.required' => 'Tanggal SK wajib diisi.',
-            'tanggal_sk.date' => 'Tanggal SK tidak valid.',
-            'foto.image' => 'File harus berupa gambar.',
-            'foto.mimes' => 'Foto harus JPG, PNG, atau WebP.',
-            'foto.max' => 'Ukuran foto maksimal 2 MB.',
-        ]);
-
-        $data['email'] = strtolower($data['email']);
-
-        // Foto profil (opsional). Bila penyimpanan gagal, file yang sudah diunggah dibersihkan lagi.
-        $fotoPath = $request->hasFile('foto') ? $request->file('foto')->store('foto-dosen', 'public') : null;
-
-        try {
-            $row = $this->store->create([
-                'nama' => $data['nama_lengkap'],
-                'nip' => $data['nip'],
-                'status' => $data['status_dosen'],
-                'email' => $data['email'],
-                'role' => $data['role'],
-                'password' => $data['password'],
-                'pangkat' => $data['pangkat'],
-                'golongan' => $data['golongan'],
-                'sk' => $data['nomor_sk'],
-                'tanggal' => $data['tanggal_sk'],
-                'foto' => $fotoPath,
-            ]);
-        } catch (\Throwable $e) {
-            if ($fotoPath) {
-                Storage::disk('public')->delete($fotoPath);
-            }
-
-            throw $e;
-        }
-
-        return redirect()->route('admin.dosen.show', $row['id'])->with('status', 'Dosen baru berhasil ditambahkan.');
-    }
-
-    /** Form edit. */
-   public function edit(string $id)
-    {
-        return view('admin.dosen-edit', [
-            'dosenId'  => $id,
-            'jabatan'  => $this->store->opsiPangkat(),
-            'golongan' => $this->store->opsiGolongan(),
-            'roles'    => DosenStore::ROLE,
-        ]);
-    }
-
-    /** Simpan perubahan. */
-    public function update(Request $request, string $id): RedirectResponse
-    {
-        abort_unless($this->store->find($id), 404);
-
-        $data = $request->validate([
-            'nama_lengkap' => ['required', 'string', 'max:100'],
-            'nip' => ['required', 'regex:/^\d{8,20}$/', function ($attr, $value, $fail) use ($id) {
-                if ($this->store->usedByOther('nip', $value, $id)) {
-                    $fail('NIP sudah dipakai dosen lain.');
-                }
-            }],
-            'status_dosen' => ['required', Rule::in(['aktif', 'nonaktif'])],
-            'email' => ['required', 'email', 'max:150', self::ATURAN_EMAIL, function ($attr, $value, $fail) use ($id) {
-                if ($this->store->usedByOther('email', $value, $id)) {
-                    $fail('Email sudah dipakai akun lain.');
-                }
-            }],
-            'role' => ['required', Rule::in(array_keys(DosenStore::ROLE))],
-            'status_akun' => ['required', Rule::in(['aktif', 'nonaktif'])],
-            'password' => ['nullable', 'string', 'min:8'],
-            'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            // riwayat pangkat baru: opsional, tetapi kalau diisi harus lengkap
-            'pangkat' => ['nullable', 'required_with:golongan,nomor_sk,tanggal_sk', Rule::in($this->store->opsiPangkat())],
-            'golongan' => ['nullable', 'required_with:pangkat,nomor_sk,tanggal_sk', Rule::in($this->store->opsiGolongan())],
-            'nomor_sk' => ['nullable', 'required_with:pangkat,golongan,tanggal_sk', 'string', 'max:100'],
-            'tanggal_sk' => ['nullable', 'required_with:pangkat,golongan,nomor_sk', 'date'],
-        ], [
-            'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
-            'nip.required' => 'NIP wajib diisi.',
-            'nip.regex' => 'NIP harus berupa angka 8–20 digit.',
-            'email.required' => 'Email akun wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
-            'email.regex' => 'Email harus memakai email institusi @polines.ac.id.',
-            'password.min' => 'Password baru minimal 8 karakter.',
-            'foto.image' => 'File harus berupa gambar.',
-            'foto.mimes' => 'Foto harus JPG, PNG, atau WebP.',
-            'foto.max' => 'Ukuran foto maksimal 2 MB.',
-            'pangkat.required_with' => 'Pangkat wajib diisi bila menambah riwayat.',
-            'golongan.required_with' => 'Golongan wajib diisi bila menambah riwayat.',
-            'nomor_sk.required_with' => 'Nomor SK wajib diisi bila menambah riwayat.',
-            'tanggal_sk.required_with' => 'Tanggal SK wajib diisi bila menambah riwayat.',
-            'tanggal_sk.date' => 'Tanggal SK tidak valid.',
-        ]);
-
-        $data['email'] = strtolower($data['email']);
-
-        $riwayatBaru = ! empty($data['pangkat'])
-            ? ['pangkat' => $data['pangkat'], 'golongan' => $data['golongan'], 'sk' => $data['nomor_sk'], 'tanggal' => $data['tanggal_sk']]
-            : null;
-
-        // Foto baru (opsional): simpan, lalu hapus foto lama
-        $fotoPath = null;
-        if ($request->hasFile('foto')) {
-            $fotoPath = $request->file('foto')->store('foto-dosen', 'public');
-            $lama = $this->store->find($id)['foto'] ?? null;
-            if ($lama) {
-                Storage::disk('public')->delete($lama);
-            }
-        }
-
-        // TODO-DB: simpan ke database (di dalam satu transaksi: dosen + akun login + riwayat).
-        $this->store->update($id, [
-            'nama' => $data['nama_lengkap'],
-            'nip' => $data['nip'],
-            'status' => $data['status_dosen'],
-            'email' => $data['email'],
-            'role' => $data['role'],
-            'status_akun' => $data['status_akun'],
-            'password' => $data['password'] ?? null,
-            'foto' => $fotoPath,
-        ], $riwayatBaru);
-
-        return redirect()->route('admin.dosen.show', $id)->with('status', 'Perubahan data dosen berhasil disimpan.');
     }
 
     /**
-     * Aktifkan / nonaktifkan dosen. Dosen tidak dihapus karena dipakai tabel lain.
-     * Dosen aktif tampil di landing page; yang nonaktif tidak.
+     * Detail satu dosen (memanggil GET /api/v1/dosen/{id} via ApiClient).
      */
-    public function toggleStatus(string $id): RedirectResponse
+    public function show(string $id)
     {
-        $row = $this->store->toggleStatus($id);
-        abort_unless($row, 404);
+        $hasil = ApiClient::pengguna()->get("/dosen/{$id}");
+        $data = $hasil['data'] ?? [];
+        $profil = $data['profil'] ?? [];
 
-        $pesan = $row['status'] === 'aktif'
-            ? "Dosen {$row['nama']} diaktifkan dan tampil di halaman depan."
-            : "Dosen {$row['nama']} dinonaktifkan dan tidak tampil di halaman depan.";
-
-        return redirect()->back()->with('status', $pesan);
-    }
-
-    /** Aktivitas dosen (4 tab): dari store; null (mode json) = data contoh. */
-    private function aktivitas(array $row): array
-    {
-        return $this->store->aktivitas($row['id']) ?? $this->aktivitasContoh();
-    }
-
-    /** Data contoh (simulasi JSON), sama untuk semua dosen. */
-    private function aktivitasContoh(): array
-    {
-        return [
-            'penelitian' => ['label' => 'Penelitian', 'items' => [
-                ['title' => 'Deteksi hoaks dengan machine learning', 'year' => '2026', 'type' => 'Penelitian Terapan',      'role' => 'Ketua'],
-                ['title' => 'Analisis sentimen ulasan aplikasi',     'year' => '2025', 'type' => 'Penelitian Dasar',        'role' => 'Anggota'],
-                ['title' => 'Sistem rekomendasi mata kuliah',        'year' => '2025', 'type' => 'Penelitian Pengembangan', 'role' => 'Anggota'],
-            ]],
-            'pengabdian' => ['label' => 'Pengabdian', 'items' => [
-                ['title' => 'Pelatihan sensor sederhana pada sistem terbenam', 'year' => '2025', 'type' => 'Pengabdian kepada Masyarakat', 'role' => 'Ketua'],
-                ['title' => 'Pendampingan digitalisasi UMKM',                  'year' => '2024', 'type' => 'Pengabdian kepada Masyarakat', 'role' => 'Anggota'],
-            ]],
-            'pengajaran' => ['label' => 'Pengajaran', 'items' => [
-                ['title' => 'Pemrograman Web Lanjut', 'year' => '2026', 'type' => 'Semester Ganjil · 3 SKS', 'role' => 'Pengampu'],
-                ['title' => 'Basis Data II',          'year' => '2026', 'type' => 'Semester Ganjil · 3 SKS', 'role' => 'Pengampu'],
-                ['title' => 'Jaringan Komputer',      'year' => '2025', 'type' => 'Semester Genap · 3 SKS',  'role' => 'Koordinator'],
-            ]],
-            'kegiatan' => ['label' => 'Kegiatan', 'items' => [
-                ['title' => 'Seminar Nasional AI', 'year' => '2026', 'type' => 'Seminar',            'role' => 'Pemateri'],
-                ['title' => 'Pelatihan Industri',  'year' => '2025', 'type' => 'Pelatihan',          'role' => 'Peserta'],
-                ['title' => 'Kunjungan Industri',  'year' => '2025', 'type' => 'Kunjungan Industri', 'role' => 'Pendamping'],
-            ]],
+        $dosen = [
+            'id' => $profil['id'] ?? $id,
+            'nama' => $profil['nama'] ?? '-',
+            'nip' => $profil['nip'] ?? '-',
+            'status' => $profil['status'] ?? 'nonaktif',
+            'foto' => $profil['foto'] ?? null,
         ];
+
+        $info = [
+            ['Email akun', $profil['email'] ?? '-'],
+            ['Role', $profil['role'] ?? 'Dosen'],
+            ['Pangkat / golongan saat ini', ($profil['jabatan'] ?? '-').', '.($profil['golongan'] ?? '-')],
+            ['Akun login', ($profil['status_akun'] ?? '') === 'aktif' ? 'Aktif' : 'Nonaktif'],
+        ];
+
+        $riwayat = array_map(fn ($r) => [
+            'pangkat' => $r['pangkat'],
+            'golongan' => $r['golongan'],
+            'sk' => $r['sk'],
+            'tanggal' => $r['tanggal_formatted'] ?? $r['tanggal'],
+            'now' => $r['now'] ?? false,
+        ], $data['riwayat'] ?? []);
+
+        return view('admin.dosen-detail', [
+            'dosen' => $dosen,
+            'info' => $info,
+            'riwayat' => $riwayat,
+            'aktivitas' => $data['aktivitas'] ?? [],
+        ]);
+    }
+
+    /**
+     * Form tambah dosen (opsi dropdown diambil dari meta GET /api/v1/dosen).
+     */
+    public function create()
+    {
+        $hasil = ApiClient::pengguna()->get('/dosen');
+        $meta = $hasil['meta'] ?? [];
+
+        return view('admin.dosen-tambah', [
+            'jabatan' => $meta['opsi_pangkat'] ?? [],
+            'golongan' => $meta['opsi_golongan'] ?? [],
+            'roles' => $meta['roles'] ?? [],
+        ]);
+    }
+
+    /**
+     * Simpan dosen baru (memanggil POST /api/v1/dosen via ApiClient; error 422 otomatis kembali ke form).
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $payload = $request->only([
+            'nama_lengkap', 'nip', 'status_dosen', 'email',
+            'role', 'password', 'pangkat', 'golongan', 'nomor_sk', 'tanggal_sk',
+        ]);
+
+        $files = $request->hasFile('foto') ? ['foto' => $request->file('foto')] : [];
+
+        $hasil = ApiClient::pengguna()->post('/dosen', $payload, $files);
+        $idBaru = $hasil['data']['id'] ?? null;
+
+        return redirect()
+            ->route($idBaru ? 'admin.dosen.show' : 'admin.dosen', $idBaru)
+            ->with('status', 'Dosen baru berhasil ditambahkan.');
+    }
+
+    /**
+     * Form edit dosen (GET /admin/dosen/{id}/edit).
+     */
+    public function edit(string $id)
+    {
+        $detail = ApiClient::pengguna()->get("/dosen/{$id}");
+        $list = ApiClient::pengguna()->get('/dosen');
+
+        $profil = $detail['data']['profil'] ?? [];
+        $meta = $list['meta'] ?? [];
+
+        return view('admin.dosen-edit', [
+            'dosen' => [
+                'id' => $profil['id'] ?? $id,
+                'nama_lengkap' => $profil['nama'] ?? '',
+                'nip' => $profil['nip'] ?? '',
+                'status_dosen' => $profil['status'] ?? 'aktif',
+                'email' => $profil['email'] ?? '',
+                'role' => $profil['role_key'] ?? 'dosen',
+                'status_akun' => $profil['status_akun'] ?? 'aktif',
+                'foto' => $profil['foto'] ?? null,
+                'pangkat' => '',
+                'golongan' => '',
+                'nomor_sk' => '',
+                'tanggal_sk' => '',
+            ],
+            'jabatan' => $meta['opsi_pangkat'] ?? [],
+            'golongan' => $meta['opsi_golongan'] ?? [],
+            'roles' => $meta['roles'] ?? [],
+        ]);
+    }
+
+    /**
+     * Simpan perubahan dosen (PUT /admin/dosen/{id}).
+     */
+    public function update(Request $request, string $id): RedirectResponse
+    {
+        $payload = $request->only([
+            'nama_lengkap', 'nip', 'status_dosen', 'email',
+            'role', 'status_akun', 'password',
+            'pangkat', 'golongan', 'nomor_sk', 'tanggal_sk',
+        ]);
+
+        $files = $request->hasFile('foto') ? ['foto' => $request->file('foto')] : [];
+
+        ApiClient::pengguna()->put("/dosen/{$id}", $payload, $files);
+
+        return redirect()
+            ->route('admin.dosen.show', $id)
+            ->with('status', 'Perubahan data dosen berhasil disimpan.');
     }
 }
