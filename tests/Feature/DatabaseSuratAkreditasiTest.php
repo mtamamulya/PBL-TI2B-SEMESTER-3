@@ -37,18 +37,18 @@ class DatabaseSuratAkreditasiTest extends TestCase
     {
         ['user' => $user, 'kategori' => $kategori, 'dokumen' => $dokumen, 'akreditasi' => $akreditasi] = $this->records();
 
-        $this->assertNull($kategori->fresh()->template_surat);
+        $this->assertNull($kategori->fresh()->isi_surat);
         $this->assertFalse($kategori->fresh()->lampiran_peserta);
         $this->assertFalse($dokumen->fresh()->is_lampiran);
         $this->assertNull($user->fresh()->tanda_tangan_path);
         $this->assertNull($akreditasi->fresh()->status);
 
-        $kategori->update(['template_surat' => 'Surat untuk {{ nama_kegiatan }}', 'lampiran_peserta' => true]);
+        $kategori->update(['isi_surat' => 'Surat untuk {{ nama_kegiatan }}', 'lampiran_peserta' => true]);
         $user->update(['tanda_tangan_path' => 'tanda-tangan/kaprodi.png']);
         $dokumen->update(['is_lampiran' => true]);
         $akreditasi->update(['tahun_terbit' => 2026, 'berlaku_sampai' => '2031-11-02', 'status' => true]);
 
-        $this->assertSame('Surat untuk {{ nama_kegiatan }}', $kategori->fresh()->template_surat);
+        $this->assertSame('Surat untuk {{ nama_kegiatan }}', $kategori->fresh()->isi_surat);
         $this->assertTrue($kategori->fresh()->lampiran_peserta);
         $this->assertSame('tanda-tangan/kaprodi.png', $user->fresh()->tanda_tangan_path);
         $this->assertTrue($dokumen->fresh()->is_lampiran);
@@ -95,7 +95,7 @@ class DatabaseSuratAkreditasiTest extends TestCase
 
         $this->assertSame('Penelitian', $kategori->fresh()->nama_kategori);
         $this->assertFalse($kategori->fresh()->lampiran_peserta);
-        $this->assertNull($kategori->fresh()->template_surat);
+        $this->assertNull($kategori->fresh()->isi_surat);
         $this->assertSame('kaprodi@example.test', $user->fresh()->email);
         $this->assertNull($user->fresh()->tanda_tangan_path);
         $this->assertSame('proposal.pdf', $dokumen->fresh()->nama_file);

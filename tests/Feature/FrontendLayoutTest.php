@@ -107,8 +107,10 @@ class FrontendLayoutTest extends TestCase
         $category = DB::table('kategori')->insertGetId(['nama_kategori' => 'Penelitian', 'id_jenis_kegiatan' => $kind], 'id_kategori');
         $ownerId = DB::table('users')->insertGetId(['id_role' => $role, 'email' => 'owner@test.local', 'password' => 'test', 'status' => true], 'id_user');
         $otherId = DB::table('users')->insertGetId(['id_role' => $role, 'email' => 'other@test.local', 'password' => 'test', 'status' => true], 'id_user');
+        $tanggal = DB::table('isian_kategori')->insertGetId(['id_kategori' => $category, 'input' => 'tanggal_mulai', 'jenis_input' => 'tanggal'], 'id_isian_kategori');
         foreach ([$ownerId => 'Kegiatan Milik Saya', $otherId => 'Kegiatan Milik Orang Lain'] as $user => $title) {
-            $id = DB::table('kegiatan')->insertGetId(['id_kategori' => $category, 'id_user' => $user, 'nama_kegiatan' => $title, 'tanggal_mulai' => now()->toDateString(), 'created_at' => now(), 'updated_at' => now()], 'id_kegiatan');
+            $id = DB::table('kegiatan')->insertGetId(['id_kategori' => $category, 'id_user' => $user, 'nama_kegiatan' => $title, 'created_at' => now(), 'updated_at' => now()], 'id_kegiatan');
+            DB::table('detail_kegiatan')->insert(['id_kegiatan' => $id, 'id_isian_kategori' => $tanggal, 'isian' => now()->toDateString()]);
             DB::table('timeline')->insert(['id_kegiatan' => $id, 'status' => 'diajukan', 'tanggal_status' => now()]);
         }
 

@@ -1,16 +1,17 @@
 <?php
 
+use App\BackendKel3\Dashboard\DosenDashboardController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DosenDashboardController;
-use App\Http\Controllers\DosenPengajaranController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
+use App\Http\Controllers\LandingMahasiswaController;
 use App\Http\Controllers\MahasiswaController;
 use App\Http\Controllers\PengajuanController;
 use App\Http\Middleware\MahasiswaOnly;
 use Illuminate\Support\Facades\Route;
 
-// Ganti redirect otomatis ini dengan Landing Page TRK
-Route::view('/', 'home')->name('home');
+// Landing Page TRK
+Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::redirect('/dashboard', '/mahasiswa/dashboard')->name('dashboard');
 Route::get('/dosen/dashboard', [DosenDashboardController::class, 'index'])->name('dosen.dashboard');
@@ -39,14 +40,11 @@ Route::view('/pengabdian/create', 'dosen.pengabdian.create')->name('pengabdian.c
 Route::view('/pengabdian/{id}', 'dosen.pengabdian.show')->whereNumber('id')->name('pengabdian.show');
 Route::view('/pengabdian/{id}/edit', 'dosen.pengabdian.edit')->whereNumber('id')->name('pengabdian.edit');
 
-// KODE BARU (Terhubung ke PengajaranController):
-Route::get('/pengajaran', [DosenPengajaranController::class, 'index'])->name('pengajaran.index');
-Route::get('/pengajaran/create', [DosenPengajaranController::class, 'create'])->name('pengajaran.create');
-Route::post('/pengajaran', [DosenPengajaranController::class, 'store'])->name('pengajaran.store');
-// Detail & edit: harus di bawah /pengajaran/create supaya "create" tidak dianggap sebagai {id}
-Route::get('/pengajaran/{id}', [DosenPengajaranController::class, 'show'])->whereNumber('id')->name('pengajaran.show');
-Route::get('/pengajaran/{id}/edit', [DosenPengajaranController::class, 'edit'])->whereNumber('id')->name('pengajaran.edit');
-Route::put('/pengajaran/{id}', [DosenPengajaranController::class, 'update'])->whereNumber('id')->name('pengajaran.update');
+// KODE BARU (Menggunakan Route::view karena data diambil via API):
+Route::view('/pengajaran', 'dosen.pengajaran.index')->name('pengajaran.index');
+Route::view('/pengajaran/create', 'dosen.pengajaran.create')->name('pengajaran.create');
+Route::view('/pengajaran/{id}', 'dosen.pengajaran.show')->whereNumber('id')->name('pengajaran.show');
+Route::view('/pengajaran/{id}/edit', 'dosen.pengajaran.edit')->whereNumber('id')->name('pengajaran.edit');
 
 Route::redirect('/kegiatan', '/mahasiswa/kegiatan');
 Route::redirect('/kegiatan/create', '/mahasiswa/kegiatan/create');
@@ -131,4 +129,11 @@ Route::get('/pengajuan/{id}/edit', fn ($id) => redirect()->route('pengajuan.edit
 Route::get('/pengajuan/{id}', fn ($id) => redirect()->route('pengajuan.show', $id))->whereNumber('id');
 Route::get('/kegiatan/{id}/edit', fn ($id) => redirect()->route('kegiatan.edit', $id))->whereNumber('id');
 Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id))->whereNumber('id');
+
+// Route Sinkronisasi Kelas
+Route::post('/admin/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+
+Route::patch('/admin/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
+
 require __DIR__.'/admin-kaprodi.php';
+require __DIR__.'/api-docs.php';

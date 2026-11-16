@@ -1,7 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\BeritaController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,13 +23,7 @@ Route::get('/ping', function () {
     ], 200);
 });
 
-Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
-    return response()->json([
-        'success' => true,
-        'message' => 'Data profil user berhasil diambil',
-        'data' => $request->user(),
-    ], 200);
-});
+// Autentikasi API (token Sanctum)
 
 /*
 |--------------------------------------------------------------------------
@@ -44,4 +36,5 @@ Route::prefix('integrasi')
         // TODO: Daftarkan endpoint API fitur di sini
     });
 
-Route::get('/berita', [BeritaController::class, 'index']);
+require app_path('BackendKel3/routes.php');
+require app_path('BackendKel1/routes.php');

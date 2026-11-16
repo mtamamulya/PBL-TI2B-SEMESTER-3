@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\BackendKel3\Dashboard;
 
+use App\Http\Controllers\Controller;
 use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 
@@ -22,7 +23,7 @@ class DosenDashboardController extends Controller
         $stats[] = ['label' => 'Menunggu Verifikasi', 'value' => (clone $waiting)->count(), 'aria' => 'Buka kegiatan menunggu verifikasi', 'alert' => true, 'url' => route('dosen.kegiatan.index')];
         $perTahun = [];
         foreach (range(now()->year - 4, now()->year + 2) as $year) {
-            $perTahun[$year] = (clone $query)->whereYear('tanggal_mulai', $year)->count();
+            $perTahun[$year] = (clone $query)->denganTanggal()->whereYear('tanggal_mulai', $year)->count();
         }
         $menunggu = $waiting->with('kategori')->latest('created_at')->limit(5)->get()->map(fn ($item) => [
             'id' => $item->getKey(), 'nama' => $item->nama_kegiatan,
