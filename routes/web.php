@@ -50,7 +50,8 @@ Route::redirect('/kegiatan', '/mahasiswa/kegiatan');
 Route::redirect('/kegiatan/create', '/mahasiswa/kegiatan/create');
 Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/kegiatan', [KegiatanController::class, 'index'])->name('kegiatan.index');
-    Route::view('/mahasiswa/kegiatan/create', 'dosen.kegiatan.create')->name('kegiatan.create');
+    Route::get('/mahasiswa/kegiatan/create', [PengajuanController::class, 'createActivity'])->name('kegiatan.create');
+    Route::post('/mahasiswa/kegiatan', [PengajuanController::class, 'storeActivity'])->name('kegiatan.store');
 
     // Mengirimkan semua variabel dummy yang dibutuhkan kegiatan.blade.php
     Route::view('/mahasiswa/kegiatan/{id}/edit', 'kegiatan', [
