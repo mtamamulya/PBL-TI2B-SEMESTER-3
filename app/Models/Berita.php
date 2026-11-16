@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Berita extends Model
 {
+    public const STATUSES = ['draft', 'diajukan', 'revisi', 'ditolak', 'publish'];
+
     protected $table = 'berita';
 
     protected $primaryKey = 'id_berita';
@@ -14,6 +16,7 @@ class Berita extends Model
     protected $fillable = [
         'id_kegiatan',
         'id_user',
+        'id_kategori',
         'judul_berita',
         'isi_berita',
         'status',
@@ -34,5 +37,10 @@ class Berita extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_user', 'id_user');
+    }
+
+    public function kategori(): BelongsTo
+    {
+        return $this->belongsTo(Kategori::class, 'id_kategori', 'id_kategori');
     }
 }
