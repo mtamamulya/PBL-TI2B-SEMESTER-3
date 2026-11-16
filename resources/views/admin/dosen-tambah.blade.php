@@ -213,7 +213,6 @@
         var nama = document.getElementById('nama_lengkap');
         if (!input) return;
 
-        // Inisial pada lingkaran mengikuti nama yang diketik (selama belum ada foto)
         if (nama) nama.addEventListener('input', function () {
             if (img.classList.contains('hidden')) ph.textContent = (nama.value.trim().charAt(0) || 'D').toUpperCase();
         });

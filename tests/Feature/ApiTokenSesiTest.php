@@ -27,6 +27,7 @@ class ApiTokenSesiTest extends TestCase
 
     public function test_bawaannya_mati_dan_tidak_membuat_token(): void
     {
+        config(['api_client.token_sesi' => false]);
         $user = $this->buatKaprodi();
 
         ApiTokenSesi::terbitkan($user);
