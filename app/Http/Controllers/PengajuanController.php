@@ -285,6 +285,7 @@ class PengajuanController extends Controller
     public function activityOptions(): Collection
     {
         return $this->all()
+            ->concat(collect(session('kegiatan.history', [])))
             ->map(function (array $item) {
                 $data = $item['data'] ?? [];
                 $date = $data['start_date'] ?? Carbon::parse($item['submitted_at'])->toDateString();
@@ -415,6 +416,15 @@ class PengajuanController extends Controller
         return view('mahasiswa.pengajuan.create', [
             'item' => null,
             'advisors' => $this->advisorOptions(),
+        ]);
+    }
+
+    public function createActivity()
+    {
+        return view('mahasiswa.pengajuan.create', [
+            'item' => null,
+            'advisors' => $this->advisorOptions(),
+            'isActivityHistory' => true,
         ]);
     }
 
@@ -585,6 +595,30 @@ class PengajuanController extends Controller
     public function store(Request $request)
     {
         return $this->saveSubmission($request, 'pengajuan.show');
+    }
+
+    public function storeActivity(Request $request)
+    {
+        $data = $this->validated($request);
+        $documents = $data['documents'] ?? [];
+        unset($data['documents']);
+
+        $history = collect(session('kegiatan.history', []));
+        $id = max(1000, (int) $history->max('id') + 1);
+        $history->push([
+            'id' => $id,
+            'title' => $data['title'],
+            'category' => $data['category'],
+            'type' => $data['category'],
+            'status' => 'Tercatat',
+            'submitted_at' => now()->toIso8601String(),
+            'data' => $data,
+            'documents' => $documents,
+        ]);
+        session(['kegiatan.history' => $history->all()]);
+
+        return redirect()->route('kegiatan.index')
+            ->with('success', 'Kegiatan berhasil ditambahkan ke riwayat.');
     }
 
     public function storeDosen(Request $request)

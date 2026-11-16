@@ -53,7 +53,7 @@ class KategoriKegiatanController extends Controller
             $data['name'],
             $data['jenis'],
             $data['description'] ?? null,
-            $data['template_surat'] ?? null
+            $data['isi_surat'] ?? null
         );
 
         return response()->json(['ok' => true, 'row' => $row]);
@@ -72,7 +72,7 @@ class KategoriKegiatanController extends Controller
             $data['name'],
             $data['jenis'],
             $data['description'] ?? null,
-            $data['template_surat'] ?? null
+            $data['isi_surat'] ?? null
         );
 
         if (! $row) {
@@ -93,11 +93,15 @@ class KategoriKegiatanController extends Controller
 
     private function validasi(Request $request): array
     {
+        if (! $request->has('isi_surat') && $request->has('template_surat')) {
+            $request->merge(['isi_surat' => $request->input('template_surat')]);
+        }
+
         return $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'jenis' => ['required', Rule::in(KategoriKegiatanStore::JENIS)],
             'description' => ['nullable', 'string', 'max:255'],
-            'template_surat' => ['nullable', 'string'],
+            'isi_surat' => ['nullable', 'string'],
         ], [
             'name.required' => 'Nama kategori wajib diisi.',
             'name.max' => 'Nama kategori maksimal 100 karakter.',

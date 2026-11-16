@@ -2,12 +2,35 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PengajuanFormTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DB::table('roles')->insert([
+            'id_role' => 4,
+            'nama_role' => 'mahasiswa',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $id = DB::table('users')->insertGetId([
+            'id_role' => 4,
+            'email' => 'pengajuan-student@test.local',
+            'password' => bcrypt('password'),
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->actingAs(User::findOrFail($id));
+    }
 
     public function test_new_forms_do_not_prefill_team_members(): void
     {
@@ -171,6 +194,41 @@ class PengajuanFormTest extends TestCase
                 fn ($activity) => $activity['name'] === 'Pengajuan yang menjadi kegiatan'
                     && $activity['documents'][0]['url'] === 'https://example.com/sertifikat'
             ));
+    }
+
+    public function test_activity_form_adds_directly_to_history_without_creating_an_approval_submission(): void
+    {
+        $this->get(route('kegiatan.create'))
+            ->assertOk()
+            ->assertViewIs('mahasiswa.pengajuan.create')
+            ->assertSee('Tambah Kegiatan')
+            ->assertSee('Simpan ke Riwayat')
+            ->assertSee(route('kegiatan.store'));
+
+        $this->post(route('kegiatan.store'), [
+            'category' => 'Pengabdian',
+            'title' => 'Kegiatan yang langsung dicatat',
+            'organizer' => 'Program Studi',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ])
+            ->assertRedirect(route('kegiatan.index'))
+            ->assertSessionHas('kegiatan.history.0.status', 'Tercatat')
+            ->assertSessionMissing('pengajuan.items');
+
+        $this->get(route('kegiatan.index'))
+            ->assertOk()
+            ->assertSee('Kegiatan yang langsung dicatat')
+            ->assertSee('Tercatat')
+            ->assertViewHas('allActivities', fn ($activities) => $activities->contains(
+                fn ($activity) => $activity['name'] === 'Kegiatan yang langsung dicatat'
+                    && $activity['status'] === 'Tercatat'
+            ));
+
+        $this->get(route('pengajuan.index'))
+            ->assertOk()
+            ->assertDontSee('Kegiatan yang langsung dicatat');
     }
 
     public function test_activity_list_includes_activities_tagged_to_the_current_user(): void
