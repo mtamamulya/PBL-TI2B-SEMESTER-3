@@ -42,7 +42,7 @@ info:
     ## Catatan
     - Nama field mengikuti nama kolom database (mis. `nama_kurikulum`, `sks_praktik`, tetapi `jam_praktek`).
     - Endpoint bertanda **(belum aktif)** sudah dirancang tetapi route-nya belum dipasang.
-    - Bila mengirim berkas PDF pada pembaruan (PUT), kirim sebagai `POST` dengan field tambahan `_method=PUT`
+    - Bila mengirim berkas PDF/foto pada pembaruan (PUT), kirim sebagai `POST` dengan field tambahan `_method=PUT`
       (PHP tidak membaca multipart pada PUT).
 
 servers:
@@ -60,8 +60,8 @@ tags:
     description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
   - name: Akreditasi
     description: Akreditasi prodi (baca publik, tulis khusus admin).
-  - name: Pengajuan Admin
-    description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
+  - name: Dosen
+    description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
 
 paths:
 
@@ -617,116 +617,116 @@ paths:
         '404':
           $ref: '#/components/responses/TidakDitemukan'
 
-  /admin/pengajuan:
+  /dosen:
     get:
-      tags: [Pengajuan Admin]
-      summary: Daftar pengajuan kegiatan untuk admin
-      security:
-        - bearerAuth: []
+      tags: [Dosen]
+      summary: Daftar dosen
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mendukung pencarian nama/NIP serta filter pangkat dan status.
       parameters:
-        - in: query
-          name: status
+        - name: q
+          in: query
+          description: Cari berdasarkan nama atau NIP dosen.
           schema:
             type: string
-            enum: [antrean, semua, diajukan, direvisi, direview, ditolak, diterima, selesai]
-        - in: query
-          name: id_jenis_kegiatan
-          schema:
-            type: integer
-        - in: query
-          name: jenis
+            maxLength: 100
+        - name: jabatan
+          in: query
+          description: Saring berdasarkan pangkat/jabatan akademik (atau `all` untuk semua).
           schema:
             type: string
-        - in: query
-          name: id_kategori
-          schema:
-            type: integer
-        - in: query
-          name: kebutuhan
+        - name: status
+          in: query
+          description: Saring berdasarkan status keaktifan dosen (`aktif`, `nonaktif`, atau `all`).
           schema:
             type: string
-            enum: [kegiatan, surat]
-        - in: query
-          name: q
-          schema:
-            type: string
-        - in: query
-          name: per_page
-          schema:
-            type: integer
+            enum: [aktif, nonaktif, all]
       responses:
         '200':
-          description: Daftar pengajuan kegiatan
-        '401':
-          description: Belum login
-        '403':
-          description: Bukan admin
-
-  /admin/pengajuan/{id}:
-    get:
-      tags: [Pengajuan Admin]
-      summary: Detail pengajuan kegiatan
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Detail pengajuan kegiatan
-        '403':
-          description: Bukan admin
-        '404':
-          description: Pengajuan tidak ditemukan
-
-  /admin/pengajuan/{id}/keputusan:
+          description: Daftar dosen berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenListResponse'
     post:
-      tags: [Pengajuan Admin]
-      summary: Simpan keputusan admin (setujui, revisi, atau tolak)
+      tags: [Dosen]
+      summary: Tambah dosen baru
+      description: Khusus peran **admin**. Membuat data profil dosen, akun login, serta riwayat pangkat pertama.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DosenCreateInput'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DosenCreateInput'
+      responses:
+        '201':
+          description: Dosen baru berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/DosenValidasiGagal'
+
+  /dosen/{id}:
+    get:
+      tags: [Dosen]
+      summary: Detail satu dosen
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mengembalikan profil lengkap, riwayat pangkat/golongan, dan aktivitas dosen.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail dosen berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenDetailResponse'
+        '404':
+          $ref: '#/components/responses/DosenTidakDitemukan'
+    put:
+      tags: [Dosen]
+      summary: Ubah data dosen
+      description: |
+        Dapat diakses oleh peran **admin** atau **dosen** pemilik profil yang bersangkutan.
+        Pengguna non-admin tidak dapat mengubah `role`, `status_dosen`, maupun `status_akun`.
+        Untuk mengirim berkas foto profil, gunakan `POST` dengan field tambahan `_method=PUT`.
       security:
         - bearerAuth: []
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
+        - $ref: '#/components/parameters/IdPath'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [aksi]
-              properties:
-                aksi:
-                  type: string
-                  enum: [setujui, revisi, tolak]
-                nomor_sk:
-                  type: string
-                tanggal_sk:
-                  type: string
-                  format: date
-                catatan_revisi:
-                  type: string
-                lampiran:
-                  type: array
-                  items:
-                    type: integer
+              $ref: '#/components/schemas/DosenUpdateInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DosenUpdateInput'
       responses:
         '200':
-          description: Keputusan berhasil disimpan
+          description: Perubahan data dosen berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
         '403':
-          description: Bukan admin
+          $ref: '#/components/responses/DosenDilarang'
         '404':
-          description: Pengajuan tidak ditemukan
-        '409':
-          description: Pengajuan sudah disetujui Kaprodi dan terkunci
+          $ref: '#/components/responses/DosenTidakDitemukan'
         '422':
-          description: Validasi gagal
+          $ref: '#/components/responses/DosenValidasiGagal'
 
 components:
 
@@ -783,18 +783,27 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Unauthenticated.
     DilarangPeran:
       description: Peran akun tidak diizinkan untuk aksi ini.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengakses fitur ini.
     TidakDitemukan:
       description: Data tidak ditemukan.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data tidak ditemukan.
     ValidasiGagal:
       description: Input tidak valid.
       content:
@@ -807,6 +816,38 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GalatUmum'
+    DosenTidakDitemukan:
+      description: Data dosen tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data dosen tidak ditemukan.
+    DosenDilarang:
+      description: Peran akun tidak diizinkan atau bukan pemilik profil dosen.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengubah data dosen ini.
+    DosenValidasiGagal:
+      description: Input data dosen tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatValidasi'
+          example:
+            success: false
+            message: Data yang dikirim tidak valid. Periksa kembali isian Anda.
+            errors:
+              nip:
+                - NIP sudah dipakai dosen lain.
+              email:
+                - Email sudah dipakai akun lain.
 
   schemas:
 
@@ -1230,3 +1271,280 @@ components:
             $ref: '#/components/schemas/Akreditasi'
         meta:
           $ref: '#/components/schemas/Meta'
+
+    DosenItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nip:
+          type: string
+          example: '198407192019031008'
+        nama:
+          type: string
+          example: Kuwat Santoso, S.T., M.Kom.
+        jabatan:
+          type: string
+          example: Asisten Ahli
+        golongan:
+          type: string
+          example: III/c
+        status:
+          type: string
+          enum: [aktif, nonaktif]
+          example: aktif
+
+    DosenListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data dosen berhasil diambil.
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 12
+            opsi_pangkat:
+              type: array
+              items:
+                type: string
+              example: [Tenaga Pengajar, Asisten Ahli, Lektor, Lektor Kepala, Guru Besar]
+            opsi_golongan:
+              type: array
+              items:
+                type: string
+              example: [III/a, III/b, III/c, III/d, IV/a, IV/b, IV/c, IV/d, IV/e]
+            roles:
+              type: object
+              additionalProperties:
+                type: string
+              example:
+                dosen: Dosen
+                admin: Admin
+                kaprodi: Kaprodi
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DosenItem'
+
+    DosenRiwayatPangkat:
+      type: object
+      properties:
+        pangkat:
+          type: string
+          example: Lektor
+        golongan:
+          type: string
+          example: III/c
+        sk:
+          type: string
+          example: 0891/PL4.7.2/KP/2026
+        tanggal:
+          type: string
+          format: date
+          example: '2026-11-14'
+        tanggal_formatted:
+          type: string
+          example: 14 November 2026
+        now:
+          type: boolean
+          example: true
+
+    DosenDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Detail dosen berhasil diambil.
+        data:
+          type: object
+          properties:
+            profil:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 1
+                nama:
+                  type: string
+                  example: Kuwat Santoso, S.T., M.Kom.
+                nip:
+                  type: string
+                  example: '198407192019031008'
+                email:
+                  type: string
+                  format: email
+                  example: kuwatsantoso@polines.ac.id
+                role:
+                  type: string
+                  example: Dosen
+                role_key:
+                  type: string
+                  example: dosen
+                jabatan:
+                  type: string
+                  example: Asisten Ahli
+                golongan:
+                  type: string
+                  example: III/c
+                status:
+                  type: string
+                  enum: [aktif, nonaktif]
+                  example: aktif
+                status_akun:
+                  type: string
+                  enum: [aktif, nonaktif]
+                  example: aktif
+                foto:
+                  type: string
+                  nullable: true
+                  example: http://127.0.0.1:8001/storage/foto-dosen/profil.jpg
+            riwayat:
+              type: array
+              items:
+                $ref: '#/components/schemas/DosenRiwayatPangkat'
+            aktivitas:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  label:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+    DosenCreateInput:
+      type: object
+      required: [nama_lengkap, nip, status_dosen, email, role, password, pangkat, golongan, nomor_sk, tanggal_sk]
+      properties:
+        nama_lengkap:
+          type: string
+          maxLength: 100
+          example: Budi Santoso, S.Kom., M.Cs.
+        nip:
+          type: string
+          pattern: '^\d{8,20}$'
+          example: '199005122022031004'
+        status_dosen:
+          type: string
+          enum: [aktif, nonaktif]
+          example: aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: budi.santoso@polines.ac.id
+        role:
+          type: string
+          enum: [dosen, admin, kaprodi]
+          example: dosen
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: password123
+        foto:
+          type: string
+          format: binary
+          description: Foto profil JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        pangkat:
+          type: string
+          example: Asisten Ahli
+        golongan:
+          type: string
+          example: III/b
+        nomor_sk:
+          type: string
+          maxLength: 100
+          example: 0123/PL4.7.2/KP/2026
+        tanggal_sk:
+          type: string
+          format: date
+          example: '2026-11-16'
+
+    DosenUpdateInput:
+      type: object
+      required: [nama_lengkap, nip, email]
+      properties:
+        nama_lengkap:
+          type: string
+          maxLength: 100
+          example: Kuwat Santoso, S.T., M.Kom.
+        nip:
+          type: string
+          pattern: '^\d{8,20}$'
+          example: '198407192019031008'
+        status_dosen:
+          type: string
+          enum: [aktif, nonaktif]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: kuwatsantoso@polines.ac.id
+        role:
+          type: string
+          enum: [dosen, admin, kaprodi]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: dosen
+        status_akun:
+          type: string
+          enum: [aktif, nonaktif]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: aktif
+        password:
+          type: string
+          format: password
+          minLength: 8
+          nullable: true
+          description: Kosongkan jika tidak ingin mengubah password.
+        foto:
+          type: string
+          format: binary
+          description: Foto profil baru JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        pangkat:
+          type: string
+          nullable: true
+          description: Wajib diisi bersama `golongan`, `nomor_sk`, dan `tanggal_sk` jika menambah riwayat pangkat baru.
+          example: Lektor
+        golongan:
+          type: string
+          nullable: true
+          example: III/c
+        nomor_sk:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: 0891/PL4.7.2/KP/2026
+        tanggal_sk:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-14'
+
+    DosenMutationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Perubahan data dosen berhasil disimpan.
+        data:
+          type: object
+          additionalProperties: true
