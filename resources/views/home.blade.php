@@ -111,8 +111,8 @@
 
     <x-navbar-publik />
 
-    {{-- Hero (slideshow) --}}
-    <section id="hero" class="flex h-[calc(100svh-64px)] min-h-[520px] flex-col bg-[#0043AD] md:h-[calc(100svh-70px)]" aria-roledescription="carousel" aria-label="Kegiatan TRK">
+                {{-- Hero (slideshow) --}}
+    <section id="hero" class="flex h-[calc(100svh-30px)] min-h-[520px] flex-col bg-[#0043AD] md:h-[calc(100svh-10px)]" aria-roledescription="carousel" aria-label="Kegiatan TRK">
 
         {{-- Area foto: foto bertumpuk, yang aktif tampil (fade) --}}
         <div class="relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(135deg,#0043AD,#001B47)]">
