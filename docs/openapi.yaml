@@ -616,7 +616,7 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
-    /jenis-kegiatan:
+  /jenis-kegiatan:
     get:
       tags: [Kategori Kegiatan]
       summary: Daftar jenis kegiatan
@@ -1517,4 +1517,4 @@ components:
           items:
             $ref: '#/components/schemas/Kategori'
         meta:
-          $ref: '#/components/schemas/Meta'          
+          $ref: '#/components/schemas/Meta'
