@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Dosen;
 use App\Models\HistoriPangkatGolongan;
+use App\Models\Kegiatan;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\LinkFile;
@@ -172,7 +173,7 @@ class DosenDbStore extends DosenStore
         }
 
         // Query kegiatan tanpa join ke kegiatan_dosen dan skim
-        $rows = DB::table('kegiatan as k')
+        $rows = DB::query()->fromSub(Kegiatan::tabelDenganTanggal(), 'k')
             ->leftJoin('anggota_kegiatan as a', fn ($j) => $j->on('a.id_kegiatan', '=', 'k.id_kegiatan')->where('a.id_user', '=', $idUser))
             ->leftJoin('kategori as kt', 'kt.id_kategori', '=', 'k.id_kategori')
             ->where(fn ($q) => $q->where('k.id_user', $idUser)->orWhereNotNull('a.id_anggota_kegiatan'))

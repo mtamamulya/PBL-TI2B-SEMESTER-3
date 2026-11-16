@@ -9,7 +9,7 @@ class PrestasiController extends Controller
     public function index()
     {
         $with = [
-            'kegiatan:id_kegiatan,nama_kegiatan,tanggal_mulai,tanggal_selesai,lokasi,deskripsi',
+            'kegiatan.detail.isianKategori',
             'buktiPrestasi.jenisDokumen:id_jenis_dokumen,nama_jenis_dokumen',
         ];
 
@@ -31,7 +31,7 @@ class PrestasiController extends Controller
     {
         $record = Prestasi::query()
             ->with([
-                'kegiatan:id_kegiatan,nama_kegiatan,tanggal_mulai,tanggal_selesai,lokasi,deskripsi',
+                'kegiatan.detail.isianKategori',
                 'buktiPrestasi.jenisDokumen:id_jenis_dokumen,nama_jenis_dokumen',
             ])
             ->findOrFail($prestasi);

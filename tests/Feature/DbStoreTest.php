@@ -203,8 +203,10 @@ class DbStoreTest extends TestCase
             'id_kategori' => $kategori,
             'id_user' => $idUser,
             'nama_kegiatan' => $nama,
-            'tanggal_mulai' => '2025-03-01',
         ]);
+        $tanggal = DB::table('isian_kategori')->where('id_kategori', $kategori)->where('input', 'tanggal_mulai')->value('id_isian_kategori')
+            ?? DB::table('isian_kategori')->insertGetId(['id_kategori' => $kategori, 'input' => 'tanggal_mulai', 'jenis_input' => 'tanggal'], 'id_isian_kategori');
+        DB::table('detail_kegiatan')->insert(['id_kegiatan' => $idKegiatan, 'id_isian_kategori' => $tanggal, 'isian' => '2025-03-01']);
 
         if ($peran) {
             DB::table('anggota_kegiatan')->insert([

@@ -26,7 +26,12 @@ class KategoriKegiatanStore
 
         $data = json_decode($disk->get(self::FILE), true);
 
-        return is_array($data) ? array_values($data) : [];
+        return array_map(static function (array $row) {
+            $row['isi_surat'] ??= $row['template_surat'] ?? '';
+            unset($row['template_surat']);
+
+            return $row;
+        }, is_array($data) ? array_values($data) : []);
     }
 
     /** Nama yang sama (tanpa membedakan huruf besar/kecil) tidak boleh ada dalam satu jenis. */
@@ -44,7 +49,7 @@ class KategoriKegiatanStore
         return false;
     }
 
-    public function create(string $name, string $jenis, ?string $description, ?string $template_surat = null): array
+    public function create(string $name, string $jenis, ?string $description, ?string $isi_surat = null): array
     {
         $rows = $this->all();
         $id = $rows ? max(array_column($rows, 'id')) + 1 : 1;
@@ -54,7 +59,7 @@ class KategoriKegiatanStore
             'name' => $name,
             'jenis' => $jenis,
             'description' => $description ?? '',
-            'template_surat' => $template_surat ?? '',
+            'isi_surat' => $isi_surat ?? '',
         ];
 
         $rows[] = $row;
@@ -63,7 +68,7 @@ class KategoriKegiatanStore
         return $row;
     }
 
-    public function update(string $id, string $name, string $jenis, ?string $description, ?string $template_surat = null): ?array
+    public function update(string $id, string $name, string $jenis, ?string $description, ?string $isi_surat = null): ?array
     {
         $rows = $this->all();
 
@@ -72,7 +77,7 @@ class KategoriKegiatanStore
                 $r['name'] = $name;
                 $r['jenis'] = $jenis;
                 $r['description'] = $description ?? '';
-                $r['template_surat'] = $template_surat ?? '';
+                $r['isi_surat'] = $isi_surat ?? '';
 
                 $this->write($rows);
 
@@ -108,13 +113,13 @@ class KategoriKegiatanStore
     private function seed(): array
     {
         return [
-            ['id' => 1, 'name' => 'Penelitian',        'jenis' => 'Kegiatan Dosen',     'description' => 'Kegiatan penelitian dan publikasi ilmiah dosen', 'template_surat' => ''],
-            ['id' => 2, 'name' => 'Pengabdian',        'jenis' => 'Kegiatan Dosen',     'description' => 'Pengabdian kepada masyarakat oleh dosen', 'template_surat' => ''],
-            ['id' => 3, 'name' => 'Pelatihan',         'jenis' => 'Kegiatan Dosen',     'description' => 'Pelatihan dan peningkatan kompetensi dosen', 'template_surat' => ''],
-            ['id' => 4, 'name' => 'Seminar',           'jenis' => 'Kegiatan Dosen',     'description' => 'Seminar, konferensi, dan workshop', 'template_surat' => ''],
-            ['id' => 5, 'name' => 'Kunjungan Industri', 'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Kunjungan ke perusahaan atau industri mitra', 'template_surat' => 'Yang bertanda tangan di bawah ini menyetujui mahasiswa:\nNama: [NAMA_PENGAJU]\nNIM: [IDENTITAS]\n\nUntuk melaksanakan kegiatan [NAMA_KEGIATAN] di [LOKASI] pada tanggal [TANGGAL].'],
-            ['id' => 6, 'name' => 'Lomba',             'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Kompetisi tingkat regional, nasional, dan internasional', 'template_surat' => 'Telah disetujui pengajuan [NAMA_KEGIATAN] untuk [NAMA_PENGAJU] di [LOKASI].'],
-            ['id' => 7, 'name' => 'Magang',            'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Magang atau praktik kerja di dunia industri', 'template_surat' => ''],
+            ['id' => 1, 'name' => 'Penelitian',        'jenis' => 'Kegiatan Dosen',     'description' => 'Kegiatan penelitian dan publikasi ilmiah dosen', 'isi_surat' => ''],
+            ['id' => 2, 'name' => 'Pengabdian',        'jenis' => 'Kegiatan Dosen',     'description' => 'Pengabdian kepada masyarakat oleh dosen', 'isi_surat' => ''],
+            ['id' => 3, 'name' => 'Pelatihan',         'jenis' => 'Kegiatan Dosen',     'description' => 'Pelatihan dan peningkatan kompetensi dosen', 'isi_surat' => ''],
+            ['id' => 4, 'name' => 'Seminar',           'jenis' => 'Kegiatan Dosen',     'description' => 'Seminar, konferensi, dan workshop', 'isi_surat' => ''],
+            ['id' => 5, 'name' => 'Kunjungan Industri', 'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Kunjungan ke perusahaan atau industri mitra', 'isi_surat' => 'Yang bertanda tangan di bawah ini menyetujui mahasiswa:\nNama: [NAMA_PENGAJU]\nNIM: [IDENTITAS]\n\nUntuk melaksanakan kegiatan [NAMA_KEGIATAN] di [LOKASI] pada tanggal [TANGGAL].'],
+            ['id' => 6, 'name' => 'Lomba',             'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Kompetisi tingkat regional, nasional, dan internasional', 'isi_surat' => 'Telah disetujui pengajuan [NAMA_KEGIATAN] untuk [NAMA_PENGAJU] di [LOKASI].'],
+            ['id' => 7, 'name' => 'Magang',            'jenis' => 'Kegiatan Mahasiswa', 'description' => 'Magang atau praktik kerja di dunia industri', 'isi_surat' => ''],
         ];
     }
 }

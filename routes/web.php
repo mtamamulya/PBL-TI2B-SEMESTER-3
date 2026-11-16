@@ -1,7 +1,7 @@
 <?php
 
+use App\BackendKel3\Dashboard\DosenDashboardController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DosenDashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\LandingMahasiswaController;
@@ -50,7 +50,8 @@ Route::redirect('/kegiatan', '/mahasiswa/kegiatan');
 Route::redirect('/kegiatan/create', '/mahasiswa/kegiatan/create');
 Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/kegiatan', [KegiatanController::class, 'index'])->name('kegiatan.index');
-    Route::view('/mahasiswa/kegiatan/create', 'dosen.kegiatan.create')->name('kegiatan.create');
+    Route::get('/mahasiswa/kegiatan/create', [PengajuanController::class, 'createActivity'])->name('kegiatan.create');
+    Route::post('/mahasiswa/kegiatan', [PengajuanController::class, 'storeActivity'])->name('kegiatan.store');
 
     // Mengirimkan semua variabel dummy yang dibutuhkan kegiatan.blade.php
     Route::view('/mahasiswa/kegiatan/{id}/edit', 'kegiatan', [
@@ -130,3 +131,4 @@ Route::get('/kegiatan/{id}/edit', fn ($id) => redirect()->route('kegiatan.edit',
 Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id))->whereNumber('id');
 
 require __DIR__.'/admin-kaprodi.php';
+require __DIR__.'/api-docs.php';

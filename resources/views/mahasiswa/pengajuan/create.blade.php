@@ -1,7 +1,8 @@
 @extends('layouts.pengajuan-app')
-@section('title', $item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru')
+@section('title', request()->routeIs('kegiatan.create') ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru'))
 @section('content')
 @php
+    $isActivityHistory = $isActivityHistory ?? false;
     $d = $item['data'] ?? [];
     $v = fn ($k, $def = '') => old($k, $d[$k] ?? $def);
     $input = 'h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none placeholder:text-[#9CA3AF] focus:border-[#2277FF]';
@@ -23,7 +24,12 @@
         'Pengabdian' => 'Lokasi Pengabdian',
     ];
     $levels = ['Kabupaten', 'Provinsi', 'Nasional', 'Internasional'];
-    $cancelUrl = $item ? route('pengajuan.show', $item['id']) : route('pengajuan.index');
+    $cancelUrl = $item
+        ? route('pengajuan.show', $item['id'])
+        : ($isActivityHistory ? route('kegiatan.index') : route('pengajuan.index'));
+    $formAction = $item
+        ? route('pengajuan.update', $item['id'])
+        : ($isActivityHistory ? route('kegiatan.store') : route('pengajuan.store'));
     $selectedAdvisors = collect(old('advisors', $d['advisors'] ?? (isset($d['advisor']) ? [$d['advisor']] : [])))
         ->filter(fn ($name) => is_string($name) && $name !== '')
         ->values()
@@ -89,19 +95,19 @@
      x-init="$nextTick(() => check()); $watch('category', () => setTimeout(() => check(), 60)); $watch('participation', () => setTimeout(() => check(), 60)); $watch('members', () => check()); $watch('documents', () => check(), { deep: true })">
     <div class="flex flex-col gap-[18px]">
         <div class="flex flex-wrap gap-2.5 text-[13px]">
-            <a href="{{ route('pengajuan.index') }}" class="text-[#6B7280]">Kegiatan</a>
+            <a href="{{ $isActivityHistory ? route('kegiatan.index') : route('pengajuan.index') }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Kegiatan' }}</a>
             <span class="text-[#9CA3AF]">/</span>
-            <span class="text-[#6B7280]">{{ $item ? 'Edit Pengajuan' : 'Pengajuan Baru' }}</span>
+            <span class="text-[#6B7280]">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Baru') }}</span>
             <span class="text-[#9CA3AF]">/</span>
             <span class="font-semibold text-[#2277FF]" x-text="category || 'Umum'"></span>
         </div>
         <div class="flex flex-col gap-2">
-            <h1 class="text-[26px] font-bold leading-9">{{ $item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru' }}</h1>
-            <p class="text-[13px] leading-5 text-[#6B7280]">{{ $item ? 'Perbarui isian pengajuan Anda, lalu simpan perubahan.' : 'Lengkapi formulir berikut untuk mengajukan kegiatan baru.' }}</p>
+            <h1 class="text-[26px] font-bold leading-9">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru') }}</h1>
+            <p class="text-[13px] leading-5 text-[#6B7280]">{{ $isActivityHistory ? 'Lengkapi data untuk langsung menambahkan kegiatan ke riwayat Anda.' : ($item ? 'Perbarui isian pengajuan Anda, lalu simpan perubahan.' : 'Lengkapi formulir berikut untuk mengajukan kegiatan baru.') }}</p>
         </div>
     </div>
 
-    <form method="POST" action="{{ $item ? route('pengajuan.update', $item['id']) : route('pengajuan.store') }}" x-ref="form"
+    <form method="POST" action="{{ $formAction }}" x-ref="form"
           @input="check()" @change="check()"
           @submit="if (!ok) { $event.preventDefault(); } else { submitting = true; }"
           class="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]">
@@ -293,7 +299,7 @@
             <a href="{{ $cancelUrl }}" class="flex h-10 items-center rounded-lg border border-[#E5E7EB] bg-white px-5 text-[13px] font-semibold text-[#374151]">Batal</a>
             <button type="submit" :disabled="!ok || submitting"
                     class="flex h-10 items-center gap-2 rounded-lg bg-[#2563EB] px-5 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50">
-                <span x-text="submitting ? 'Menyimpan...' : '{{ $item ? 'Simpan Perubahan' : 'Kirim Pengajuan' }}'"></span>
+                <span x-text="submitting ? 'Menyimpan...' : '{{ $isActivityHistory ? 'Simpan ke Riwayat' : ($item ? 'Simpan Perubahan' : 'Kirim Pengajuan') }}'"></span>
                 <i class="ti text-xs" :class="submitting ? 'ti-loader-2 animate-spin' : 'ti-arrow-right'"></i>
             </button>
         </div>
