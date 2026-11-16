@@ -310,10 +310,8 @@
     let isian = (Array.isArray(ROW?.isian) ? ROW.isian : []).map((f) => ({
         key: f.kunci, label: f.label ?? '', tipe: f.tipe in TIPE ? f.tipe : 'teks', wajib: !!f.wajib,
         jumlah: (f.jumlah === 1 || f.jumlah === '1' || f.jumlah === 'banyak') ? 1 : 0,
-        bantuan: f.bantuan ?? '', opsiText: (f.opsi ?? []).join('\n'), terkunci: true, buka: false,
+        terkunci: true, buka: false,
     }));
-
-    const opsiDari = (f) => [...new Set(f.opsiText.split('\n').map((x) => x.trim()).filter(Boolean))];
 
     function buatKunci(label, selfIdx) {
         let dasar = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
@@ -358,17 +356,6 @@
                     <label class="flex cursor-pointer items-center gap-2 text-sm text-[#111]">
                         <input data-f="wajib" type="checkbox" class="size-4 accent-[#2277FF]" ${f.wajib ? 'checked' : ''}> Wajib diisi
                     </label>
-                    ${f.tipe === 'pilihan' ? `
-                    <div>
-                        <label class="mb-1 block text-xs font-semibold text-[#111]">Daftar pilihan <span class="font-normal text-[#8A8A90]">(satu per baris, minimal 2)</span></label>
-                        <textarea data-f="opsi" rows="4" placeholder="Provinsi&#10;Nasional&#10;Internasional"
-                                  class="block w-full resize-y rounded-md border border-[#DEDEE3] px-3 py-2 text-sm outline-none placeholder:text-[#B0B0B8] focus:border-[#2277FF]">${esc(f.opsiText)}</textarea>
-                    </div>` : ''}
-                    <div>
-                        <label class="mb-1 block text-xs font-semibold text-[#111]">Petunjuk <span class="font-normal text-[#8A8A90]">(opsional)</span></label>
-                        <input data-f="bantuan" type="text" maxlength="150" value="${esc(f.bantuan)}" placeholder="Teks kecil di bawah nama isian"
-                               class="h-9 w-full rounded-md border border-[#DEDEE3] px-3 text-sm outline-none placeholder:text-[#B0B0B8] focus:border-[#2277FF]">
-                    </div>
                     <div class="flex justify-end">
                         <button type="button" data-aksi="buka" class="text-xs font-semibold text-[#2277FF] hover:underline">Selesai</button>
                     </div>
@@ -425,7 +412,7 @@
                 case 'paragraf': kontrol = `<textarea rows="3" disabled class="block w-full resize-none rounded-lg border border-[#DEDEE3] bg-white px-3 py-2 text-sm"></textarea>`; break;
                 case 'angka':    kontrol = `<input type="number" disabled placeholder="0" class="${dasar}">`; break;
                 case 'tanggal':  kontrol = `<input type="date" disabled class="${dasar}">`; break;
-                case 'pilihan':  kontrol = `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option>${opsiDari(f).map((o) => `<option>${esc(o)}</option>`).join('')}</select>`; break;
+                case 'pilihan':  kontrol = `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option></select>`; break;
                 case 'berkas':   kontrol = `<div class="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#C9C9D1] text-sm text-[#6E6E76]">${f.jumlah === 1 ? 'Pilih beberapa berkas atau seret ke sini' : 'Pilih berkas atau seret ke sini'}</div>`; break;
                 default:         kontrol = `<input type="text" disabled class="${dasar}">`;
             }
@@ -436,7 +423,6 @@
             return `
             <div>
                 <div class="text-sm font-semibold text-[#111]">${esc(f.label)}${f.wajib ? ' <span class="text-[#E5484D]">*</span>' : ''}</div>
-                ${f.bantuan.trim() ? `<div class="text-[13px] text-[#6E6E76]">${esc(f.bantuan)}</div>` : ''}
                 <div class="mt-1.5 pointer-events-none">${kontrol}</div>
             </div>`;
         }).join('');
@@ -452,7 +438,7 @@
         isian.forEach((f) => { f.buka = false; });
         const f = {
             key: '', label: awal.label ?? '', tipe: awal.tipe ?? 'teks', wajib: false, jumlah: awal.jumlah ?? 0,
-            bantuan: '', opsiText: (awal.opsi ?? []).join('\n'), terkunci: false, buka: !awal.label,
+            terkunci: false, buka: !awal.label,
         };
         if (f.label) { f.key = buatKunci(f.label, -1); f.terkunci = true; }
         isian.push(f);
@@ -509,10 +495,6 @@
         if (n === 'label') {
             f.label = e.target.value;
             if (!f.terkunci) f.key = f.label.trim() ? buatKunci(f.label, i) : '';
-        } else if (n === 'bantuan') {
-            f.bantuan = e.target.value;
-        } else if (n === 'opsi') {
-            f.opsiText = e.target.value;
         } else {
             return;
         }
@@ -534,7 +516,7 @@
             renderForm();
         } else if (n === 'tipe') {
             f.tipe = e.target.value;
-            renderDaftar(); // daftar pilihan muncul / hilang
+            renderDaftar();
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="tipe"]`)?.focus();
         } else if (n === 'jumlah') {
             f.jumlah = e.target.value === '1' ? 1 : 0;
@@ -638,20 +620,10 @@
             isian: isian.filter((f) => f.label.trim()).map((f) => ({
                 kunci: f.key, label: f.label.trim(), tipe: f.tipe, wajib: f.wajib,
                 jumlah: f.jumlah, // 0 = satu isian, 1 = lebih dari satu (JUMLAH_ISIAN)
-                bantuan: f.bantuan.trim(), opsi: f.tipe === 'pilihan' ? opsiDari(f) : [],
+                bantuan: '', opsi: [], // tidak dipakai lagi; tetap dikirim agar cocok dengan backend
             })),
         };
         if (!body.name) { bukaTab('data'); tampilError('Nama kategori wajib diisi.'); $('kk-nama').focus(); return; }
-
-        // Isian dengan tipe Pilihan butuh minimal 2 pilihan
-        const bermasalah = isian.findIndex((f) => f.label.trim() && f.tipe === 'pilihan' && opsiDari(f).length < 2);
-        if (bermasalah >= 0) {
-            isian.forEach((f, i) => { f.buka = i === bermasalah; });
-            renderDaftar();
-            bukaTab('isian');
-            tampilError(`Isian "${isian[bermasalah].label.trim()}" bertipe Pilihan, isi minimal 2 pilihan.`);
-            return;
-        }
 
         const tombol = $('kk-simpan');
         tombol.disabled = true;
