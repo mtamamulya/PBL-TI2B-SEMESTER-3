@@ -60,6 +60,8 @@ tags:
     description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
   - name: Akreditasi
     description: Akreditasi prodi (baca publik, tulis khusus admin).
+  - name: Kategori Kegiatan
+    description: Kategori kegiatan beserta isian form pengajuan (baca semua pengguna login, tulis admin).
 
 paths:
 
@@ -614,6 +616,198 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+    /jenis-kegiatan:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Daftar jenis kegiatan
+      description: Pilihan jenis untuk form kategori. Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar jenis kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisKegiatanListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /tipe-isian:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Tipe isian yang bisa dipilih admin
+      description: Tipe biasa (teks, angka, tanggal, berkas) ditambah tipe pilihan baku (daftar pilihannya ditentukan sistem). Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar tipe isian.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TipeIsianListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /kategori-kegiatan:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Daftar kategori kegiatan (berhalaman)
+      description: Urut jenis lalu nama. Butuh token (peran apa saja). Daftar ini hanya memuat jumlah isian (`total_isian`); isian lengkap ada di detail.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id_jenis_kegiatan
+          in: query
+          description: Saring berdasarkan id jenis kegiatan.
+          schema:
+            type: integer
+        - name: jenis
+          in: query
+          description: Saring berdasarkan nama jenis kegiatan (mis. Kegiatan Mahasiswa).
+          schema:
+            type: string
+            maxLength: 100
+        - name: kebutuhan
+          in: query
+          schema:
+            type: string
+            enum: [kegiatan, surat]
+        - name: q
+          in: query
+          description: Cari pada nama kategori.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar kategori.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Kategori Kegiatan]
+      summary: Tambah kategori kegiatan
+      description: |
+        Khusus peran **admin**. Jenis boleh dikirim sebagai `id_jenis_kegiatan` atau `jenis` (nama).
+        `template_surat` diterima sebagai nama lain dari `isi_surat`.
+        Nama kategori harus unik di dalam satu jenis kegiatan.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KategoriInput'
+      responses:
+        '201':
+          description: Kategori dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /kategori-kegiatan/{id}:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Detail satu kategori beserta isian form
+      description: Isian urut sesuai urutan dibuat. Tipe pilihan baku membawa daftar `pilihan`. Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail kategori.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Kategori Kegiatan]
+      summary: Ubah kategori kegiatan
+      description: |
+        Khusus peran **admin**. Field kategori diganti seluruhnya.
+        `isian` dicocokkan lewat `id_isian_kategori`: yang membawa id diperbarui, yang tanpa id ditambah, yang tidak dikirim lagi dihapus.
+        Isian tampil di form pengaju sesuai urutan dibuat.
+        Bila `isian` tidak dikirim, daftar isian dibiarkan; bila dikirim `[]`, semua isian dihapus.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KategoriInput'
+      responses:
+        '200':
+          description: Kategori diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Isian yang dihapus sudah dipakai oleh kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Kategori Kegiatan]
+      summary: Hapus kategori kegiatan
+      description: Khusus peran **admin**. Isian form ikut terhapus. Kategori yang sudah dipakai kegiatan tidak bisa dihapus (409).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Kategori dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Kategori sudah dipakai oleh kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'          
 
 components:
 
@@ -1117,3 +1311,209 @@ components:
             $ref: '#/components/schemas/Akreditasi'
         meta:
           $ref: '#/components/schemas/Meta'
+      JenisKegiatan:
+      type: object
+      properties:
+        id_jenis_kegiatan:
+          type: integer
+          example: 2
+        nama_jenis_kegiatan:
+          type: string
+          example: Kegiatan Mahasiswa
+
+    JenisKegiatanListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JenisKegiatan'
+
+    TipeIsian:
+      type: object
+      properties:
+        nilai:
+          type: string
+          example: tingkat_kejuaraan
+        label:
+          type: string
+          example: 'Pilihan: Tingkat kejuaraan'
+        baku:
+          type: boolean
+          description: true = pilihan baku (daftar pilihan ditentukan sistem).
+
+    TipeIsianListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TipeIsian'
+
+    Pilihan:
+      type: object
+      properties:
+        nilai:
+          description: Nilai yang disimpan (mis. provinsi, atau id dosen).
+          example: provinsi
+        label:
+          type: string
+          example: Provinsi
+
+    IsianKategori:
+      type: object
+      properties:
+        id_isian_kategori:
+          type: integer
+          example: 7
+        input:
+          type: string
+          description: Nama isian yang tampil di form.
+          example: Nama tim
+        jenis_input:
+          type: string
+          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+          example: teks
+        wajib:
+          type: boolean
+          description: Disimpan pada kolom aturan (NOT NULL = true).
+          example: true
+        jumlah_isian:
+          type: integer
+          enum: [0, 1]
+          description: 0 = satu isian, 1 = lebih dari satu.
+          example: 0
+        pilihan:
+          type: array
+          nullable: true
+          description: Hanya pada detail kategori, untuk tipe pilihan baku (tingkat_kejuaraan, jenis_prestasi, dosen). Selain itu null.
+          items:
+            $ref: '#/components/schemas/Pilihan'
+
+    IsianKategoriInput:
+      type: object
+      required: [input, jenis_input]
+      properties:
+        id_isian_kategori:
+          type: integer
+          description: Isi untuk memperbarui isian yang sudah ada; kosongkan untuk isian baru.
+        input:
+          type: string
+          maxLength: 100
+          description: Tidak boleh sama dengan isian lain di kategori yang sama.
+          example: Nama tim
+        jenis_input:
+          type: string
+          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+        wajib:
+          type: boolean
+        jumlah_isian:
+          type: integer
+          enum: [0, 1]
+
+    Kategori:
+      type: object
+      properties:
+        id_kategori:
+          type: integer
+          example: 6
+        id_jenis_kegiatan:
+          type: integer
+          example: 2
+        jenis:
+          type: string
+          nullable: true
+          example: Kegiatan Mahasiswa
+        nama_kategori:
+          type: string
+          example: Lomba
+        deskripsi:
+          type: string
+          nullable: true
+        kebutuhan:
+          type: string
+          enum: [kegiatan, surat]
+          description: kegiatan = langsung jadi kegiatan; surat = lewat review admin dan menghasilkan surat persetujuan.
+        isi_surat:
+          type: string
+          nullable: true
+          description: Template surat balasan (dengan variabel seperti [NAMA_PENGAJU]).
+        total_isian:
+          type: integer
+          description: Hanya pada daftar.
+          example: 2
+        isian:
+          type: array
+          description: Hanya pada detail, simpan, dan ubah.
+          items:
+            $ref: '#/components/schemas/IsianKategori'
+
+    KategoriInput:
+      type: object
+      required: [nama_kategori]
+      properties:
+        id_jenis_kegiatan:
+          type: integer
+          description: Wajib kalau `jenis` tidak dikirim.
+          example: 2
+        jenis:
+          type: string
+          description: Nama jenis kegiatan, alternatif dari id_jenis_kegiatan.
+          example: Kegiatan Mahasiswa
+        nama_kategori:
+          type: string
+          maxLength: 100
+          example: Lomba
+        deskripsi:
+          type: string
+          maxLength: 255
+        kebutuhan:
+          type: string
+          enum: [kegiatan, surat]
+        isi_surat:
+          type: string
+        isian:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/IsianKategoriInput'
+
+    KategoriResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Kategori'
+
+    KategoriListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kategori'
+        meta:
+          $ref: '#/components/schemas/Meta'          
