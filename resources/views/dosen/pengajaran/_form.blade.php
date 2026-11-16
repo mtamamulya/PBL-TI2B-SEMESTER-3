@@ -1,7 +1,4 @@
 @php
-    // Hanya variabel khusus styling (CSS) yang dipertahankan. 
-    // Variabel data ($opsi, $awal, dll) sudah DIHAPUS.
-    
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
     $lockedClass  = 'h-11 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3.5 text-[15px] text-gray-500';
@@ -11,9 +8,7 @@
     $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
 
-{{-- x-data memanggil komponen Alpine tanpa parameter PHP. --}}
-{{-- @submit.prevent mencegah halaman refresh saat tombol simpan ditekan. --}}
-<form x-data="formPengajaran()" @submit.prevent="submitForm" class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
+<form x-data="formPengajaran({{ !empty($isEdit) ? 'true' : 'false' }})" @submit.prevent="submitForm" class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
     
     {{-- Indikator Loading saat mengambil opsi dari API --}}
     <div x-show="isFetchingOpsi" class="flex items-center justify-center rounded-lg bg-blue-50 p-4 text-brand">
@@ -35,7 +30,7 @@
                         <select id="tahunAkademik" required x-model="tahun" class="{{ $selectClass }}">
                             <option value="">Pilih tahun</option>
                             <template x-for="t in opsi.tahun" :key="t.id">
-                                <option :value="t.id" x-text="t.label"></option>
+                                <option :value="String(t.id)" x-text="t.label"></option>
                             </template>
                         </select>
                         {!! $chevron !!}
@@ -66,12 +61,11 @@
                         <select id="kelas" required x-model="rombel" class="{{ $selectClass }}">
                             <option value="">Pilih kelas</option>
                             <template x-for="r in daftarRombel" :key="r.id">
-                                <option :value="r.id" x-text="r.kelas"></option>
+                                <option :value="String(r.id)" x-text="r.kelas"></option>
                             </template>
                         </select>
                         {!! $chevron !!}
                     </div>
-                    {{-- Error dari API dimunculkan di sini --}}
                     <template x-if="errors.id_enrollment_tingkat_kelas">
                         <p class="text-[13px] text-red-600" x-text="errors.id_enrollment_tingkat_kelas[0]"></p>
                     </template>
@@ -93,12 +87,11 @@
                         <select id="matkul" required x-model="matkul" class="{{ $selectClass }}">
                             <option value="">Pilih mata kuliah</option>
                             <template x-for="m in daftarMatkul" :key="m.id">
-                                <option :value="m.id" x-text="m.label"></option>
+                                <option :value="String(m.id)" x-text="m.label"></option>
                             </template>
                         </select>
                         {!! $chevron !!}
                     </div>
-                    {{-- Error dari API --}}
                     <template x-if="errors.id_enrollment_mk">
                         <p class="text-[13px] text-red-600" x-text="errors.id_enrollment_mk[0]"></p>
                     </template>
@@ -151,7 +144,7 @@
                             <div class="flex flex-col gap-2">
                                 <label :for="`nama-${d.id}`" class="{{ $labelClass }}">Nama dokumen</label>
                                 <input :id="`nama-${d.id}`" type="text" required x-model="d.nama"
-                                       placeholder="Contoh : Proposal pengabdian" class="{{ $inputClass }}">
+                                       placeholder="Contoh : Proposal kegiatan" class="{{ $inputClass }}">
                             </div>
                             <div class="flex flex-col gap-2">
                                 <label :for="`jenis-${d.id}`" class="{{ $labelClass }}">Jenis dokumen</label>
@@ -173,7 +166,7 @@
                             <label :for="`tautan-${d.id}`" class="{{ $labelClass }}">Tautan dokumen</label>
                             <input :id="`tautan-${d.id}`" type="url" required x-model="d.tautan"
                                    placeholder="https://drive.google.com/..." class="{{ $inputClass }}">
-                            <p class="text-[13px] text-gray-500">Tempel tautan Google Drive atau cloud lain.</p>
+                            <p class="text-[13px] text-gray-500">Tempel tautan Google Drive, OneDrive, atau cloud lain. Pastikan akses tautan dibuka untuk yang memiliki tautan.</p>
                         </div>
                     </div>
                 </div>
@@ -204,14 +197,16 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('formPengajaran', () => ({
+        Alpine.data('formPengajaran', (isEdit = false) => ({
             opsi: { tahun: [], rombel: [], matkul: [] },
             tahun: '', prodi: '', rombel: '', matkul: '',
+            editId: null,
             
             dosenName: 'Memuat data akun...',
             isFetchingOpsi: true,
+            isInitializing: true,
             isSubmitting: false,
-            errors: {}, // Menyimpan error validasi dari API (422)
+            errors: {},
 
             get daftarProdi() {
                 return [...new Set(this.opsi.rombel.filter(r => String(r.ta) === String(this.tahun)).map(r => r.prodi))];
@@ -253,11 +248,16 @@
             },
 
             async init() {
-                this.$watch('tahun', () => { this.prodi = ''; this.rombel = ''; this.matkul = ''; });
-                this.$watch('prodi', () => { this.rombel = ''; });
+                this.$watch('tahun', () => {
+                    if (this.isInitializing) return;
+                    this.prodi = ''; this.rombel = ''; this.matkul = '';
+                });
+                this.$watch('prodi', () => {
+                    if (this.isInitializing) return;
+                    this.rombel = '';
+                });
 
                 try {
-                    // Satu panggilan: dropdown (tahun, kelas, matkul) + nama dosen yang login
                     const res = await fetch('/api/v1/pengajaran/opsi', { credentials: 'same-origin', headers: this.header() });
 
                     if (res.status === 401) {
@@ -270,27 +270,61 @@
                         this.opsi = json.data;
                         this.dosenName = (json.data.dosen || 'Akun Anda') + ' (akun Anda)';
                     }
+
+                    // Jika mode Edit, ambil data pengajaran lama dari /api/v1/pengajaran/{id}
+                    if (isEdit) {
+                        const segments = window.location.pathname.split('/').filter(Boolean);
+                        this.editId = segments[segments.length - 2];
+
+                        const resDetail = await fetch(`/api/v1/pengajaran/${this.editId}`, {
+                            credentials: 'same-origin',
+                            headers: this.header()
+                        });
+                        const jsonDetail = await resDetail.json();
+
+                        if (jsonDetail.status === 'success' && jsonDetail.data.form) {
+                            const f = jsonDetail.data.form;
+                            this.tahun = String(f.tahun);
+                            this.prodi = f.prodi;
+                            this.rombel = String(f.rombel);
+                            this.matkul = String(f.matkul);
+
+                            if (Array.isArray(jsonDetail.data.dokumen) && jsonDetail.data.dokumen.length > 0) {
+                                this.dokumen = jsonDetail.data.dokumen.map((d, idx) => ({
+                                    id: idx + 1,
+                                    nama: d.nama ?? '',
+                                    jenis: d.jenis ?? '',
+                                    tautan: d.tautan ?? '',
+                                }));
+                                this.urutDokumen = this.dokumen.length;
+                            }
+                        }
+                    }
                 } catch (error) {
                     console.error('Gagal memuat data:', error);
                     this.dosenName = 'Gagal memuat';
                 } finally {
+                    this.$nextTick(() => { this.isInitializing = false; });
                     this.isFetchingOpsi = false;
                 }
             },
 
-            // Fungsi ini berjalan otomatis saat tombol 'Simpan' ditekan
             async submitForm() {
                 this.isSubmitting = true;
-                this.errors = {}; // Reset error sebelumnya
-                // Siapkan data JSON yang akan dikirim ke Backend
+                this.errors = {};
+
                 const payload = {
                     id_enrollment_tingkat_kelas: this.rombel,
-                    id_enrollment_mk: this.matkul
+                    id_enrollment_mk: this.matkul,
+                    dokumen: this.dokumen
                 };
 
+                const url = isEdit ? `/api/v1/pengajaran/${this.editId}` : '/api/v1/pengajaran';
+                const method = isEdit ? 'PUT' : 'POST';
+
                 try {
-                    const response = await fetch('/api/v1/pengajaran', {
-                        method: 'POST',
+                    const response = await fetch(url, {
+                        method,
                         credentials: 'same-origin',
                         headers: { ...this.header(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -298,17 +332,11 @@
 
                     const result = await response.json();
 
-                    // Jika validasi Backend gagal (misal kelas sudah ada)
                     if (response.status === 422) {
                         this.errors = result.errors;
-                    } 
-                    // Jika sukses disimpan
-                    else if (response.ok) {
-                        // Redirect kembali ke halaman tabel pengajaran
+                    } else if (response.ok) {
                         window.location.href = '/pengajaran';
-                    } 
-                    // Jika ada error lain
-                    else {
+                    } else {
                         alert(result.message || 'Terjadi kesalahan pada server');
                     }
                 } catch (error) {
