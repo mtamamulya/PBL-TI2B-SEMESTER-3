@@ -715,3 +715,53 @@
     })();
 </script>
 @endpush
+
+@push('scripts')
+<script>
+    // Slideshow hero: gambar, titik, dan keterangan berganti bersama setiap 5 detik
+    (function () {
+        var slides = document.querySelectorAll('[data-slide]');
+        var dots = document.querySelectorAll('[data-dot]');
+        var caps = document.querySelectorAll('[data-caption]');
+        if (slides.length < 2) return;
+
+        var INTERVAL = 5000;   // kecepatan (milidetik)
+        var current = 0, timer = null;
+
+        function show(n) {
+            current = (n + slides.length) % slides.length;
+            [slides, dots, caps].forEach(function (list) {
+                list.forEach(function (el, k) {
+                    el.setAttribute('data-active', k === current ? 'true' : 'false');
+                });
+            });
+        }
+        function stop()  { clearInterval(timer); timer = null; }
+        function start() { stop(); timer = setInterval(function () { show(current + 1); }, INTERVAL); }
+
+        dots.forEach(function (d) {
+            d.addEventListener('click', function () { show(parseInt(d.dataset.dot, 10)); start(); });
+        });
+
+        var hero = document.getElementById('hero');
+        if (hero) {
+            hero.addEventListener('mouseenter', stop);
+            hero.addEventListener('mouseleave', start);
+
+            var x0 = null;
+            hero.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; stop(); }, { passive: true });
+            hero.addEventListener('touchend', function (e) {
+                if (x0 !== null) {
+                    var dx = e.changedTouches[0].clientX - x0;
+                    if (Math.abs(dx) > 40) show(current + (dx < 0 ? 1 : -1));
+                }
+                x0 = null; start();
+            });
+        }
+
+        document.addEventListener('visibilitychange', function () { document.hidden ? stop() : start(); });
+
+        start();
+    })();
+</script>
+@endpush
