@@ -111,42 +111,51 @@
 
     <x-navbar-publik />
 
-                {{-- Hero (slideshow) --}}
-    <section id="hero" class="flex h-[calc(100svh-30px)] min-h-[520px] flex-col bg-[#0043AD] md:h-[calc(100svh-10px)]" aria-roledescription="carousel" aria-label="Kegiatan TRK">
+    {{-- Hero (slideshow) --}}
+{{-- Catatan: sesuaikan 68px dengan tinggi navbar webmu (ubah ke 16px jika navbar transparan/overlay di atas hero) --}}
+<section id="hero"
+    class="flex h-[calc(100svh-68px)] min-h-[480px] max-h-[860px] flex-col bg-[#0043AD] lg:min-h-[540px]"
+    aria-roledescription="carousel" aria-label="Kegiatan TRK">
 
-        {{-- Area foto: foto bertumpuk, yang aktif tampil (fade) --}}
-        <div class="relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(135deg,#0043AD,#001B47)]">
+    {{-- Area foto: foto bertumpuk, yang aktif tampil (fade) --}}
+    <div class="relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(135deg,#0043AD,#001B47)]">
+        @foreach ($heroSlides as $i => $s)
+            <img src="{{ asset($s['img']) }}" alt="{{ $s['title'] }}" data-slide
+                data-active="{{ $i === 0 ? 'true' : 'false' }}"
+                loading="{{ $i === 0 ? 'eager' : 'lazy' }}"
+                onerror="this.style.visibility='hidden'"
+                class="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:opacity-100">
+        @endforeach
+
+        <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,#003385_0%,rgba(34,119,255,0.05)_100%)] opacity-30"></div>
+
+        {{-- Teks TRK (tetap, tidak ikut berganti) --}}
+
+        {{-- Titik indikator --}}
+        <div class="absolute inset-x-0 bottom-3 z-10 flex justify-center gap-2.5 md:bottom-4">
             @foreach ($heroSlides as $i => $s)
-                <img src="{{ asset($s['img']) }}" alt="{{ $s['title'] }}" data-slide data-active="{{ $i === 0 ? 'true' : 'false' }}"
-                     onerror="this.style.visibility='hidden'"
-                     class="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:opacity-100">
+                <button type="button" data-dot="{{ $i }}" data-active="{{ $i === 0 ? 'true' : 'false' }}"
+                    aria-label="Slide {{ $i + 1 }}"
+                    class="h-2.5 w-2.5 cursor-pointer rounded-full bg-white/50 transition-all duration-300 ease-out hover:bg-white/80 data-[active=true]:w-7 data-[active=true]:bg-[#FFD121]"></button>
             @endforeach
+        </div>
+    </div>
 
-            <div class="absolute inset-0 bg-[linear-gradient(90deg,#003385_0%,rgba(34,119,255,0.05)_100%)] opacity-30"></div>
-
-            {{-- Teks TRK (tetap, tidak ikut berganti) --}}
-            
-
-            {{-- Titik indikator --}}
-            <div class="absolute inset-x-0 bottom-4 flex justify-center gap-2.5">
-                @foreach ($heroSlides as $i => $s)
-                    <button type="button" data-dot="{{ $i }}" data-active="{{ $i === 0 ? 'true' : 'false' }}" aria-label="Slide {{ $i + 1 }}"
-                            class="h-2.5 w-2.5 rounded-full bg-white/50 transition-all duration-300 ease-out data-[active=true]:w-7 data-[active=true]:bg-[#FFD121]"></button>
-                @endforeach
+    {{-- Keterangan: shrink-0 mencegah kotak teks tergencet pada laptop layar pendek (1366x768 / scaling 125%) --}}
+    <div class="grid shrink-0 bg-[linear-gradient(90deg,#0043AD,#001B47)] text-[#FFD121]">
+        @foreach ($heroSlides as $i => $s)
+            <div data-caption data-active="{{ $i === 0 ? 'true' : 'false' }}"
+                class="pointer-events-none col-start-1 row-start-1 mx-auto flex w-full max-w-7xl flex-col gap-1.5 px-6 py-4 opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:pointer-events-auto data-[active=true]:opacity-100 md:gap-2 md:px-10 md:py-5 lg:py-6">
+                <h2 class="line-clamp-2 text-lg font-bold tracking-tight md:text-2xl lg:text-3xl lg:leading-tight">
+                    {{ $s['title'] }}
+                </h2>
+                <p class="line-clamp-3 text-sm font-medium tracking-tight text-[#FFD121]/95 md:text-base lg:text-lg lg:leading-relaxed">
+                    {{ $s['text'] }}
+                </p>
             </div>
-        </div>
-
-        {{-- Keterangan: semua ditumpuk di satu sel grid, tinggi mengikuti yang terpanjang --}}
-        <div class="grid bg-[linear-gradient(90deg,#0043AD,#001B47)] text-[#FFD121]">
-            @foreach ($heroSlides as $i => $s)
-                <div data-caption data-active="{{ $i === 0 ? 'true' : 'false' }}"
-                     class="col-start-1 row-start-1 flex flex-col gap-3 px-6 py-5 opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:opacity-100 md:px-10">
-                    <h2 class="text-xl font-bold tracking-tight md:text-3xl md:leading-[40px]">{{ $s['title'] }}</h2>
-                    <p class="text-sm font-medium tracking-tight md:text-xl md:leading-[28px]">{{ $s['text'] }}</p>
-                </div>
-            @endforeach
-        </div>
-    </section>
+        @endforeach
+    </div>
+</section>
 
     {{-- Tentang --}}
     <section id="tentang" data-reveal class="scroll-mt-16 md:scroll-mt-[70px] border-t-[8px] border-[#FFD121] bg-white px-5 py-12 md:py-20">
