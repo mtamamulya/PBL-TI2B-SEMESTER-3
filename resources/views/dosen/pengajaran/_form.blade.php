@@ -248,7 +248,7 @@
             header() {
                 return {
                     'Accept': 'application/json',
-                    'Authorization': 'Bearer ' + (localStorage.getItem('token_auth_kelompok3') || '')
+                    'X-CSRF-TOKEN': @js(csrf_token())
                 };
             },
 
@@ -258,10 +258,10 @@
 
                 try {
                     // Satu panggilan: dropdown (tahun, kelas, matkul) + nama dosen yang login
-                    const res = await fetch('/api/v1/pengajaran/opsi', { headers: this.header() });
+                    const res = await fetch('/api/v1/pengajaran/opsi', { credentials: 'same-origin', headers: this.header() });
 
                     if (res.status === 401) {
-                        this.dosenName = 'Belum login (token tidak ada / tidak valid)';
+                        this.dosenName = 'Sesi login berakhir. Silakan masuk kembali.';
                         return;
                     }
                     const json = await res.json();
@@ -291,6 +291,7 @@
                 try {
                     const response = await fetch('/api/v1/pengajaran', {
                         method: 'POST',
+                        credentials: 'same-origin',
                         headers: { ...this.header(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
