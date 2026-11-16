@@ -1311,209 +1311,210 @@ components:
             $ref: '#/components/schemas/Akreditasi'
         meta:
           $ref: '#/components/schemas/Meta'
-      JenisKegiatan:
-      type: object
-      properties:
-        id_jenis_kegiatan:
-          type: integer
-          example: 2
-        nama_jenis_kegiatan:
-          type: string
-          example: Kegiatan Mahasiswa
 
-    JenisKegiatanListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: Data berhasil diambil
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/JenisKegiatan'
+  JenisKegiatan:
+    type: object
+    properties:
+      id_jenis_kegiatan:
+        type: integer
+        example: 2
+      nama_jenis_kegiatan:
+        type: string
+        example: Kegiatan Mahasiswa
 
-    TipeIsian:
-      type: object
-      properties:
-        nilai:
-          type: string
-          example: tingkat_kejuaraan
-        label:
-          type: string
-          example: 'Pilihan: Tingkat kejuaraan'
-        baku:
-          type: boolean
-          description: true = pilihan baku (daftar pilihan ditentukan sistem).
+  JenisKegiatanListResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        example: true
+      message:
+        type: string
+        example: Data berhasil diambil
+      data:
+        type: array
+        items:
+          $ref: '#/components/schemas/JenisKegiatan'
 
-    TipeIsianListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: Data berhasil diambil
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/TipeIsian'
+  TipeIsian:
+    type: object
+    properties:
+      nilai:
+        type: string
+        example: tingkat_kejuaraan
+      label:
+        type: string
+        example: 'Pilihan: Tingkat kejuaraan'
+      baku:
+        type: boolean
+        description: true = pilihan baku (daftar pilihan ditentukan sistem).
 
-    Pilihan:
-      type: object
-      properties:
-        nilai:
-          description: Nilai yang disimpan (mis. provinsi, atau id dosen).
-          example: provinsi
-        label:
-          type: string
-          example: Provinsi
+  TipeIsianListResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        example: true
+      message:
+        type: string
+        example: Data berhasil diambil
+      data:
+        type: array
+        items:
+          $ref: '#/components/schemas/TipeIsian'
 
-    IsianKategori:
-      type: object
-      properties:
-        id_isian_kategori:
-          type: integer
-          example: 7
-        input:
-          type: string
-          description: Nama isian yang tampil di form.
-          example: Nama tim
-        jenis_input:
-          type: string
-          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
-          example: teks
-        wajib:
-          type: boolean
-          description: Disimpan pada kolom aturan (NOT NULL = true).
-          example: true
-        jumlah_isian:
-          type: integer
-          enum: [0, 1]
-          description: 0 = satu isian, 1 = lebih dari satu.
-          example: 0
-        pilihan:
-          type: array
-          nullable: true
-          description: Hanya pada detail kategori, untuk tipe pilihan baku (tingkat_kejuaraan, jenis_prestasi, dosen). Selain itu null.
-          items:
-            $ref: '#/components/schemas/Pilihan'
+  Pilihan:
+    type: object
+    properties:
+      nilai:
+        description: Nilai yang disimpan (mis. provinsi, atau id dosen).
+        example: provinsi
+      label:
+        type: string
+        example: Provinsi
 
-    IsianKategoriInput:
-      type: object
-      required: [input, jenis_input]
-      properties:
-        id_isian_kategori:
-          type: integer
-          description: Isi untuk memperbarui isian yang sudah ada; kosongkan untuk isian baru.
-        input:
-          type: string
-          maxLength: 100
-          description: Tidak boleh sama dengan isian lain di kategori yang sama.
-          example: Nama tim
-        jenis_input:
-          type: string
-          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
-        wajib:
-          type: boolean
-        jumlah_isian:
-          type: integer
-          enum: [0, 1]
+  IsianKategori:
+    type: object
+    properties:
+      id_isian_kategori:
+        type: integer
+        example: 7
+      input:
+        type: string
+        description: Nama isian yang tampil di form.
+        example: Nama tim
+      jenis_input:
+        type: string
+        enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+        example: teks
+      wajib:
+        type: boolean
+        description: Disimpan pada kolom aturan (NOT NULL = true).
+        example: true
+      jumlah_isian:
+        type: integer
+        enum: [0, 1]
+        description: 0 = satu isian, 1 = lebih dari satu.
+        example: 0
+      pilihan:
+        type: array
+        nullable: true
+        description: Hanya pada detail kategori, untuk tipe pilihan baku (tingkat_kejuaraan, jenis_prestasi, dosen). Selain itu null.
+        items:
+          $ref: '#/components/schemas/Pilihan'
 
-    Kategori:
-      type: object
-      properties:
-        id_kategori:
-          type: integer
-          example: 6
-        id_jenis_kegiatan:
-          type: integer
-          example: 2
-        jenis:
-          type: string
-          nullable: true
-          example: Kegiatan Mahasiswa
-        nama_kategori:
-          type: string
-          example: Lomba
-        deskripsi:
-          type: string
-          nullable: true
-        kebutuhan:
-          type: string
-          enum: [kegiatan, surat]
-          description: kegiatan = langsung jadi kegiatan; surat = lewat review admin dan menghasilkan surat persetujuan.
-        isi_surat:
-          type: string
-          nullable: true
-          description: Template surat balasan (dengan variabel seperti [NAMA_PENGAJU]).
-        total_isian:
-          type: integer
-          description: Hanya pada daftar.
-          example: 2
-        isian:
-          type: array
-          description: Hanya pada detail, simpan, dan ubah.
-          items:
-            $ref: '#/components/schemas/IsianKategori'
+  IsianKategoriInput:
+    type: object
+    required: [input, jenis_input]
+    properties:
+      id_isian_kategori:
+        type: integer
+        description: Isi untuk memperbarui isian yang sudah ada; kosongkan untuk isian baru.
+      input:
+        type: string
+        maxLength: 100
+        description: Tidak boleh sama dengan isian lain di kategori yang sama.
+        example: Nama tim
+      jenis_input:
+        type: string
+        enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+      wajib:
+        type: boolean
+      jumlah_isian:
+        type: integer
+        enum: [0, 1]
 
-    KategoriInput:
-      type: object
-      required: [nama_kategori]
-      properties:
-        id_jenis_kegiatan:
-          type: integer
-          description: Wajib kalau `jenis` tidak dikirim.
-          example: 2
-        jenis:
-          type: string
-          description: Nama jenis kegiatan, alternatif dari id_jenis_kegiatan.
-          example: Kegiatan Mahasiswa
-        nama_kategori:
-          type: string
-          maxLength: 100
-          example: Lomba
-        deskripsi:
-          type: string
-          maxLength: 255
-        kebutuhan:
-          type: string
-          enum: [kegiatan, surat]
-        isi_surat:
-          type: string
-        isian:
-          type: array
-          maxItems: 20
-          items:
-            $ref: '#/components/schemas/IsianKategoriInput'
+  Kategori:
+    type: object
+    properties:
+      id_kategori:
+        type: integer
+        example: 6
+      id_jenis_kegiatan:
+        type: integer
+        example: 2
+      jenis:
+        type: string
+        nullable: true
+        example: Kegiatan Mahasiswa
+      nama_kategori:
+        type: string
+        example: Lomba
+      deskripsi:
+        type: string
+        nullable: true
+      kebutuhan:
+        type: string
+        enum: [kegiatan, surat]
+        description: kegiatan = langsung jadi kegiatan; surat = lewat review admin dan menghasilkan surat persetujuan.
+      isi_surat:
+        type: string
+        nullable: true
+        description: Template surat balasan (dengan variabel seperti [NAMA_PENGAJU]).
+      total_isian:
+        type: integer
+        description: Hanya pada daftar.
+        example: 2
+      isian:
+        type: array
+        description: Hanya pada detail, simpan, dan ubah.
+        items:
+          $ref: '#/components/schemas/IsianKategori'
 
-    KategoriResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: Data berhasil diambil
-        data:
+  KategoriInput:
+    type: object
+    required: [nama_kategori]
+    properties:
+      id_jenis_kegiatan:
+        type: integer
+        description: Wajib kalau `jenis` tidak dikirim.
+        example: 2
+      jenis:
+        type: string
+        description: Nama jenis kegiatan, alternatif dari id_jenis_kegiatan.
+        example: Kegiatan Mahasiswa
+      nama_kategori:
+        type: string
+        maxLength: 100
+        example: Lomba
+      deskripsi:
+        type: string
+        maxLength: 255
+      kebutuhan:
+        type: string
+        enum: [kegiatan, surat]
+      isi_surat:
+        type: string
+      isian:
+        type: array
+        maxItems: 20
+        items:
+          $ref: '#/components/schemas/IsianKategoriInput'
+
+  KategoriResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        example: true
+      message:
+        type: string
+        example: Data berhasil diambil
+      data:
+        $ref: '#/components/schemas/Kategori'
+
+  KategoriListResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        example: true
+      message:
+        type: string
+        example: Data berhasil diambil
+      data:
+        type: array
+        items:
           $ref: '#/components/schemas/Kategori'
-
-    KategoriListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: Data berhasil diambil
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/Kategori'
-        meta:
-          $ref: '#/components/schemas/Meta'          
+      meta:
+        $ref: '#/components/schemas/Meta'          
