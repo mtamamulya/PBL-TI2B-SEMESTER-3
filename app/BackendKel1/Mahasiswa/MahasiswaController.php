@@ -50,7 +50,7 @@ class MahasiswaController extends Controller
             'success' => true,
             'message' => 'Data mahasiswa berhasil diambil.',
             'meta' => [
-                'total' => count($students)
+                'total' => count($students),
             ],
             'data' => array_values($students),
         ], 200);
