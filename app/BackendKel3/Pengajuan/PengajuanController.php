@@ -28,14 +28,14 @@ class PengajuanController extends Controller
             ->whereHas('timeline'); // Hanya tampilkan kegiatan yang sudah masuk alur pengajuan
 
         // Filter berdasarkan status terkini
-        if (!empty($filterStatus) && $filterStatus !== 'semua') {
+        if (! empty($filterStatus) && $filterStatus !== 'semua') {
             $query->whereHas('statusTerkini', function ($q) use ($filterStatus) {
                 $q->where('status', strtolower($filterStatus));
             });
         }
 
         // Filter pencarian judul kegiatan (sesuai UI search bar)
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where('judul', 'like', "%{$search}%");
         }
 
@@ -43,7 +43,7 @@ class PengajuanController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $daftarPengajuan,
+            'data' => $daftarPengajuan,
         ]);
     }
 
@@ -64,17 +64,17 @@ class PengajuanController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => [
-                'id_kegiatan'     => $kegiatan->id_kegiatan,
-                'judul'           => $kegiatan->judul,
-                'kategori'        => $kegiatan->kategori,
-                'status_terkini'  => $kegiatan->statusTerkini?->status,
+            'data' => [
+                'id_kegiatan' => $kegiatan->id_kegiatan,
+                'judul' => $kegiatan->judul,
+                'kategori' => $kegiatan->kategori,
+                'status_terkini' => $kegiatan->statusTerkini?->status,
                 'riwayat_tahapan' => $kegiatan->timeline->map(function ($item) {
                     return [
-                        'id'         => $item->id,
-                        'status'     => $item->status,
-                        'catatan'    => $item->catatan,
-                        'tanggal'    => $item->created_at?->toIso8601String(),
+                        'id' => $item->id,
+                        'status' => $item->status,
+                        'catatan' => $item->catatan,
+                        'tanggal' => $item->created_at?->toIso8601String(),
                     ];
                 }),
             ],
@@ -92,9 +92,9 @@ class PengajuanController extends Controller
         $timeline = $this->alurPengajuan->ajukanBaru($id, $idDosen);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Kegiatan berhasil diajukan.',
-            'data'    => $timeline,
+            'data' => $timeline,
         ], 201);
     }
 
@@ -117,9 +117,9 @@ class PengajuanController extends Controller
         );
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Pengajuan ulang berhasil dikirim.',
-            'data'    => $timeline,
+            'data' => $timeline,
         ], 201);
     }
 }

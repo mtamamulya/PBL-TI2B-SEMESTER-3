@@ -10,11 +10,16 @@ use Illuminate\Validation\ValidationException;
 class AlurPengajuan
 {
     public const STATUS_DIAJUKAN = 'diajukan';
+
     public const STATUS_DIREVIEW = 'direview';
+
     public const STATUS_DIREVISI = 'direvisi';
-    public const STATUS_DITOLAK  = 'ditolak';
+
+    public const STATUS_DITOLAK = 'ditolak';
+
     public const STATUS_DITERIMA = 'diterima';
-    public const STATUS_SELESAI  = 'selesai';
+
+    public const STATUS_SELESAI = 'selesai';
 
     /**
      * Mengajukan kegiatan pertama kali.
@@ -43,9 +48,9 @@ class AlurPengajuan
 
             return Timeline::create([
                 'id_kegiatan' => $kegiatan->id_kegiatan,
-                'status'      => self::STATUS_DIAJUKAN,
-                'catatan'     => null,
-                'id_aktor'    => $idDosen,
+                'status' => self::STATUS_DIAJUKAN,
+                'catatan' => null,
+                'id_aktor' => $idDosen,
             ]);
         });
     }
@@ -69,7 +74,7 @@ class AlurPengajuan
                 ->lockForUpdate()
                 ->first();
 
-            if (!$statusTerakhir || $statusTerakhir->status !== self::STATUS_DIREVISI) {
+            if (! $statusTerakhir || $statusTerakhir->status !== self::STATUS_DIREVISI) {
                 throw ValidationException::withMessages([
                     'status' => 'Pengajuan ulang hanya dapat dilakukan jika status terakhir adalah direvisi.',
                 ]);
@@ -78,9 +83,9 @@ class AlurPengajuan
             // Menambah baris baru tanpa menghapus atau menimpa catatan revisi sebelumnya
             return Timeline::create([
                 'id_kegiatan' => $kegiatan->id_kegiatan,
-                'status'      => self::STATUS_DIAJUKAN,
-                'catatan'     => $catatanPerbaikan,
-                'id_aktor'    => $idDosen,
+                'status' => self::STATUS_DIAJUKAN,
+                'catatan' => $catatanPerbaikan,
+                'id_aktor' => $idDosen,
             ]);
         });
     }
@@ -108,9 +113,9 @@ class AlurPengajuan
         }
 
         // Sesuaikan pengecekan lampiran dengan struktur relasi/kolom di model Kegiatan
-        $punyaLampiran = !empty($kegiatan->lampiran) || (method_exists($kegiatan, 'lampirans') && $kegiatan->lampirans()->exists());
+        $punyaLampiran = ! empty($kegiatan->lampiran) || (method_exists($kegiatan, 'lampirans') && $kegiatan->lampirans()->exists());
 
-        if (!$punyaLampiran) {
+        if (! $punyaLampiran) {
             throw ValidationException::withMessages([
                 'lampiran' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',
             ]);
