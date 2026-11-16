@@ -25,10 +25,15 @@ return new class extends Migration
         DB::table('berita')->whereNotIn('status', ['draft', 'publish'])->update(['status' => 'draft']);
 
         Schema::table('berita', function (Blueprint $table) {
+            $table->dropForeign(['id_user']);
             $table->dropForeign(['id_kategori']);
             $table->dropIndex(['id_user', 'status']);
             $table->dropColumn('id_kategori');
             $table->enum('status', ['publish', 'draft'])->default('draft')->change();
+        });
+
+        Schema::table('berita', function (Blueprint $table) {
+            $table->foreign('id_user')->references('id_user')->on('users')->restrictOnDelete();
         });
     }
 };

@@ -6,7 +6,6 @@ use App\BackendKel2\Support\RoleGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Kegiatan;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -117,7 +116,7 @@ class LaporanController extends Controller
         }
         $xml .= '</Table></Worksheet></Workbook>';
 
-        return response()->streamDownload(fn () => print($xml), 'laporan-kegiatan.xls', [
+        return response()->streamDownload(fn () => print ($xml), 'laporan-kegiatan.xls', [
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
         ]);
     }
@@ -128,7 +127,7 @@ class LaporanController extends Controller
         $pdf->WriteHTML(view('backendkel2.laporan.pdf', compact('rows', 'filters'))->render());
         $output = $pdf->Output('', 'S');
 
-        return response()->streamDownload(fn () => print($output), 'laporan-kegiatan.pdf', [
+        return response()->streamDownload(fn () => print ($output), 'laporan-kegiatan.pdf', [
             'Content-Type' => 'application/pdf',
         ]);
     }
