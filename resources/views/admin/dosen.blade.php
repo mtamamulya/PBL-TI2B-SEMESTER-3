@@ -251,7 +251,7 @@
         data: data,
         autoWidth: false,
         pageLength: 10,
-        order: [],                       // tanpa urutan awal = urutan asli dari server
+        order: [],                     
         columns: [
             { data: 'nip',  render: TXT, className: 'truncate', orderable: false },   // NIP tidak bisa diurutkan (sama seperti sebelumnya)
             { data: 'nama', render: TXT, className: 'truncate' },
