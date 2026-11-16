@@ -60,6 +60,8 @@ tags:
     description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
   - name: Akreditasi
     description: Akreditasi prodi (baca publik, tulis khusus admin).
+  - name: Pengajuan Admin
+    description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
 
 paths:
 
@@ -614,6 +616,117 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+
+  /admin/pengajuan:
+    get:
+      tags: [Pengajuan Admin]
+      summary: Daftar pengajuan kegiatan untuk admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [antrean, semua, diajukan, direvisi, direview, ditolak, diterima, selesai]
+        - in: query
+          name: id_jenis_kegiatan
+          schema:
+            type: integer
+        - in: query
+          name: jenis
+          schema:
+            type: string
+        - in: query
+          name: id_kategori
+          schema:
+            type: integer
+        - in: query
+          name: kebutuhan
+          schema:
+            type: string
+            enum: [kegiatan, surat]
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar pengajuan kegiatan
+        '401':
+          description: Belum login
+        '403':
+          description: Bukan admin
+
+  /admin/pengajuan/{id}:
+    get:
+      tags: [Pengajuan Admin]
+      summary: Detail pengajuan kegiatan
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail pengajuan kegiatan
+        '403':
+          description: Bukan admin
+        '404':
+          description: Pengajuan tidak ditemukan
+
+  /admin/pengajuan/{id}/keputusan:
+    post:
+      tags: [Pengajuan Admin]
+      summary: Simpan keputusan admin (setujui, revisi, atau tolak)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aksi]
+              properties:
+                aksi:
+                  type: string
+                  enum: [setujui, revisi, tolak]
+                nomor_sk:
+                  type: string
+                tanggal_sk:
+                  type: string
+                  format: date
+                catatan_revisi:
+                  type: string
+                lampiran:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Keputusan berhasil disimpan
+        '403':
+          description: Bukan admin
+        '404':
+          description: Pengajuan tidak ditemukan
+        '409':
+          description: Pengajuan sudah disetujui Kaprodi dan terkunci
+        '422':
+          description: Validasi gagal
 
 components:
 
