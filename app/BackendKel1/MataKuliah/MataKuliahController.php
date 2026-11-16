@@ -2,6 +2,7 @@
 
 namespace App\BackendKel1\MataKuliah;
 
+use App\BackendKel1\Kurikulum\KurikulumAngkatan;
 use App\Http\Controllers\Controller;
 use App\Models\MataKuliah;
 use App\Support\ApiResponse;
@@ -15,6 +16,7 @@ class MataKuliahController extends Controller
     {
         $request->validate([
             'id_kurikulum' => ['nullable', 'integer'],
+            'angkatan' => ['nullable', 'integer', 'between:2000,2100', 'prohibits:id_kurikulum'],
             'semester' => ['nullable', 'integer', 'between:1,8'],
             'q' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -22,6 +24,7 @@ class MataKuliahController extends Controller
 
         $p = MataKuliah::query()
             ->when($request->filled('id_kurikulum'), fn ($q) => $q->where('id_kurikulum', (int) $request->query('id_kurikulum')))
+            ->when($request->filled('angkatan'), fn ($q) => KurikulumAngkatan::saring($q, (int) $request->query('angkatan')))
             ->when($request->filled('semester'), fn ($q) => $q->where('semester', (int) $request->query('semester')))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $kata = '%'.$request->query('q').'%';
