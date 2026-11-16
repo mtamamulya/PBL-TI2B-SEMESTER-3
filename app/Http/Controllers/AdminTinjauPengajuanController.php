@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Kegiatan;
 use App\Repositories\KategoriKegiatanStore;
 use App\Repositories\PengajuanStore;
 use App\Repositories\SuratPersetujuanStore;
