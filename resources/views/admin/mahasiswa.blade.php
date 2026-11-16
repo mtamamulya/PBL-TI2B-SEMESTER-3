@@ -148,7 +148,7 @@
                 Sinkronisasi Kelas
             </button>
 
-            <a id="btnAdd" href="{{ \Illuminate\Support\Facades\Route::has('admin.mahasiswa.create') ? route('admin.mahasiswa.create') : '#' }}" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-[#1F73FF] px-4 text-[15px] font-medium text-white shadow hover:bg-[#1A66E0]">
+            <a id="btnAdd" href="{{ \Illuminate\Support\Facades\Route::has('admin.mahasiswa.create') ? route('admin.mahasiswa.create', [], false) : '#' }}" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-[#1F73FF] px-4 text-[15px] font-medium text-white shadow hover:bg-[#1A66E0]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
                 Tambah Mahasiswa
             </a>
@@ -162,7 +162,7 @@
         <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('success') }}</div>
     @endif
     @if (session('error'))
-        <div class="mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="status">{{ session('error') }}</div>
+        <div id="alertApi" class="mt-4 hidden rounded-md border px-4 py-3 text-sm" role="status"></div>    
     @endif
 
     <section class="mt-6 rounded-lg bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
@@ -253,20 +253,10 @@
 <script>
 (function () {
     var data = @json($students);
-    var URL_DETAIL = @js(route('admin.mahasiswa.show', ['id' => '__ID__']));
-    
-    // Cek route dengan aman agar JS tidak error bila nama route di backend berbeda
-    var URL_STATUS = @js(
-        \Illuminate\Support\Facades\Route::has('admin.mahasiswa.toggle-status') 
-            ? route('admin.mahasiswa.toggle-status', ['id' => '__ID__']) 
-            : (\Illuminate\Support\Facades\Route::has('admin.mahasiswa.status') 
-                ? route('admin.mahasiswa.status', ['id' => '__ID__']) 
-                : null)
-    );
+    var URL_DETAIL = @js(route('admin.mahasiswa.show', ['id' => '__ID__'], false));
     var CSRF = @json(csrf_token());
 
     var $ = function (id) { return document.getElementById(id); };
-
     var filter = { level: 'all', status: 'all' };
 
     function esc(s) {
@@ -291,7 +281,13 @@
     });
 
     var table = new DataTable('#tabel', {
-        data: data,
+        ajax: {
+            url: '/api/v1/mahasiswa',
+            dataSrc: function (json) {
+                data = json.data || [];
+                return data;
+            }
+        },
         autoWidth: false,
         pageLength: 10,
         order: [],
@@ -349,17 +345,53 @@
     $('fLevel').addEventListener('change', function (e) { filter.level = e.target.value; table.draw(); });
     $('fStatus').addEventListener('change', function (e) { filter.status = e.target.value; table.draw(); });
 
-    // ---------- Logika Ubah Status (Aktif / Nonaktif) ----------
+    // ---------- Helper Alert API ----------
+    var alertApi = $('alertApi');
+    function tampilAlertApi(pesan, sukses) {
+        if (!alertApi) {
+            alert(pesan);
+            return;
+        }
+        alertApi.textContent = pesan;
+        alertApi.className = sukses
+            ? 'mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]'
+            : 'mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]';
+    }
+
+    var pesanTersimpan = sessionStorage.getItem('sikap_sinkron_msg');
+    if (pesanTersimpan) {
+        tampilAlertApi(pesanTersimpan, true);
+        sessionStorage.removeItem('sikap_sinkron_msg');
+    }
+
+    // ---------- Logika Ubah Status via REST API ----------
     var modal = $('modalStatus'), btnYa = $('modalStatusYa'), pesanError = $('modalStatusError');
     var idStatus = null;
 
     function kirimStatus(id) {
-        var f = document.createElement('form');
-        f.method = 'POST';
-        f.action = URL_STATUS.replace('__ID__', encodeURIComponent(id));
-        f.innerHTML = '<input type="hidden" name="_token" value="' + CSRF + '"><input type="hidden" name="_method" value="PATCH">';
-        document.body.appendChild(f);
-        f.submit();
+        fetch('/api/v1/mahasiswa/' + encodeURIComponent(id) + '/status', {
+            method: 'PATCH',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF
+            }
+        })
+        .then(function (res) {
+            return res.json().then(function (body) {
+                if (!res.ok) throw new Error(body.message || 'Gagal mengubah status mahasiswa.');
+                return body;
+            });
+        })
+        .then(function () {
+            window.location.reload();
+        })
+        .catch(function (err) {
+            pesanError.textContent = err.message;
+            pesanError.hidden = false;
+            btnYa.disabled = false;
+            btnYa.textContent = modal.dataset.mode === 'aktif' ? 'Aktifkan' : 'Nonaktifkan';
+        });
     }
 
     $('tabel').addEventListener('click', function (e) {
@@ -375,7 +407,7 @@
             var nonaktifkan = !!r && (r.status === 'Aktif' || r.status === 'aktif' || r.status == 1);
             var nama = r ? r.name : '';
             if (typeof modal.showModal !== 'function') {
-                if (URL_STATUS && confirm((nonaktifkan ? 'Nonaktifkan' : 'Aktifkan') + ' mahasiswa "' + nama + '"?')) kirimStatus(idStatus);
+                if (confirm((nonaktifkan ? 'Nonaktifkan' : 'Aktifkan') + ' mahasiswa "' + nama + '"?')) kirimStatus(idStatus);
                 return;
             }
             modal.dataset.mode = nonaktifkan ? 'nonaktif' : 'aktif';
@@ -384,6 +416,7 @@
             $('modalStatusSuffix').textContent = nonaktifkan
                 ? 'tidak dapat melakukan login ke sistem. Data mahasiswa tetap tersimpan.'
                 : 'dapat kembali melakukan login ke sistem.';
+            btnYa.textContent = nonaktifkan ? 'Nonaktifkan' : 'Nonaktifkan';
             btnYa.textContent = nonaktifkan ? 'Nonaktifkan' : 'Aktifkan';
             pesanError.hidden = true;
             modal.showModal();
@@ -393,44 +426,75 @@
     $('modalStatusBatal').addEventListener('click', function () { modal.close(); });
     modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
     modal.addEventListener('close', function () { idStatus = null; btnYa.disabled = false; });
-    
+
     btnYa.addEventListener('click', function () {
         if (!idStatus) return;
-        if (!URL_STATUS) {
-            pesanError.textContent = 'Fitur ini belum tersedia: route status mahasiswa belum terdaftar di web.php.';
-            pesanError.hidden = false;
-            btnYa.disabled = false;
-            return;
-        }
         btnYa.disabled = true;
         btnYa.textContent = 'Memproses...';
         kirimStatus(idStatus);
     });
 
-    // ---------- Logika Modal Sinkronisasi ----------
+    // ---------- Logika Modal Sinkronisasi via REST API ----------
     var modalSinkron = $('modalSinkron');
     var btnSinkron = $('btnSinkron');
     var btnYaSinkron = $('modalSinkronYa');
-    var formSinkron = $('formSinkron');
 
-    btnSinkron.addEventListener('click', function() {
-        if (typeof modalSinkron.showModal === 'function') {
-            modalSinkron.showModal();
-        } else {
-            if(confirm('Sinkronkan penempatan kelas semua mahasiswa aktif untuk semester ini?')) {
-                formSinkron.submit();
-            }
-        }
-    });
-
-    $('modalSinkronBatal').addEventListener('click', function () { modalSinkron.close(); });
-    modalSinkron.addEventListener('click', function (e) { if (e.target === modalSinkron) modalSinkron.close(); });
-    
-    btnYaSinkron.addEventListener('click', function () {
+    function jalankanSinkronisasi() {
         btnYaSinkron.disabled = true;
         btnYaSinkron.textContent = 'Menyinkronkan...';
-        formSinkron.submit();
-    });
+
+        fetch('/api/v1/mahasiswa/sinkronisasi-kelas', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF
+            }
+        })
+        .then(function (res) {
+            return res.json().then(function (body) {
+                return { ok: res.ok, body: body };
+            });
+        })
+        .then(function (res) {
+            if (!res.ok) {
+                if (typeof modalSinkron.close === 'function') modalSinkron.close();
+                btnYaSinkron.disabled = false;
+                btnYaSinkron.textContent = 'Sinkronkan';
+                tampilAlertApi(res.body.message || 'Gagal melakukan sinkronisasi kelas.', false);
+                return;
+            }
+
+            sessionStorage.setItem('sikap_sinkron_msg', res.body.message || 'Sinkronisasi kelas selesai.');
+            window.location.reload();
+        })
+        .catch(function () {
+            if (typeof modalSinkron.close === 'function') modalSinkron.close();
+            btnYaSinkron.disabled = false;
+            btnYaSinkron.textContent = 'Sinkronkan';
+            tampilAlertApi('Gagal terhubung ke server API.', false);
+        });
+    }
+
+    if (btnSinkron) {
+        btnSinkron.addEventListener('click', function () {
+            if (modalSinkron && typeof modalSinkron.showModal === 'function') {
+                modalSinkron.showModal();
+            } else if (confirm('Sinkronkan penempatan kelas semua mahasiswa aktif untuk semester ini?')) {
+                jalankanSinkronisasi();
+            }
+        });
+    }
+
+    if ($('modalSinkronBatal')) {
+        $('modalSinkronBatal').addEventListener('click', function () { modalSinkron.close(); });
+    }
+    if (modalSinkron) {
+        modalSinkron.addEventListener('click', function (e) { if (e.target === modalSinkron) modalSinkron.close(); });
+    }
+    if (btnYaSinkron) {
+        btnYaSinkron.addEventListener('click', jalankanSinkronisasi);
+    }
 })();
 </script>
 @endpush
