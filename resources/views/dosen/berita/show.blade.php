@@ -72,6 +72,19 @@
     $cardClass = 'flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4';
 @endphp
 
+<style>
+    .konten-berita p { margin-bottom: 0.75rem; }
+    .konten-berita p:last-child { margin-bottom: 0; }
+    .konten-berita h2 { font-size: 1.35rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #111827; }
+    .konten-berita h3 { font-size: 1.15rem; font-weight: 600; margin: 0.85rem 0 0.4rem; color: #111827; }
+    .konten-berita h4 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.35rem; color: #111827; }
+    .konten-berita ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0 0.75rem; }
+    .konten-berita ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0 0.75rem; }
+    .konten-berita li { margin-bottom: 0.25rem; }
+    .konten-berita blockquote { border-left: 3px solid #d1d5db; padding-left: 0.875rem; color: #4b5563; font-style: italic; margin: 0.75rem 0; }
+    .konten-berita a { color: #1f66e5; text-decoration: underline; }
+</style>
+
 @section('content')
 
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -127,10 +140,18 @@
                 Foto sampul
             </div>
 
-            <div class="flex flex-col gap-3 text-[15px] leading-relaxed text-gray-700">
-                @foreach (preg_split("/\n\n+/", $b['isi']) as $p)
-                    <p>{{ $p }}</p>
-                @endforeach
+            @php
+                $isHtml = $b['isi'] !== strip_tags($b['isi']);
+            @endphp
+
+            <div class="konten-berita text-[15px] leading-relaxed text-gray-700">
+                @if ($isHtml)
+                    {!! $b['isi'] !!}
+                @else
+                    @foreach (preg_split("/\n\n+/", $b['isi']) as $p)
+                        <p>{{ $p }}</p>
+                    @endforeach
+                @endif
             </div>
         </article>
 
