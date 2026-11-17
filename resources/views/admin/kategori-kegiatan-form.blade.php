@@ -123,11 +123,6 @@
                                         class="rounded-md bg-[#E3EDFF] px-2 py-1 text-[11px] font-semibold text-[#2277FF] hover:brightness-95">[{{ $v }}]</button>
                             @endforeach
                         </div>
-
-                        <div id="kk-chips-isian-wrap" class="hidden">
-                            <p class="mt-3 text-xs text-[#8A8A90]">Dari isian form kategori ini:</p>
-                            <div id="kk-chips-isian" class="mt-1.5 flex flex-wrap gap-1.5"></div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -293,37 +288,30 @@
     // ======================================================================
     const TIPE = {
         teks: 'Teks pendek', paragraf: 'Teks panjang', angka: 'Angka',
-        tanggal: 'Tanggal', pilihan: 'Pilihan', berkas: 'Unggah berkas',
+        tanggal: 'Tanggal', berkas: 'Unggah berkas',
+        tingkat_kejuaraan: 'Pilihan: Tingkat kejuaraan', jenis_prestasi: 'Pilihan: Jenis prestasi',
     };
-    const RESERVED = Object.keys(SAMPLE);
+    // Pilihan baku (sama dengan PilihanBaku di API / enum tabel prestasi)
+    const BAKU = {
+        tingkat_kejuaraan: ['kabupaten/kota', 'provinsi', 'nasional', 'internasional'],
+        jenis_prestasi: ['akademik', 'non-akademik'],
+    };
     const MAKS_ISIAN = 20;
     const IKON = {
         edit:  '<path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16v4M13.5 6.5l4 4"/>',
         hapus: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
-        naik:  '<path d="M6 15l6-6l6 6"/>',
-        turun: '<path d="M6 9l6 6l6-6"/>',
     };
     const ikon = (n, ukuran = 15) =>
         `<svg xmlns="http://www.w3.org/2000/svg" width="${ukuran}" height="${ukuran}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IKON[n]}</svg>`;
 
-    // Status di memori. `terkunci` = kunci variabel sudah tetap (tidak ikut berubah saat label diedit)
+    // jumlah_isian = batas jawaban: 1 = satu isian, null = tanpa batas, N = maksimal N (min 1)
+    const banyak = (f) => f.jumlah !== 1;
     let isian = (Array.isArray(ROW?.isian) ? ROW.isian : []).map((f) => ({
-        key: f.kunci, label: f.label ?? '', tipe: f.tipe in TIPE ? f.tipe : 'teks', wajib: !!f.wajib,
-        jumlah: (f.jumlah === 1 || f.jumlah === '1' || f.jumlah === 'banyak') ? 1 : 0,
-        terkunci: true, buka: false,
+        id: f.id_isian_kategori ?? null, label: f.input ?? '', tipe: f.jenis_input in TIPE ? f.jenis_input : 'teks',
+        wajib: !!f.wajib, jumlah: f.jumlah_isian === undefined ? 1 : f.jumlah_isian, buka: false,
     }));
 
-    function buatKunci(label, selfIdx) {
-        let dasar = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
-            .replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'ISIAN';
-        if (/^\d/.test(dasar)) dasar = 'ISIAN_' + dasar;
-        const dipakai = new Set([...RESERVED, ...isian.filter((f, i) => i !== selfIdx && f.key).map((f) => f.key)]);
-        let k = dasar, n = 2;
-        while (dipakai.has(k)) k = dasar + '_' + n++;
-        return k;
-    }
-
-    const meta = (f) => `${TIPE[f.tipe]}${f.jumlah === 1 ? ' · Lebih dari satu' : ''}${f.wajib ? ' · Wajib' : ''}${f.key ? ' · [' + f.key + ']' : ''}`;
+    const meta = (f) => `${TIPE[f.tipe]}${banyak(f) ? ' · Lebih dari satu' : ''}${f.wajib ? ' · Wajib' : ''}`;
 
     function renderDaftar() {
         const ul = $('ik-daftar');
@@ -345,12 +333,12 @@
                         <div>
                             <label class="mb-1 block text-xs font-semibold text-[#111]">Jumlah isian</label>
                             <select data-f="jumlah" class="h-9 w-full rounded-md border border-[#DEDEE3] bg-white px-2 text-sm outline-none focus:border-[#2277FF]">
-                                <option value="0" ${f.jumlah === 0 ? 'selected' : ''}>Satu isian</option>
-                                <option value="1" ${f.jumlah === 1 ? 'selected' : ''}>Lebih dari satu</option>
+                                <option value="1" ${!banyak(f) ? 'selected' : ''}>Satu isian</option>
+                                <option value="banyak" ${banyak(f) ? 'selected' : ''}>Lebih dari satu</option>
                             </select>
                         </div>
                     </div>
-                    <p class="-mt-1 text-xs text-[#8A8A90]">${f.jumlah === 1
+                    <p class="-mt-1 text-xs text-[#8A8A90]">${banyak(f)
                         ? (f.tipe === 'berkas' ? 'Pengaju boleh mengunggah lebih dari satu berkas.' : 'Pengaju boleh menambah isian ini lebih dari satu kali.')
                         : 'Pengaju mengisi isian ini satu kali.'}</p>
                     <label class="flex cursor-pointer items-center gap-2 text-sm text-[#111]">
@@ -365,10 +353,6 @@
             return `
             <li data-i="${i}" class="rounded-md border ${f.buka ? 'border-[#2277FF]' : 'border-[#DEDEE3]'} bg-white">
                 <div class="flex items-center gap-1 px-2 py-2">
-                    <div class="flex flex-col">
-                        <button type="button" data-aksi="naik" aria-label="Naikkan" class="${tombol} !h-4" ${i === 0 ? 'disabled' : ''}>${ikon('naik', 14)}</button>
-                        <button type="button" data-aksi="turun" aria-label="Turunkan" class="${tombol} !h-4" ${i === isian.length - 1 ? 'disabled' : ''}>${ikon('turun', 14)}</button>
-                    </div>
                     <button type="button" data-aksi="buka" class="min-w-0 flex-1 px-1 text-left">
                         <div data-ref="judul" class="truncate text-sm font-semibold text-[#111]">${f.label.trim() ? esc(f.label) : '<span class="font-normal italic text-[#A8A8A8]">Isian baru</span>'}</div>
                         <div data-ref="meta" class="truncate text-xs text-[#8A8A90]">${esc(meta(f))}</div>
@@ -387,16 +371,7 @@
         jml.textContent = isian.length;
         jml.classList.toggle('hidden', isian.length === 0);
 
-        renderChipIsian();
         renderForm();
-    }
-
-    function renderChipIsian() {
-        const ada = isian.filter((f) => f.key && f.label.trim());
-        $('kk-chips-isian-wrap').classList.toggle('hidden', ada.length === 0);
-        $('kk-chips-isian').innerHTML = ada.map((f) => `
-            <button type="button" data-var="[${esc(f.key)}]"
-                    class="rounded-md bg-[#E6F6EC] px-2 py-1 text-[11px] font-semibold text-[#1E8E4A] hover:brightness-95">[${esc(f.key)}]</button>`).join('');
     }
 
     // Pratinjau form pengaju
@@ -412,12 +387,14 @@
                 case 'paragraf': kontrol = `<textarea rows="3" disabled class="block w-full resize-none rounded-lg border border-[#DEDEE3] bg-white px-3 py-2 text-sm"></textarea>`; break;
                 case 'angka':    kontrol = `<input type="number" disabled placeholder="0" class="${dasar}">`; break;
                 case 'tanggal':  kontrol = `<input type="date" disabled class="${dasar}">`; break;
-                case 'pilihan':  kontrol = `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option></select>`; break;
-                case 'berkas':   kontrol = `<div class="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#C9C9D1] text-sm text-[#6E6E76]">${f.jumlah === 1 ? 'Pilih beberapa berkas atau seret ke sini' : 'Pilih berkas atau seret ke sini'}</div>`; break;
+                case 'tingkat_kejuaraan':
+                case 'jenis_prestasi':
+                    kontrol = `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option>${BAKU[f.tipe].map((o) => `<option>${esc(o)}</option>`).join('')}</select>`; break;
+                case 'berkas':   kontrol = `<div class="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#C9C9D1] text-sm text-[#6E6E76]">${banyak(f) ? 'Pilih beberapa berkas atau seret ke sini' : 'Pilih berkas atau seret ke sini'}</div>`; break;
                 default:         kontrol = `<input type="text" disabled class="${dasar}">`;
             }
             // Isian "lebih dari satu" (selain berkas): kontrol + tombol tambah, seperti Anggota tim
-            if (f.jumlah === 1 && f.tipe !== 'berkas') {
+            if (banyak(f) && f.tipe !== 'berkas') {
                 kontrol += `<div class="mt-2"><span class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#2563EB] px-3 text-[13px] font-semibold text-[#2563EB]">+ Tambah ${esc(f.label.trim().toLowerCase())}</span></div>`;
             }
             return `
@@ -437,10 +414,8 @@
         if (isian.length >= MAKS_ISIAN) return;
         isian.forEach((f) => { f.buka = false; });
         const f = {
-            key: '', label: awal.label ?? '', tipe: awal.tipe ?? 'teks', wajib: false, jumlah: awal.jumlah ?? 0,
-            terkunci: false, buka: !awal.label,
+            id: null, label: awal.label ?? '', tipe: awal.tipe ?? 'teks', wajib: false, jumlah: awal.jumlah ?? 1, buka: !awal.label,
         };
-        if (f.label) { f.key = buatKunci(f.label, -1); f.terkunci = true; }
         isian.push(f);
         renderDaftar();
         if (f.buka) $('ik-daftar').querySelector('li:last-child [data-f="label"]')?.focus();
@@ -466,14 +441,6 @@
                 isian.splice(i, 1);
                 renderDaftar();
                 break;
-            case 'naik':
-            case 'turun': {
-                const j = b.dataset.aksi === 'naik' ? i - 1 : i + 1;
-                if (j < 0 || j >= isian.length) break;
-                [isian[i], isian[j]] = [isian[j], isian[i]];
-                renderDaftar();
-                break;
-            }
         }
     });
 
@@ -492,14 +459,9 @@
         if (i < 0 || !n) return;
         const f = isian[i];
 
-        if (n === 'label') {
-            f.label = e.target.value;
-            if (!f.terkunci) f.key = f.label.trim() ? buatKunci(f.label, i) : '';
-        } else {
-            return;
-        }
+        if (n !== 'label') return;
+        f.label = e.target.value;
         segarkanBaris(i);
-        renderChipIsian();
         renderForm();
     });
 
@@ -508,9 +470,7 @@
         if (i < 0 || !n) return;
         const f = isian[i];
 
-        if (n === 'label' && f.label.trim()) {
-            f.terkunci = true; // kunci variabel tetap setelah nama isian selesai diketik
-        } else if (n === 'wajib') {
+        if (n === 'wajib') {
             f.wajib = e.target.checked;
             segarkanBaris(i);
             renderForm();
@@ -519,7 +479,8 @@
             renderDaftar();
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="tipe"]`)?.focus();
         } else if (n === 'jumlah') {
-            f.jumlah = e.target.value === '1' ? 1 : 0;
+            // 'banyak' = tanpa batas (null); batas N > 1 dari data lama dipertahankan
+            f.jumlah = e.target.value === '1' ? 1 : (f.jumlah > 1 ? f.jumlah : null);
             renderDaftar(); // teks penjelasan ikut berganti
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="jumlah"]`)?.focus();
         }
@@ -529,11 +490,7 @@
 
     // ---------- Pratinjau surat ----------
     function nilaiContoh(nama) {
-        if (nama in SAMPLE) return SAMPLE[nama];
-        const f = isian.find((x) => x.key === nama && x.label.trim());
-        if (!f) return null;
-        const c = 'Contoh ' + f.label.trim().toLowerCase();
-        return f.jumlah === 1 ? `${c} 1, ${c} 2` : c;
+        return nama in SAMPLE ? SAMPLE[nama] : null;
     }
 
     function renderPratinjau() {
@@ -577,7 +534,7 @@
         $('kk-nama').value = ROW.name ?? '';
         $('kk-jenis').value = ROW.jenis;
         $('kk-ket').value = ROW.description ?? '';
-        $('kk-template').value = ROW.isi_surat ?? '';
+        $('kk-template').value = ROW.template_surat ?? '';
     }
     // Default "Butuh surat" (perilaku sekarang); data lama tanpa kebutuhan ikut default
     const kebAwal = ROW?.kebutuhan === 'kegiatan' ? 'kegiatan' : 'surat';
@@ -616,11 +573,11 @@
             jenis: $('kk-jenis').value,
             kebutuhan: kebutuhan(), // 'surat' | 'kegiatan' (KEBUTUHAN)
             description: $('kk-ket').value.trim(),
-            isi_surat: $('kk-template').value.trim(),
+            template_surat: $('kk-template').value.trim(),
             isian: isian.filter((f) => f.label.trim()).map((f) => ({
-                kunci: f.key, label: f.label.trim(), tipe: f.tipe, wajib: f.wajib,
-                jumlah: f.jumlah, // 0 = satu isian, 1 = lebih dari satu (JUMLAH_ISIAN)
-                bantuan: '', opsi: [], // tidak dipakai lagi; tetap dikirim agar cocok dengan backend
+                id_isian_kategori: f.id, // ada = diperbarui, kosong = isian baru
+                input: f.label.trim(), jenis_input: f.tipe, wajib: f.wajib,
+                jumlah_isian: f.jumlah, // 1 = satu isian, null = tanpa batas, N = maksimal N
             })),
         };
         if (!body.name) { bukaTab('data'); tampilError('Nama kategori wajib diisi.'); $('kk-nama').focus(); return; }

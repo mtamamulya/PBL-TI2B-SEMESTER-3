@@ -3,17 +3,16 @@
 namespace App\BackendKel1\KategoriKegiatan;
 
 use App\Http\Controllers\Controller;
-use App\Models\Dosen;
 use App\Models\IsianKategori;
 use App\Models\JenisKegiatan;
 use App\Models\Kategori;
 use App\Support\ApiResponse;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * GET /api/v1/jenis-kegiatan, /tipe-isian, /kategori-kegiatan, /kategori-kegiatan/{id}  (semua pengguna yang login)
  * POST/PUT/DELETE /api/v1/kategori-kegiatan                                 (khusus admin)
+ *
+ * Satu kategori membawa daftar isian form (tabel isian_kategori) yang harus diisi pengaju.
  */
 class KategoriKegiatanController extends Controller
 {
@@ -90,7 +91,7 @@ class KategoriKegiatanController extends Controller
 
         try {
             $k = DB::transaction(function () use ($data) {
-                $k = Kategori::create(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'kebutuhan']));
+                $k = Kategori::create(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'lampiran_peserta', 'kebutuhan']));
 
                 if (isset($data['isian'])) {
                     $this->sinkronIsian($k, $data['isian']);
@@ -102,7 +103,7 @@ class KategoriKegiatanController extends Controller
             return ApiResponse::gagal('Kategori gagal disimpan. Periksa isian form.', 409);
         }
 
-        return ApiResponse::ok(self::bentuk($this->cari($k->getKey()), true), 'Kategori kegiatan dibuat.', 201);
+        return ApiResponse::ok(self::bentuk($this->cari($k->getKey()), true), 'Kategori kegiatan dibuat.')->setStatusCode(201);
     }
 
     public function update(Request $request, int $id): JsonResponse
@@ -120,7 +121,7 @@ class KategoriKegiatanController extends Controller
 
         try {
             DB::transaction(function () use ($k, $data) {
-                $k->update(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'kebutuhan']));
+                $k->update(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'lampiran_peserta', 'kebutuhan']));
 
                 // `isian` tidak dikirim = daftar isian dibiarkan. Dikirim (walau kosong) = diganti sesuai kiriman.
                 if (array_key_exists('isian', $data)) {
@@ -145,7 +146,7 @@ class KategoriKegiatanController extends Controller
             return ApiResponse::gagal('Kategori kegiatan tidak ditemukan');
         }
 
-        if (Schema::hasTable('kegiatan') && $k->kegiatan()->exists()) {
+        if ($k->kegiatan()->exists()) {
             return ApiResponse::gagal('Kategori ini sudah dipakai oleh kegiatan, jadi tidak bisa dihapus.', 409);
         }
 
@@ -172,18 +173,14 @@ class KategoriKegiatanController extends Controller
             'deskripsi' => $k->deskripsi,
             'kebutuhan' => $k->kebutuhan,
             'isi_surat' => $k->isi_surat,
+            'lampiran_peserta' => (bool) $k->lampiran_peserta,
         ];
 
         if ($denganIsian) {
-            $dosen = null;
-            $out['isian'] = $k->isianKategori->map(function ($i) use (&$dosen) {
+            $out['isian'] = $k->isianKategori->map(function ($i) {
                 $row = self::bentukIsian($i);
 
-                if ($i->jenis_input === 'dosen') {
-                    $dosen ??= Dosen::query()->orderBy('nama')->get()
-                        ->map(fn ($d) => ['nilai' => $d->getKey(), 'label' => $d->nama])->all();
-                    $row['pilihan'] = $dosen;
-                } elseif ($tetap = PilihanBaku::nilai($i->jenis_input)) {
+                if ($tetap = PilihanBaku::nilai($i->jenis_input)) {
                     $row['pilihan'] = array_map(fn ($v) => ['nilai' => $v, 'label' => Str::title($v)], $tetap);
                 }
 
@@ -198,16 +195,13 @@ class KategoriKegiatanController extends Controller
 
     public static function bentukIsian(IsianKategori $i): array
     {
-        // Sesuai Model IsianKategori: jumlah_isian = 1 (tunggal -> API 0), null atau > 1 (jamak -> API 1)
-        $jumlahApi = ($i->jumlah_isian === null || $i->jumlah_isian > 1) ? 1 : 0;
-
         return [
             'id_isian_kategori' => $i->id_isian_kategori,
             'input' => $i->input,
             'jenis_input' => $i->jenis_input,
             'wajib' => $i->aturan === 'NOT NULL',
-            'jumlah_isian' => $jumlahApi,
-            'pilihan' => null,
+            'jumlah_isian' => $i->jumlah_isian === null ? null : (int) $i->jumlah_isian,
+            'pilihan' => null, // diisi pada detail untuk tipe pilihan baku
         ];
     }
 
@@ -233,10 +227,12 @@ class KategoriKegiatanController extends Controller
 
     private function validasi(Request $request, ?int $id = null): array
     {
+        // Nama lama dari form web tetap diterima.
         if (! $request->has('isi_surat') && $request->has('template_surat')) {
             $request->merge(['isi_surat' => $request->input('template_surat')]);
         }
 
+        // Jenis boleh dikirim sebagai nama ("Kegiatan Mahasiswa") atau sebagai id_jenis_kegiatan.
         if (! $request->filled('id_jenis_kegiatan') && $request->filled('jenis')) {
             $idJenis = JenisKegiatan::query()
                 ->where('nama_jenis_kegiatan', $request->input('jenis'))
@@ -247,7 +243,7 @@ class KategoriKegiatanController extends Controller
             }
         }
 
-        return $request->validate([
+        $data = $request->validate([
             'id_jenis_kegiatan' => ['required', 'integer', Rule::exists('jenis_kegiatan', 'id_jenis_kegiatan')],
             'nama_kategori' => [
                 'required', 'string', 'max:100',
@@ -257,13 +253,14 @@ class KategoriKegiatanController extends Controller
             ],
             'deskripsi' => ['nullable', 'string', 'max:255'],
             'isi_surat' => ['nullable', 'string'],
+            'lampiran_peserta' => ['nullable', 'boolean'],
             'kebutuhan' => ['nullable', 'in:kegiatan,surat'],
             'isian' => ['nullable', 'array', 'max:'.self::MAKS_ISIAN],
             'isian.*.id_isian_kategori' => ['nullable', 'integer'],
             'isian.*.input' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'isian.*.jenis_input' => ['required', Rule::in(PilihanBaku::semuaJenis())],
             'isian.*.wajib' => ['nullable', 'boolean'],
-            'isian.*.jumlah_isian' => ['nullable', 'integer', 'in:0,1'],
+            'isian.*.jumlah_isian' => ['nullable', 'integer', 'min:1', 'max:100'],
         ], [
             'id_jenis_kegiatan.required' => 'Jenis kegiatan wajib dipilih.',
             'id_jenis_kegiatan.exists' => 'Jenis kegiatan tidak valid.',
@@ -274,23 +271,30 @@ class KategoriKegiatanController extends Controller
             'isian.*.input.required' => 'Nama isian wajib diisi.',
             'isian.*.jenis_input.in' => 'Tipe isian tidak valid.',
             'isian.*.input.distinct' => 'Nama isian tidak boleh sama.',
+            'isian.*.jumlah_isian.min' => 'Batas jawaban minimal satu. Kosongkan (null) untuk tanpa batas.',
         ]);
+
+        return $data;
     }
 
+    /**
+     * Samakan isian di database dengan daftar kiriman:
+     * isian ber-`id_isian_kategori` diperbarui (id tetap), tanpa id ditambah, yang tidak dikirim lagi dihapus
+     * (isian yang sudah dijawab kegiatan tidak bisa dihapus: 409).
+     * Urutan tampil mengikuti id (urutan dibuat).
+     */
     private function sinkronIsian(Kategori $k, array $daftar): void
     {
         $ada = $k->isianKategori()->get()->keyBy('id_isian_kategori');
         $dipakai = [];
 
         foreach (array_values($daftar) as $i => $f) {
-            // Sesuai Model IsianKategori: API 1 (lebih dari satu) -> DB null; API 0 (satu) -> DB 1
-            $jumlahDb = ((int) ($f['jumlah_isian'] ?? 0)) === 1 ? null : 1;
-
             $nilai = [
                 'input' => $f['input'],
                 'jenis_input' => $f['jenis_input'],
                 'aturan' => ! empty($f['wajib']) ? 'NOT NULL' : 'NULL',
-                'jumlah_isian' => $jumlahDb,
+                // batas jawaban: tidak dikirim = 1 (satu isian); null = tanpa batas; angka = batas maksimal
+                'jumlah_isian' => array_key_exists('jumlah_isian', $f) ? $f['jumlah_isian'] : 1,
             ];
 
             $id = $f['id_isian_kategori'] ?? null;
@@ -306,9 +310,9 @@ class KategoriKegiatanController extends Controller
                 throw ValidationException::withMessages(["isian.$i.id_isian_kategori" => 'Isian tidak ditemukan pada kategori ini.']);
             }
 
-            // Validasi sesuai event booted() di Model IsianKategori
-            if ($baris->jenis_input !== $f['jenis_input'] && Schema::hasTable('detail_kegiatan') && $baris->detailKegiatan()->exists()) {
-                throw ValidationException::withMessages(["isian.$i.jenis_input" => 'Jenis isian yang sudah dijawab pada kegiatan tidak dapat diubah.']);
+            // Model melarang mengubah tipe isian yang sudah dijawab; beri pesan yang jelas per isian.
+            if ($baris->jenis_input !== $nilai['jenis_input'] && $baris->detailKegiatan()->exists()) {
+                throw ValidationException::withMessages(["isian.$i.jenis_input" => 'Tipe isian yang sudah dijawab tidak dapat diubah.']);
             }
 
             $baris->update($nilai);
@@ -316,9 +320,17 @@ class KategoriKegiatanController extends Controller
         }
 
         foreach ($ada as $id => $baris) {
-            if (! in_array($id, $dipakai, true)) {
-                $baris->delete();
+            if (in_array($id, $dipakai, true)) {
+                continue;
             }
+
+            if ($baris->detailKegiatan()->exists()) {
+                throw new HttpResponseException(
+                    ApiResponse::gagal("Isian \"{$baris->input}\" sudah dijawab oleh kegiatan, jadi tidak bisa dihapus.", 409)
+                );
+            }
+
+            $baris->delete();
         }
     }
 }
