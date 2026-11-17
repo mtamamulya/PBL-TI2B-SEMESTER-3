@@ -63,23 +63,24 @@ class LandingMahasiswaController extends Controller
     public function edit(string $id)
     {
         $detail = ApiClient::pengguna()->get("/mahasiswa/{$id}");
-        $list = ApiClient::pengguna()->get('/mahasiswa');
-        $meta = $list['meta'] ?? [];
 
         return view('admin.mahasiswa-edit', [
             'mahasiswa' => $detail['data'] ?? [],
             'fotoUrl' => $detail['fotoUrl'] ?? null,
-            'tahun' => $meta['tahun'] ?? range((int) date('Y'), (int) date('Y') - 9),
-            'statusAkad' => $meta['status'] ?? ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
+            'tahun' => range((int) date('Y'), (int) date('Y') - 9),
+            'statusAkad' => ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
         ]);
     }
 
     public function update(Request $request, string $id): RedirectResponse
     {
         $payload = $request->only(['nama', 'nim', 'angkatan', 'status', 'email', 'password', 'hapus_foto']);
-        $files = $request->hasFile('foto') ? ['foto' => $request->file('foto')] : [];
 
-        ApiClient::pengguna()->put("/mahasiswa/{$id}", $payload, $files);
+        if ($request->hasFile('foto')) {
+            ApiClient::pengguna()->put("/mahasiswa/{$id}", $payload, ['foto' => $request->file('foto')]);
+        } else {
+            ApiClient::pengguna()->put("/mahasiswa/{$id}", $payload);
+        }
 
         return redirect()
             ->route('admin.mahasiswa.show', ['id' => $id])

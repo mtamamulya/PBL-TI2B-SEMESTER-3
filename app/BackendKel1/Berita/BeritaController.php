@@ -96,6 +96,7 @@ class BeritaController extends Controller
             ->map(fn (Berita $item) => [
                 'id_berita' => $item->id_berita,
                 'judul_berita' => $item->judul_berita,
+                'sampul' => $item->sampul,
                 'tanggal_publish' => $item->tanggal_publish?->toIso8601String(),
             ])
             ->all();

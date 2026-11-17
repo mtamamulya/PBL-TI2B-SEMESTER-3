@@ -6,7 +6,7 @@ namespace App\BackendKel1\KategoriKegiatan;
  * Tipe isian "pilihan baku": daftar pilihannya ditentukan sistem (bukan diketik admin),
  * nilainya sama dengan enum di tabel lain supaya data konsisten.
  * Menambah pilihan baku baru cukup menambah satu baris di DAFTAR.
- * Tipe `dosen` tidak punya daftar tetap: pilihannya diambil dari tabel dosen.
+ * Pilihan yang diambil dari tabel (mis. dosen pembimbing) belum disertakan; ditambahkan nanti bersama model Dosen.
  */
 final class PilihanBaku
 {
@@ -15,8 +15,6 @@ final class PilihanBaku
         'tingkat_kejuaraan' => ['label' => 'Pilihan: Tingkat kejuaraan', 'nilai' => ['kabupaten/kota', 'provinsi', 'nasional', 'internasional']],
         // sama dengan enum prestasi.jenis_prestasi
         'jenis_prestasi' => ['label' => 'Pilihan: Jenis prestasi', 'nilai' => ['akademik', 'non-akademik']],
-        // diambil dari tabel dosen
-        'dosen' => ['label' => 'Pilihan: Dosen', 'nilai' => null],
     ];
 
     /** Tipe isian biasa (diketik / diunggah pengaju). */
@@ -34,7 +32,7 @@ final class PilihanBaku
         return array_merge(array_keys(self::BIASA), array_keys(self::DAFTAR));
     }
 
-    /** Daftar nilai tetap untuk tipe baku, atau null (bukan tipe baku / tipe dosen). */
+    /** Daftar nilai tetap untuk tipe baku, atau null (bukan tipe baku). */
     public static function nilai(string $jenis): ?array
     {
         return self::DAFTAR[$jenis]['nilai'] ?? null;
@@ -50,7 +48,7 @@ final class PilihanBaku
         }
 
         foreach (self::DAFTAR as $nilai => $info) {
-            $out[] = ['nilai' => $nilai, 'label' => $info['label'], 'baku' => true];
+            $out[] = ['nilai' => $nilai, 'label' => $info['label'], 'baku' => true, 'pilihan' => $info['nilai']];
         }
 
         return $out;
