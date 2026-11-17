@@ -22,6 +22,7 @@ Route::prefix('integrasi')
 
 require app_path('BackendKel3/routes.php');
 require app_path('BackendKel1/routes.php');
+require app_path('BackendKel2/routes.php');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/prestasi', [PrestasiController::class, 'index']);

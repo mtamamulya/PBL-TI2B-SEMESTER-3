@@ -11,3 +11,4 @@ require __DIR__.'/Akreditasi/routes.php';
 require __DIR__.'/Dosen/routes.php';
 require __DIR__.'/Prestasi/routes.php';
 require __DIR__.'/Berita/routes.php';
+require __DIR__.'/PengajuanAdmin/routes.php';
