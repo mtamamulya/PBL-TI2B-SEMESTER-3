@@ -18,7 +18,10 @@
 @section('content')
 <main class="flex flex-col gap-8 px-4 py-8 lg:px-6">
     <div class="flex flex-col gap-2">
-        <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mahasiswa</h1>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mahasiswa</h1>
+            <a href="{{ route('admin.impor.form', ['jenis' => 'dosen']) }}" class="rounded-md border border-[#2277FF] px-4 py-2 text-base font-medium text-[#2277FF]">Import dari Excel</a>
+        </div>
         <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Data Mahasiswa', 'admin.mahasiswa'], ['Tambah']]" />
     </div>
 

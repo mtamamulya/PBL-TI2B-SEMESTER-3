@@ -131,3 +131,4 @@ Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id)
 
 require __DIR__.'/admin-kaprodi.php';
 require __DIR__.'/api-docs.php';
+require app_path('BackendKel1/ImportExcel/routes.php');
