@@ -155,11 +155,28 @@ class DynamicActivityErdTest extends TestCase
 
         $admin = User::create(['id_role' => 1, 'email' => 'admin-prestasi@test.local', 'password' => 'password', 'status' => true]);
         $this->actingAs($admin);
-        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasErrors('id_kegiatan');
+
+        $this->actingAs($admin, 'sanctum');
+
+        $this->postJson(route('api.admin.prestasi.store'), $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['kegiatan']);
+
         $this->assertDatabaseCount('prestasi', 0);
-        $activity->anggota()->create(['id_user' => $outsider->getKey(), 'peran' => 'anggota']);
-        $this->post(route('admin.prestasi.store'), $data)->assertSessionHasNoErrors()->assertRedirect(route('admin.prestasi'));
-        $this->assertDatabaseHas('prestasi', ['id_kegiatan' => $activity->getKey(), 'id_user' => $outsider->getKey(), 'created_by' => $admin->getKey()]);
+
+        $activity->anggota()->create([
+            'id_user' => $outsider->getKey(),
+            'peran' => 'anggota',
+        ]);
+
+        $this->postJson(route('api.admin.prestasi.store'), $data)
+            ->assertCreated();
+
+        $this->assertDatabaseHas('prestasi', [
+            'id_kegiatan' => $activity->getKey(),
+            'id_user' => $outsider->getKey(),
+            'created_by' => $admin->getKey(),
+        ]);
     }
 
     public function test_document_cannot_point_to_an_answer_of_another_activity(): void
