@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\PastikanAkunAktif;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -29,6 +30,17 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Data yang dikirim tidak valid. Periksa kembali isian Anda.',
                     'errors' => $e->errors(),
                 ], 422);
+            }
+        });
+
+        // API tanpa token (atau token salah) selalu dijawab 401 JSON, bukan dialihkan ke halaman login.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum login atau token tidak valid.',
+                    'errors' => (object) [],
+                ], 401);
             }
         });
     })->create();
