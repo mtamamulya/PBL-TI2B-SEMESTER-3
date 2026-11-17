@@ -146,16 +146,11 @@
             // Fungsi init() akan dijalankan otomatis oleh Alpine saat komponen dimuat di browser
             async init() {
                 try {
-                    // Ambil token dari localStorage (Sesuaikan jika token login disave di tempat lain oleh teman frontend-mu)
-                    const token = localStorage.getItem('token_auth_kelompok3') || '';
-
                     // Prefix API proyek ini: /api/v1 (lihat bootstrap/app.php)
                     const respon = await fetch('/api/v1/pengajaran', {
                         method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Authorization': 'Bearer ' + token
-                        }
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' }
                     });
 
                     const json = await respon.json();
