@@ -13,13 +13,23 @@ class KategoriKegiatanController extends Controller
     {
         try {
             $hasil = ApiClient::pengguna()->get('/kategori-kegiatan', ['per_page' => 100]);
-            $rows = array_map(fn (array $item) => $this->bentukBaris($item), $hasil['data'] ?? []);
+            $daftar = $hasil['data'] ?? [];
+            // Respons paginasi bisa berbentuk data.data; ambil daftar barisnya
+            if (isset($daftar['data']) && is_array($daftar['data'])) {
+                $daftar = $daftar['data'];
+            }
+            $rows = array_values(array_map(fn (array $item) => $this->bentukBaris($item), $daftar));
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat daftar kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
             $rows = [];
             $jenis = [];
-            $apiError = $e->getMessage().' (Status: '.$e->getCode().')';
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
         return view('admin.kategori-kegiatan', [
@@ -29,21 +39,25 @@ class KategoriKegiatanController extends Controller
         ]);
     }
 
-    /** Halaman tambah: form di kiri, pratinjau surat di kanan. */
     public function create()
     {
         try {
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
-            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
             $jenis = [];
-            $apiError = $e->getMessage().' (Status: '.$e->getCode().')';
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
         return view('admin.kategori-kegiatan-form', [
             'row' => null,
             'jenis' => $jenis,
+            'tipeIsian' => $this->daftarTipeIsian(),
             'apiError' => $apiError,
         ]);
     }
@@ -56,16 +70,21 @@ class KategoriKegiatanController extends Controller
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
-            \Log::error('Gagal memuat form edit kategori: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat form edit kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
             return redirect()
-                ->route('admin.kegiatan.kategori-kegiatan.index')
+                ->route('admin.kegiatan.kategori-kegiatan')
                 ->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
         }
 
         return view('admin.kategori-kegiatan-form', [
             'row' => $item,
             'jenis' => $jenis,
+            'tipeIsian' => $this->daftarTipeIsian(),
             'apiError' => $apiError,
         ]);
     }
@@ -77,9 +96,13 @@ class KategoriKegiatanController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'row' => $this->bentukBaris($hasil['data']),
+                'row' => $this->bentukBaris($hasil['data'] ?? []),
             ]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
@@ -91,9 +114,13 @@ class KategoriKegiatanController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'row' => $this->bentukBaris($hasil['data']),
+                'row' => $this->bentukBaris($hasil['data'] ?? []),
             ]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
@@ -105,11 +132,14 @@ class KategoriKegiatanController extends Controller
 
             return response()->json(['ok' => true]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
 
-    /** Mengubah payload dari form web agar sesuai dengan format kolom API Backend. */
     private function payloadApi(Request $request): array
     {
         $payload = [
@@ -117,28 +147,62 @@ class KategoriKegiatanController extends Controller
             'id_jenis_kegiatan' => $request->input('id_jenis_kegiatan'),
             'nama_kategori' => $request->input('nama_kategori', $request->input('name')),
             'deskripsi' => $request->input('deskripsi', $request->input('description')),
-            'kebutuhan' => $request->input('kebutuhan', 'kegiatan'),
+            'kebutuhan' => $request->input('kebutuhan', 'surat'),
             'isi_surat' => $request->input('isi_surat', $request->input('template_surat')),
         ];
 
-        if ($request->has('isian')) {
-            $payload['isian'] = $request->input('isian');
+        if ($request->has('lampiran_peserta')) {
+            $payload['lampiran_peserta'] = $request->boolean('lampiran_peserta');
         }
 
-        return array_filter($payload, fn ($v) => $v !== null);
+        // Bentuk isian dari form sudah sama dengan API; cukup disaring field-nya.
+        // jumlah_isian selalu dikirim: 1 = satu isian, 0 = lebih dari satu.
+        if ($request->has('isian')) {
+            $payload['isian'] = array_values(array_map(function ($item) {
+                $item = is_array($item) ? $item : [];
+                $baris = [
+                    'input' => trim((string) ($item['input'] ?? '')),
+                    'jenis_input' => $item['jenis_input'] ?? 'teks',
+                    'wajib' => filter_var($item['wajib'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'jumlah_isian' => filter_var($item['jumlah_isian'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                ];
+                if (! empty($item['id_isian_kategori'])) {
+                    $baris['id_isian_kategori'] = (int) $item['id_isian_kategori'];
+                }
+
+                return $baris;
+            }, (array) $request->input('isian', [])));
+        }
+
+        $payload = array_filter($payload, fn ($v) => $v !== null);
+
+        // Template/keterangan yang dikosongkan harus ikut terkirim agar bisa dihapus
+        foreach (['isi_surat', 'deskripsi'] as $k) {
+            if ($request->hasAny([$k, $k === 'isi_surat' ? 'template_surat' : 'description'])) {
+                $payload[$k] ??= '';
+            }
+        }
+
+        return $payload;
     }
 
-    /** Memetakan respons JSON dari API agar kunci lama (`id`, `name`, `description`) tetap terbaca di Blade. */
     private function bentukBaris(array $item): array
     {
         return array_merge($item, [
             'id' => $item['id_kategori'] ?? null,
             'name' => $item['nama_kategori'] ?? '',
+            // Nama jenis dipakai view daftar dan form edit; bentuk respons API dicoba beberapa kemungkinan
+            'jenis' => $item['jenis']
+                ?? $item['nama_jenis_kegiatan']
+                ?? (is_array($item['jenis_kegiatan'] ?? null)
+                    ? ($item['jenis_kegiatan']['nama_jenis_kegiatan'] ?? '')
+                    : ($item['jenis_kegiatan'] ?? '')),
             'description' => $item['deskripsi'] ?? null,
+            'template_surat' => $item['isi_surat'] ?? null,
+            'isian' => $item['isian'] ?? [],
         ]);
     }
 
-    /** Mengambil daftar nama jenis kegiatan dari API. */
     private function daftarJenis(): array
     {
         $hasil = ApiClient::pengguna()->get('/jenis-kegiatan');
@@ -146,18 +210,20 @@ class KategoriKegiatanController extends Controller
         return array_column($hasil['data'] ?? [], 'nama_jenis_kegiatan');
     }
 
-    /** Mengambil daftar tipe isian form (teks, angka, berkas, dosen, dll.) dari API. */
     private function daftarTipeIsian(): array
     {
-        $hasil = ApiClient::pengguna()->get('/tipe-isian');
+        try {
+            $hasil = ApiClient::pengguna()->get('/tipe-isian');
 
-        return $hasil['data'] ?? [];
+            return $hasil['data'] ?? [];
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
-    /** Meneruskan error HTTP (422, 404, 409, 403) dari API ke JSON response web. */
     private function responsGagal(ApiException $e): JsonResponse
     {
-        $status = $e->getCode();
+        $status = $e->getStatusCode();
         if ($status < 400 || $status > 599) {
             $status = 500;
         }

@@ -129,6 +129,15 @@
         <span class="text-[#6E6E76]" aria-current="page">Kategori Kegiatan</span>
     </nav>
 
+    @if (!empty($apiError))
+        <div class="mt-4 rounded-md border border-[#FAA8A8] bg-[#FBCBCB] px-4 py-3 text-sm text-[#B00000]" role="alert">
+            Gagal memuat data dari API: {{ $apiError }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="mt-4 rounded-md border border-[#FAA8A8] bg-[#FBCBCB] px-4 py-3 text-sm text-[#B00000]" role="alert">{{ session('error') }}</div>
+    @endif
+
     @if (request('status'))
         <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">
             Kategori kegiatan berhasil {{ request('status') === 'diperbarui' ? 'diperbarui' : 'ditambahkan' }}.
