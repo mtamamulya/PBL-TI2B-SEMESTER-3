@@ -26,10 +26,10 @@ class PengajuanController extends Controller
             'diajukan' => 'Diajukan',
             'direview' => 'Direview',
             'diterima' => 'Disetujui',
-            'ditolak'  => 'Ditolak',
+            'ditolak' => 'Ditolak',
             'direvisi' => 'Perlu revisi',
-            'selesai'  => 'Selesai',
-            default    => 'Diajukan',
+            'selesai' => 'Selesai',
+            default => 'Diajukan',
         };
     }
 
@@ -39,8 +39,8 @@ class PengajuanController extends Controller
         $mhs = $user?->mahasiswa;
 
         return [
-            'name'  => $mhs?->nama ?? $mhs?->nama_mahasiswa ?? config('mahasiswa.nama'),
-            'nim'   => $mhs?->nim ?? config('mahasiswa.nim'),
+            'name' => $mhs?->nama ?? $mhs?->nama_mahasiswa ?? config('mahasiswa.nama'),
+            'nim' => $mhs?->nim ?? config('mahasiswa.nim'),
             'prodi' => $mhs?->prodi ?? $mhs?->program_studi ?? config('mahasiswa.prodi'),
         ];
     }
@@ -402,17 +402,17 @@ class PengajuanController extends Controller
                     ?? now();
 
                 return [
-                    'id'           => $k->id_kegiatan,
-                    'title'        => $k->nama_kegiatan,
-                    'category'     => $categoryName,
-                    'type'         => $this->typeFor($categoryName),
-                    'status'       => $statusLabel,
+                    'id' => $k->id_kegiatan,
+                    'title' => $k->nama_kegiatan,
+                    'category' => $categoryName,
+                    'type' => $this->typeFor($categoryName),
+                    'status' => $statusLabel,
                     'submitted_at' => Carbon::parse($submittedAt),
-                    'editable'     => in_array($statusLabel, self::EDITABLE, true),
+                    'editable' => in_array($statusLabel, self::EDITABLE, true),
                 ];
             })
-            ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
-            ->values();
+                ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
+                ->values();
         }
 
         // Fallback ke dummy jika tabel kegiatan di database masih kosong
@@ -442,12 +442,12 @@ class PengajuanController extends Controller
 
         return view('mahasiswa.pengajuan.dashboard', [
             'mahasiswa' => array_merge(config('mahasiswa', []), [
-                'nama'  => $profile['name'],
-                'nim'   => $profile['nim'],
+                'nama' => $profile['name'],
+                'nim' => $profile['nim'],
                 'prodi' => $profile['prodi'],
             ]),
-            'totalPengajuan'    => $submissions->count(),
-            'totalKegiatan'     => $submissions->count(),
+            'totalPengajuan' => $submissions->count(),
+            'totalKegiatan' => $submissions->count(),
             'latestSubmissions' => $submissions->take(3),
         ]);
     }
@@ -538,14 +538,14 @@ class PengajuanController extends Controller
                 ?? now();
 
             $row = [
-                'id'           => $kegiatan->id_kegiatan,
-                'title'        => $kegiatan->nama_kegiatan,
-                'category'     => $categoryName,
-                'type'         => $this->typeFor($categoryName),
-                'status'       => $statusLabel,
+                'id' => $kegiatan->id_kegiatan,
+                'title' => $kegiatan->nama_kegiatan,
+                'category' => $categoryName,
+                'type' => $this->typeFor($categoryName),
+                'status' => $statusLabel,
                 'submitted_at' => Carbon::parse($submittedAt),
-                'editable'     => in_array($statusLabel, self::EDITABLE, true),
-                'review_note'  => $latestTimeline?->catatan_revisi,
+                'editable' => in_array($statusLabel, self::EDITABLE, true),
+                'review_note' => $latestTimeline?->catatan_revisi,
             ];
 
             $student = $this->studentProfile($kegiatan->user);
@@ -554,18 +554,18 @@ class PengajuanController extends Controller
                 'diajukan' => $student['name'],
                 'direview' => 'Tim administrasi',
                 'diterima' => 'Reviewer akademik',
-                'ditolak'  => 'Reviewer akademik',
+                'ditolak' => 'Reviewer akademik',
                 'direvisi' => 'Reviewer akademik',
-                'selesai'  => 'Tim administrasi',
+                'selesai' => 'Tim administrasi',
             ];
 
             $defaultNoteMap = [
                 'diajukan' => 'Pengajuan dikirim untuk ditinjau.',
                 'direview' => 'Verifikasi persyaratan dan periode pengajuan.',
                 'diterima' => 'Pengajuan disetujui. Menunggu penerbitan dokumen hasil.',
-                'ditolak'  => 'Pengajuan ditolak. Proses dihentikan.',
+                'ditolak' => 'Pengajuan ditolak. Proses dihentikan.',
                 'direvisi' => 'Perlu perbaikan sesuai catatan reviewer.',
-                'selesai'  => 'Dokumen diterbitkan dan proses pengajuan ditutup.',
+                'selesai' => 'Dokumen diterbitkan dan proses pengajuan ditutup.',
             ];
 
             $steps = $timelines->isNotEmpty()
@@ -574,16 +574,16 @@ class PengajuanController extends Controller
 
                     return [
                         'title' => ucfirst($statusKey),
-                        'at'    => Carbon::parse($t->tanggal_status ?? $t->created_at),
+                        'at' => Carbon::parse($t->tanggal_status ?? $t->created_at),
                         'actor' => $actorMap[$statusKey] ?? 'Tim administrasi',
-                        'note'  => $t->catatan_revisi ?: ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
+                        'note' => $t->catatan_revisi ?: ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
                     ];
                 })
                 : collect([[
                     'title' => 'Diajukan',
-                    'at'    => Carbon::parse($submittedAt),
+                    'at' => Carbon::parse($submittedAt),
                     'actor' => $student['name'],
-                    'note'  => 'Pengajuan dikirim untuk ditinjau.',
+                    'note' => 'Pengajuan dikirim untuk ditinjau.',
                 ]]);
 
             $files = $kegiatan->dokumen->map(function ($doc) {
@@ -593,7 +593,7 @@ class PengajuanController extends Controller
                 return [
                     'name' => $name,
                     'meta' => $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
-                    'url'  => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
+                    'url' => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
                 ];
             })->all();
 
@@ -607,11 +607,11 @@ class PengajuanController extends Controller
         $row = $this->toRow($item);
 
         $flows = [
-            'Diajukan'     => ['Diajukan'],
-            'Direview'     => ['Diajukan', 'Direview'],
-            'Disetujui'    => ['Diajukan', 'Direview', 'Diterima'],
-            'Selesai'      => ['Diajukan', 'Direview', 'Diterima', 'Selesai'],
-            'Ditolak'      => ['Diajukan', 'Direview', 'Ditolak'],
+            'Diajukan' => ['Diajukan'],
+            'Direview' => ['Diajukan', 'Direview'],
+            'Disetujui' => ['Diajukan', 'Direview', 'Diterima'],
+            'Selesai' => ['Diajukan', 'Direview', 'Diterima', 'Selesai'],
+            'Ditolak' => ['Diajukan', 'Direview', 'Ditolak'],
             'Perlu revisi' => ['Diajukan', 'Direview', 'Direvisi'],
         ];
 
@@ -621,9 +621,9 @@ class PengajuanController extends Controller
             'Diajukan' => [$mine ? $d : $d->copy()->setTime(9, 0), config('mahasiswa.nama'), 'Pengajuan dikirim untuk ditinjau.'],
             'Direview' => [$mine ? $d->copy()->addMinutes(5) : $d->copy()->setTime(13, 0), 'Tim administrasi', 'Verifikasi persyaratan dan periode pengajuan.'],
             'Diterima' => [$d->copy()->addDay()->setTime(10, 15), 'Reviewer akademik', 'Pengajuan disetujui. Menunggu penerbitan dokumen hasil.'],
-            'Ditolak'  => [$d->copy()->addDay()->setTime(10, 30), 'Reviewer akademik', 'Pengajuan di luar periode penerimaan. Proses dihentikan.'],
+            'Ditolak' => [$d->copy()->addDay()->setTime(10, 30), 'Reviewer akademik', 'Pengajuan di luar periode penerimaan. Proses dihentikan.'],
             'Direvisi' => [$d->copy()->addDay()->setTime(10, 0), 'Reviewer akademik', 'Rincian anggaran dan lembar pengesahan perlu diperbaiki.'],
-            'Selesai'  => [$d->copy()->addDays(2)->setTime(14, 0), 'Tim administrasi', 'Dokumen diterbitkan dan proses pengajuan ditutup.'],
+            'Selesai' => [$d->copy()->addDays(2)->setTime(14, 0), 'Tim administrasi', 'Dokumen diterbitkan dan proses pengajuan ditutup.'],
         ];
 
         $steps = collect($flows[$row['status']])->map(fn ($s) => [
@@ -635,7 +635,7 @@ class PengajuanController extends Controller
         $files = collect($item['documents'] ?? [])->map(fn ($f) => [
             'name' => $f['name'] ?? 'Dokumen pendukung',
             'meta' => $f['type'] ?? (isset($f['size']) ? strtoupper(pathinfo($f['name'], PATHINFO_EXTENSION)).' • '.$this->readableSize((int) $f['size']) : 'Tautan dokumen'),
-            'url'  => $f['url'] ?? (isset($f['path']) ? asset('storage/'.$f['path']) : null),
+            'url' => $f['url'] ?? (isset($f['path']) ? asset('storage/'.$f['path']) : null),
         ])->all();
 
         return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item'));
