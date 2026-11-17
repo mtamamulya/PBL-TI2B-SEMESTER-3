@@ -102,7 +102,7 @@ class DosenPengajaranController extends Controller
                         'rombel' => (string) $item->id_enrollment_tingkat_kelas,
                         'matkul' => (string) $item->id_enrollment_mk,
                     ],
-                ]
+                ],
             ]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Data tidak ditemukan atau bukan milik Anda.'], 404);
