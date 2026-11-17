@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Prestasi;
 use App\Repositories\DosenStore;
+use App\Support\ApiClient;
+use Illuminate\Support\Str;
 
 class HomeController extends Controller
 {
@@ -45,11 +47,36 @@ class HomeController extends Controller
             [$counts->get('akademik', 0), 'Prestasi akademik'],
             [$counts->get('non-akademik', 0), 'Prestasi non-akademik'],
         ];
-        // dd($prestasi);
 
         // Dosen AKTIF dari database (mode database). Mode json: null, jadi view memakai data sementaranya.
         $dosen = $this->dosenStore->publik();
 
-        return view('home', compact('prestasi', 'stats', 'dosen'));
+        // Berita terbaru dari API (publik, tanpa token)
+        $news = $this->ambilBerita();
+
+        return view('home', compact('prestasi', 'stats', 'dosen', 'news'));
+    }
+
+    /** Ambil 6 berita terbaru yang sudah publish via REST API. */
+    private function ambilBerita(): array
+    {
+        try {
+            $hasil = ApiClient::publik()->get('/berita', ['per_page' => 6]);
+            $items = $hasil['data'] ?? [];
+        } catch (\Throwable) {
+            $items = [];
+        }
+
+        return collect($items)
+            ->filter(fn (array $item) => ($item['status'] ?? '') === 'publish')
+            ->take(6)
+            ->map(fn (array $item) => [
+                'id' => $item['id_berita'] ?? null,
+                'title' => $item['judul_berita'] ?? 'Tanpa Judul',
+                'text' => Str::limit(strip_tags($item['isi_berita'] ?? ''), 120),
+                'img' => $item['sampul'] ?? null,
+            ])
+            ->values()
+            ->all();
     }
 }
