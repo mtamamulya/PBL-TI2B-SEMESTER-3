@@ -23,6 +23,7 @@ return [
             'children' => [
                 ['label' => 'Kurikulum TRK', 'route' => 'kaprodi.kurikulum.trk', 'url' => 'kurikulum/trk'],
                 ['label' => 'Mata Kuliah', 'route' => 'kaprodi.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
+                ['label' => 'Tahun Akademik', 'url' => '/kaprodi/kurikulum/tahun-akademik', 'route' => 'kaprodi.kurikulum.tahun-akademik']
             ]],
 
         ['label' => 'Data Dosen', 'route' => 'kaprodi.dosen', 'url' => 'dosen',

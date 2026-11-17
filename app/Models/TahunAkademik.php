@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class TahunAkademik extends Model
 {
@@ -11,25 +11,26 @@ class TahunAkademik extends Model
 
     protected $primaryKey = 'id_tahun_akademik';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'tahun_akademik',
         'status',
     ];
 
-    protected function casts(): array
+    /**
+     * Tambah tahun akademik baru sebagai satu-satunya yang aktif,
+     * dan otomatis menonaktifkan seluruh tahun akademik sebelumnya.
+     */
+    public static function buatDanAktifkan(string $labelTahunAkademik): self
     {
-        return [
-            'status' => 'boolean',
-        ];
-    }
+        return DB::transaction(function () use ($labelTahunAkademik) {
+            static::query()->update(['status' => 0]);
 
-    public function enrollmentTingkatKelas(): HasMany
-    {
-        return $this->hasMany(EnrollmentTingkatKelas::class, 'id_tahun_akademik', 'id_tahun_akademik');
-    }
-
-    public function enrollmentMataKuliah(): HasMany
-    {
-        return $this->hasMany(EnrollmentMataKuliah::class, 'id_tahun_akademik', 'id_tahun_akademik');
+            return static::create([
+                'tahun_akademik' => $labelTahunAkademik,
+                'status' => 1,
+            ]);
+        });
     }
 }
