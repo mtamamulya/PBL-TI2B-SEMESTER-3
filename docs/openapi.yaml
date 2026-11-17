@@ -62,6 +62,8 @@ tags:
     description: Akreditasi prodi (baca publik, tulis khusus admin).
   - name: Pengajuan Admin
     description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
+  - name: Pengajuan Kaprodi
+    description: Tinjauan dan penandatanganan pengajuan kegiatan oleh Kaprodi
 
 paths:
 
@@ -725,6 +727,87 @@ paths:
           description: Pengajuan tidak ditemukan
         '409':
           description: Pengajuan sudah disetujui Kaprodi dan terkunci
+        '422':
+          description: Validasi gagal
+
+  /kaprodi/pengajuan:
+    get:
+      tags: [Pengajuan Kaprodi]
+      summary: Daftar pengajuan kegiatan untuk Kaprodi
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [semua, menunggu, direview, diterima, selesai, direvisi, ditolak]
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar pengajuan kegiatan
+        '403':
+          description: Bukan Kaprodi
+
+  /kaprodi/pengajuan/{id}:
+    get:
+      tags: [Pengajuan Kaprodi]
+      summary: Detail pengajuan kegiatan untuk Kaprodi
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail pengajuan kegiatan
+        '403':
+          description: Bukan Kaprodi
+        '404':
+          description: Pengajuan tidak ditemukan
+
+  /kaprodi/pengajuan/{id}/keputusan:
+    post:
+      tags: [Pengajuan Kaprodi]
+      summary: Simpan keputusan Kaprodi (setujui/tanda tangan, revisi, atau tolak)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aksi]
+              properties:
+                aksi:
+                  type: string
+                  enum: [setujui, revisi, tolak]
+                catatan_revisi:
+                  type: string
+      responses:
+        '200':
+          description: Keputusan berhasil disimpan
+        '403':
+          description: Bukan Kaprodi
+        '409':
+          description: Pengajuan tidak sedang menunggu tanda tangan
         '422':
           description: Validasi gagal
 
