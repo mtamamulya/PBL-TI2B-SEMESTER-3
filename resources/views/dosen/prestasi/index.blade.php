@@ -5,30 +5,10 @@
 @section('content')
 
 @php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    $prestasi = [
-        ['nama' => 'Juara 1 Lomba Karya Tulis Ilmiah Nasional 2026', 'penghargaan' => 'Best Poster', 'tingkat' => 'Nasional',      'penyelenggara' => 'Institut Teknologi Sepuluh Nopember'],
-        ['nama' => 'Juara 1 Lomba Karya Tulis Ilmiah Internasional', 'penghargaan' => 'Best Desain', 'tingkat' => 'Internasional', 'penyelenggara' => 'PT. KAI'],
-        ['nama' => 'Juara 1 Poster',          'penghargaan' => 'Juara 1',   'tingkat' => 'Provinsi',      'penyelenggara' => 'Freeport'],
-        ['nama' => 'Juara 2 Design Graphic',  'penghargaan' => 'Juara 2',   'tingkat' => 'Kabupaten/kota', 'penyelenggara' => 'Institut Teknologi Sepuluh Nopember'],
-        ['nama' => 'Lomba Karate',            'penghargaan' => 'Harapan 3', 'tingkat' => 'Provinsi',      'penyelenggara' => 'PT. KAI'],
-        ['nama' => 'Lomba LKTIN',             'penghargaan' => 'Juara 3',   'tingkat' => 'Internasional', 'penyelenggara' => 'Freeport'],
-        ['nama' => 'Lomba LKTIN',             'penghargaan' => 'Harapan 2', 'tingkat' => 'Kabupaten/kota', 'penyelenggara' => 'Institut Teknologi Sepuluh Nopember'],
-        ['nama' => 'Lomba LKTIN',             'penghargaan' => 'Harapan 1', 'tingkat' => 'Provinsi',      'penyelenggara' => 'PT. KAI'],
-        ['nama' => 'Lomba LKTIN',             'penghargaan' => 'Juara 1',   'tingkat' => 'Nasional',      'penyelenggara' => 'Freeport'],
-        ['nama' => 'Lomba LKTIN',             'penghargaan' => 'Juara 2',   'tingkat' => 'Nasional',      'penyelenggara' => 'Institut Teknologi Sepuluh Nopember'],
-    ];
-
-    // id tetap (1, 2, 3, ...) supaya tautan ke Detail / Edit tidak berubah saat tabel dicari, difilter, atau diurutkan.
-    foreach ($prestasi as $n => &$d) { $d['id'] = $n + 1; }
-    unset($d);
-
     $daftarTingkat = ['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'];
-
     $selectClass = 'h-10 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-9 pl-3.5 text-[15px] text-gray-900';
 @endphp
 
-    {{-- Judul halaman + tombol tambah --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
             <h1 class="text-4xl font-bold tracking-tight">Prestasi</h1>
@@ -40,10 +20,8 @@
         </a>
     </div>
 
-    {{-- Pencarian, filter, urut kolom, dan pagination berjalan di browser (Alpine.js + quick sort pada data tiruan).
-         Kalau backend sudah ada, pencarian / filter / urutan bisa diganti parameter ?q=...&urut=... dan pagination dari Laravel. --}}
     <section class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm"
-             x-data="prestasi(@js($prestasi))">
+             x-data="prestasi()" x-init="muatData()">
  
         <div class="flex flex-wrap items-center gap-4">
             <div class="relative min-w-60 flex-[1_1_320px]">
@@ -65,7 +43,6 @@
             </div>
         </div>
 
-        {{-- Tabel. Klik judul kolom untuk mengurutkan naik / turun. --}}
         <div class="overflow-x-auto rounded-md border border-gray-300">
             <table class="w-full min-w-[900px] table-fixed border-collapse text-sm">
                 <thead>
@@ -78,6 +55,13 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="5" class="px-4 py-10 text-center text-sm text-gray-500">
+                                Memuat data prestasi...
+                            </td>
+                        </tr>
+                    </template>
                     <template x-for="k in tampil" :key="k.id">
                         <tr class="border-b border-gray-300 last:border-b-0 hover:bg-gray-50">
                             <td class="truncate px-2.5 py-3" :title="k.nama" x-text="k.nama"></td>
@@ -94,9 +78,8 @@
                                        class="flex size-8 items-center justify-center rounded-lg bg-orange-100 text-orange-400 hover:bg-orange-200">
                                         <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
                                     </a>
-                                    {{-- Hapus: membuka modal konfirmasi (components/modal-hapus). action '#' nanti diganti route hapus dari backend. --}}
                                     <button type="button" :aria-label="`Hapus ${k.nama}`"
-                                            x-on:click="$dispatch('minta-hapus', { jenis: 'prestasi', nama: k.nama, action: '#' })"
+                                            x-on:click="$dispatch('minta-hapus', { jenis: 'prestasi', nama: k.nama, action: `{{ url('/api/v1/prestasi') }}/${k.id}` })"
                                             class="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-red-100 text-red-500 hover:bg-red-200">
                                         <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5"/></svg>
                                     </button>
@@ -107,7 +90,7 @@
                 </tbody>
             </table>
 
-            <p x-show="terfilter.length === 0" x-cloak class="px-4 py-10 text-center text-sm text-gray-500">
+            <p x-show="!loading && terfilter.length === 0" x-cloak class="px-4 py-10 text-center text-sm text-gray-500">
                 Tidak ada prestasi yang cocok dengan pencarian atau filter ini.
             </p>
         </div>
@@ -124,18 +107,57 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('prestasi', (daftar) => tabelData({
-            daftar,
+        Alpine.data('prestasi', () => tabelData({
+            daftar: [],
+            loading: true,
             cari: '',
             f: { tingkat: '' },
 
-            // Daftar yang lolos pencarian dan filter. Dipakai tabel, pengurutan, dan pagination.
+            async muatData() {
+                this.loading = true;
+                try {
+                    const response = await fetch('/api/v1/prestasi?per_page=100', {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+                        }
+                    });
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        this.daftar = result.data.map(item => ({
+                            id: item.id,
+                            nama: item.nama_prestasi,
+                            penghargaan: item.penghargaan,
+                            tingkat: item.tingkat_prestasi,
+                            penyelenggara: item.penyelenggara
+                        }));
+                    } else {
+                        console.error('Gagal mengambil data API:', result);
+                    }
+                } catch (error) {
+                    console.error('Kesalahan jaringan:', error);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
             get terfilter() {
                 const q = this.cari.trim().toLowerCase();
-                return this.daftar.filter(k => (q === '' || k.nama.toLowerCase().includes(q) || k.penyelenggara.toLowerCase().includes(q) || k.penghargaan.toLowerCase().includes(q)) &&
-                    (this.f.tingkat === '' || k.tingkat === this.f.tingkat));
+                return this.daftar.filter(k =>
+                    (q === '' ||
+                        (k.nama && k.nama.toLowerCase().includes(q)) ||
+                        (k.penyelenggara && k.penyelenggara.toLowerCase().includes(q)) ||
+                        (k.penghargaan && k.penghargaan.toLowerCase().includes(q))) &&
+                    (this.f.tingkat === '' || k.tingkat === this.f.tingkat)
+                );
             },
-        }, { perHalaman: 5, kunci: { tingkat: (k) => ['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'].indexOf(k.tingkat) } }));
+        }, {
+            perHalaman: 5,
+            kunci: {
+                tingkat: (k) => ['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'].indexOf(k.tingkat)
+            }
+        }));
     });
 </script>
 @endpush
