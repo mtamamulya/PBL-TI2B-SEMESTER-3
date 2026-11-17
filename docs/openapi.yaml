@@ -41,7 +41,6 @@ info:
 
     ## Catatan
     - Nama field mengikuti nama kolom database (mis. `nama_kurikulum`, `sks_praktik`, tetapi `jam_praktek`).
-    - Endpoint bertanda **(belum aktif)** sudah dirancang tetapi route-nya belum dipasang.
     - Bila mengirim berkas PDF/foto pada pembaruan (PUT), kirim sebagai `POST` dengan field tambahan `_method=PUT`
       (PHP tidak membaca multipart pada PUT).
 
@@ -69,7 +68,7 @@ tags:
   - name: Jenis Dokumen
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
   - name: Berita
-    description: Pengelolaan dan peninjauan berita prodi (baca publik, tulis/tinjau admin dan kaprodi).
+    description: Pengelolaan berita prodi (baca publik, tulis admin dan kaprodi, tinjau khusus admin).
 
 paths:
 
@@ -187,9 +186,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     post:
       tags: [Kurikulum]
-      summary: Tambah kurikulum (belum aktif)
+      summary: Tambah kurikulum
       description: Peran **admin** atau **kaprodi**. Dikirim sebagai multipart/form-data karena dapat memuat PDF.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       requestBody:
@@ -229,9 +227,8 @@ paths:
           $ref: '#/components/responses/TidakDitemukan'
     put:
       tags: [Kurikulum]
-      summary: Ubah kurikulum (belum aktif)
+      summary: Ubah kurikulum
       description: Peran **admin** atau **kaprodi**. Field diganti seluruhnya. Untuk mengirim PDF, pakai POST dengan `_method=PUT`.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -259,9 +256,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     delete:
       tags: [Kurikulum]
-      summary: Hapus kurikulum (belum aktif)
+      summary: Hapus kurikulum
       description: Peran **admin** atau **kaprodi**. Mata kuliah milik kurikulum ini ikut terhapus.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -279,13 +275,18 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Kurikulum masih dipakai data lain sehingga tidak bisa dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
 
   /kurikulum/{id}/status:
     patch:
       tags: [Kurikulum]
-      summary: Balik status aktif/nonaktif kurikulum (belum aktif)
+      summary: Balik status aktif/nonaktif kurikulum
       description: Peran **admin** atau **kaprodi**. Tidak butuh body; status dibalik dari nilai sekarang.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -331,9 +332,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     post:
       tags: [Mata Kuliah]
-      summary: Tambah mata kuliah ke kurikulum (belum aktif)
+      summary: Tambah mata kuliah ke kurikulum
       description: Peran **admin** atau **kaprodi**. `kode_mk` harus unik di dalam kurikulum yang sama.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -413,9 +413,8 @@ paths:
           $ref: '#/components/responses/TidakDitemukan'
     put:
       tags: [Mata Kuliah]
-      summary: Ubah mata kuliah (belum aktif)
+      summary: Ubah mata kuliah
       description: Peran **admin** atau **kaprodi**.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -443,9 +442,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     delete:
       tags: [Mata Kuliah]
-      summary: Hapus mata kuliah (belum aktif)
+      summary: Hapus mata kuliah
       description: Peran **admin** atau **kaprodi**.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -483,9 +481,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     post:
       tags: [Akreditasi]
-      summary: Tambah akreditasi (belum aktif)
+      summary: Tambah akreditasi
       description: Khusus peran **admin**. Dikirim sebagai multipart/form-data karena dapat memuat PDF.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       requestBody:
@@ -544,9 +541,8 @@ paths:
           $ref: '#/components/responses/TidakDitemukan'
     put:
       tags: [Akreditasi]
-      summary: Ubah akreditasi (belum aktif)
+      summary: Ubah akreditasi
       description: Khusus peran **admin**. Untuk mengirim PDF, pakai POST dengan `_method=PUT`.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -574,9 +570,8 @@ paths:
           $ref: '#/components/responses/ValidasiGagal'
     delete:
       tags: [Akreditasi]
-      summary: Hapus akreditasi (belum aktif)
+      summary: Hapus akreditasi
       description: Khusus peran **admin**. Akreditasi yang sedang aktif tidak bisa dihapus (409).
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -604,9 +599,8 @@ paths:
   /akreditasi/{id}/aktifkan:
     post:
       tags: [Akreditasi]
-      summary: Jadikan akreditasi ini yang aktif (belum aktif)
+      summary: Jadikan akreditasi ini yang aktif
       description: Khusus peran **admin**. Akreditasi lain otomatis nonaktif, sehingga selalu hanya satu yang aktif.
-      x-belum-aktif: true
       security:
         - bearerAuth: []
       parameters:
@@ -624,6 +618,7 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+
   /jenis-kegiatan:
     get:
       tags: [Kategori Kegiatan]
@@ -815,7 +810,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GalatUmum'          
+                $ref: '#/components/schemas/GalatUmum'
 
   /dosen:
     get:
@@ -1215,7 +1210,7 @@ paths:
     patch:
       tags: [Berita]
       summary: Tinjau pengajuan berita (terima, revisi, atau tolak)
-      description: Peran **admin** atau **kaprodi**.
+      description: Khusus peran **admin**.
       security:
         - bearerAuth: []
       parameters:
@@ -1307,7 +1302,7 @@ components:
             $ref: '#/components/schemas/GalatUmum'
           example:
             success: false
-            message: Unauthenticated.
+            message: Belum login atau token tidak valid.
     DilarangPeran:
       description: Peran akun tidak diizinkan untuk aksi ini.
       content:
@@ -1805,30 +1800,6 @@ components:
           example: Kegiatan Mahasiswa
 
     JenisKegiatanListResponse:
-    DosenItem:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 1
-        nip:
-          type: string
-          example: '198407192019031008'
-        nama:
-          type: string
-          example: Kuwat Santoso, S.T., M.Kom.
-        jabatan:
-          type: string
-          example: Asisten Ahli
-        golongan:
-          type: string
-          example: III/c
-        status:
-          type: string
-          enum: [aktif, nonaktif]
-          example: aktif
-
-    DosenListResponse:
       type: object
       properties:
         success:
@@ -2024,6 +1995,38 @@ components:
             $ref: '#/components/schemas/Kategori'
         meta:
           $ref: '#/components/schemas/Meta'
+
+    DosenItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nip:
+          type: string
+          example: '198407192019031008'
+        nama:
+          type: string
+          example: Kuwat Santoso, S.T., M.Kom.
+        jabatan:
+          type: string
+          example: Asisten Ahli
+        golongan:
+          type: string
+          example: III/c
+        status:
+          type: string
+          enum: [aktif, nonaktif]
+          example: aktif
+
+    DosenListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
           example: Data dosen berhasil diambil.
         meta:
           type: object
