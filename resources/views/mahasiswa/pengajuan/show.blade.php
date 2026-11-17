@@ -114,33 +114,33 @@
             </div>
 
             @if ($status === 'Ditolak')
-                <div class="{{ $card }} flex flex-col gap-4">
-                    <h2 class="text-xl font-bold">Alasan penolakan</h2>
-                    <div class="flex gap-3 rounded-xl bg-[#FEF2F2] p-4 text-[#B91C1C]">
-                        <i class="ti ti-circle-x text-xl"></i>
-                        <div class="flex flex-col gap-1">
-                            <div class="text-[15px] font-semibold">Pengajuan tidak dapat dilanjutkan</div>
-                            <div class="text-sm">Pengajuan dikirim di luar periode penerimaan dukungan lomba. Silakan ajukan kembali pada periode berikutnya.</div>
-                        </div>
-                    </div>
-                </div>
-            @endif
+             <div class="{{ $card }} flex flex-col gap-4">
+                 <h2 class="text-xl font-bold">Alasan penolakan</h2>
+                 <div class="flex gap-3 rounded-xl bg-[#FEF2F2] p-4 text-[#B91C1C]">
+                     <i class="ti ti-circle-x text-xl"></i>
+                     <div class="flex flex-col gap-1">
+                         <div class="text-[15px] font-semibold">Pengajuan tidak dapat dilanjutkan</div>
+                         <div class="text-sm">{{ $row['review_note'] ?? 'Pengajuan ditolak oleh reviewer.' }}</div>
+                     </div>
+                 </div>
+             </div>
+         @endif
 
             @if ($status === 'Perlu revisi')
-                <div class="{{ $card }} flex flex-col gap-4">
-                    <h2 class="text-xl font-bold">Catatan reviewer</h2>
-                    <div class="flex gap-3 rounded-xl bg-[#FEF9E7] p-4 text-[#92400E]">
-                        <i class="ti ti-info-circle text-xl"></i>
-                        <div class="flex flex-col gap-1">
-                            <div class="text-[15px] font-semibold">Perbaikan diperlukan</div>
-                            <div class="text-sm">Lengkapi rincian anggaran per komponen dan unggah lembar pengesahan yang telah ditandatangani.</div>
-                        </div>
-                    </div>
-                    <a href="{{ route('pengajuan.edit', $row['id']) }}" class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white">
-                        <i class="ti ti-pencil text-base"></i>Perbaiki pengajuan
-                    </a>
-                </div>
-            @endif
+             <div class="{{ $card }} flex flex-col gap-4">
+                 <h2 class="text-xl font-bold">Catatan reviewer</h2>
+                 <div class="flex gap-3 rounded-xl bg-[#FEF9E7] p-4 text-[#92400E]">
+                     <i class="ti ti-info-circle text-xl"></i>
+                     <div class="flex flex-col gap-1">
+                         <div class="text-[15px] font-semibold">Perbaikan diperlukan</div>
+                         <div class="text-sm">{{ $row['review_note'] ?? 'Silakan perbaiki pengajuan sesuai arahan reviewer.' }}</div>
+                     </div>
+                 </div>
+                 <a href="{{ route('pengajuan.edit', $row['id']) }}" class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white">
+                     <i class="ti ti-pencil text-base"></i>Perbaiki pengajuan
+                 </a>
+             </div>
+         @endif
         </div>
 
         <div class="flex flex-col gap-6">
