@@ -154,6 +154,8 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::post('berita', [AdminBeritaController::class, 'store'])->name('admin.berita.store');
     Route::get('berita/{id}/edit', [AdminBeritaController::class, 'edit'])->name('admin.berita.edit');
     Route::put('berita/{id}', [AdminBeritaController::class, 'update'])->name('admin.berita.update');
+    Route::patch('berita/{id}/tinjau', [AdminBeritaController::class, 'tinjau'])->name('admin.berita.tinjau');
+    Route::delete('berita/{id}', [AdminBeritaController::class, 'destroy'])->name('admin.berita.destroy');
 
     // Pengajuan
     Route::get('/pengajuan', [AdminPengajuanController::class, 'index'])->name('admin.pengajuan');
@@ -247,6 +249,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::post('berita', [KaprodiBeritaController::class, 'store'])->name('kaprodi.berita.store');
     Route::get('berita/{id}/edit', [KaprodiBeritaController::class, 'edit'])->name('kaprodi.berita.edit');
     Route::put('berita/{id}', [KaprodiBeritaController::class, 'update'])->name('kaprodi.berita.update');
+    Route::delete('berita/{id}', [KaprodiBeritaController::class, 'destroy'])->name('kaprodi.berita.destroy');
 
     Route::get('/kegiatan/kategori-kegiatan', [KaprodiKategoriKegiatanController::class, 'index'])->name('kaprodi.kegiatan.kategori-kegiatan');
     Route::get('/kegiatan/jenis-dokumen', [KaprodiJenisDokumenController::class, 'index'])->name('kaprodi.kegiatan.jenis-dokumen');

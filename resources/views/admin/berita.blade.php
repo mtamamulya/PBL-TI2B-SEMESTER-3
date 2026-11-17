@@ -11,7 +11,7 @@
 @php
     $selectCls = 'h-10 w-full appearance-none rounded-lg border border-[#E8E8EC] bg-white px-4 pr-10 text-sm sm:text-base text-[#2E2E2E] outline-none focus:border-[#2277FF] cursor-pointer';
     $chev = '<svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
-    $tabs = ['Publish', 'Draft', 'Pengajuan'];
+    $tabs = ['Publish', 'Draft', 'Pengajuan', 'Revisi', 'Ditolak'];
     $jumlah = collect($rows)->countBy('status');
     $urlTambah = \Illuminate\Support\Facades\Route::has('admin.berita.create') ? route('admin.berita.create') : '#';
 @endphp
@@ -187,7 +187,9 @@
     var STATUS = {
         'Publish':   'border-[#AAC8F8] bg-[#CDDEF9] text-[#2277FF]',
         'Draft':     'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]',
-        'Pengajuan': 'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]'
+        'Pengajuan': 'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]',
+        'Revisi':    'border-[#FDE047] bg-[#FEF9C3] text-[#854D0E]',
+        'Ditolak':   'border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]'
     };
 
     var URL_VIEW = @js(\Illuminate\Support\Facades\Route::has('admin.berita.show') ? route('admin.berita.show', ['id' => '__ID__']) : null);
