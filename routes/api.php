@@ -17,8 +17,7 @@ Route::get('/ping', function () {
 
 Route::prefix('integrasi')
     ->middleware('auth:sanctum')
-    ->group(function () {
-    });
+    ->group(function () {});
 
 require app_path('BackendKel3/routes.php');
 require app_path('BackendKel1/routes.php');

@@ -59,7 +59,7 @@ class PrestasiController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -86,14 +86,15 @@ class PrestasiController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Prestasi berhasil disimpan ke database',
-                'data' => self::bentuk($prestasi)
+                'data' => self::bentuk($prestasi),
             ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan pada server: ' . $e->getMessage()
+                'message' => 'Terjadi kesalahan pada server: '.$e->getMessage(),
             ], 500);
         }
     }
