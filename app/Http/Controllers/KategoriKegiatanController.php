@@ -13,13 +13,23 @@ class KategoriKegiatanController extends Controller
     {
         try {
             $hasil = ApiClient::pengguna()->get('/kategori-kegiatan', ['per_page' => 100]);
-            $rows = array_map(fn (array $item) => $this->bentukBaris($item), $hasil['data'] ?? []);
+            $daftar = $hasil['data'] ?? [];
+            // Respons paginasi bisa berbentuk data.data; ambil daftar barisnya
+            if (isset($daftar['data']) && is_array($daftar['data'])) {
+                $daftar = $daftar['data'];
+            }
+            $rows = array_values(array_map(fn (array $item) => $this->bentukBaris($item), $daftar));
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat daftar kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
             $rows = [];
             $jenis = [];
-            $apiError = $e->getMessage().' (Status: '.$e->getCode().')';
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
         return view('admin.kategori-kegiatan', [
@@ -35,9 +45,13 @@ class KategoriKegiatanController extends Controller
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
-            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
             $jenis = [];
-            $apiError = $e->getMessage().' (Status: '.$e->getCode().')';
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
         return view('admin.kategori-kegiatan-form', [
@@ -56,7 +70,11 @@ class KategoriKegiatanController extends Controller
             $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
-            \Log::error('Gagal memuat form edit kategori: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat form edit kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
             return redirect()
                 ->route('admin.kegiatan.kategori-kegiatan')
@@ -81,6 +99,10 @@ class KategoriKegiatanController extends Controller
                 'row' => $this->bentukBaris($hasil['data'] ?? []),
             ]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
@@ -95,6 +117,10 @@ class KategoriKegiatanController extends Controller
                 'row' => $this->bentukBaris($hasil['data'] ?? []),
             ]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
@@ -106,6 +132,10 @@ class KategoriKegiatanController extends Controller
 
             return response()->json(['ok' => true]);
         } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
             return $this->responsGagal($e);
         }
     }
@@ -163,6 +193,12 @@ class KategoriKegiatanController extends Controller
         return array_merge($item, [
             'id' => $item['id_kategori'] ?? null,
             'name' => $item['nama_kategori'] ?? '',
+            // Nama jenis dipakai view daftar dan form edit; bentuk respons API dicoba beberapa kemungkinan
+            'jenis' => $item['jenis']
+                ?? $item['nama_jenis_kegiatan']
+                ?? (is_array($item['jenis_kegiatan'] ?? null)
+                    ? ($item['jenis_kegiatan']['nama_jenis_kegiatan'] ?? '')
+                    : ($item['jenis_kegiatan'] ?? '')),
             'description' => $item['deskripsi'] ?? null,
             'template_surat' => $item['isi_surat'] ?? null,
             'isian' => $item['isian'] ?? [],
@@ -189,7 +225,7 @@ class KategoriKegiatanController extends Controller
 
     private function responsGagal(ApiException $e): JsonResponse
     {
-        $status = $e->getCode();
+        $status = $e->getStatusCode();
         if ($status < 400 || $status > 599) {
             $status = 500;
         }
