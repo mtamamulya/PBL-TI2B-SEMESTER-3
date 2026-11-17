@@ -19,14 +19,8 @@ Route::prefix('integrasi')
     ->middleware('auth:sanctum')
     ->group(function () {});
 
-require app_path('BackendKel3/routes.php');
-require app_path('BackendKel1/routes.php');
-require app_path('BackendKel2/routes.php');
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/prestasi', [PrestasiController::class, 'index']);
-    Route::post('/prestasi', [PrestasiController::class, 'store']);
-    Route::get('/prestasi/{id}', [PrestasiController::class, 'show']);
-    Route::put('/prestasi/{id}', [PrestasiController::class, 'update']);
-    Route::delete('/prestasi/{id}', [PrestasiController::class, 'destroy']);
+Route::middleware('api')->group(function () {
+    require app_path('BackendKel3/routes.php');
+    require app_path('BackendKel1/routes.php');
+    require app_path('BackendKel2/routes.php');
 });

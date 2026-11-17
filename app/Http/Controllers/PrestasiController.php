@@ -1,6 +1,6 @@
 <?php
 
-namespace App\BackendKel3\Prestasi;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Prestasi;

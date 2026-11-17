@@ -1,6 +1,7 @@
 <?php
 
 use App\BackendKel3\Dashboard\DosenDashboardController;
+use App\Http\Controllers\BackendKel3\DokumenSurat\DokumenSuratController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\PengajuanController;
 use App\Http\Middleware\MahasiswaOnly;
 use Illuminate\Support\Facades\Route;
 
-// Landing Page TRK
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::redirect('/dashboard', '/mahasiswa/dashboard')->name('dashboard');
@@ -39,7 +39,6 @@ Route::view('/pengabdian/create', 'dosen.pengabdian.create')->name('pengabdian.c
 Route::view('/pengabdian/{id}', 'dosen.pengabdian.show')->whereNumber('id')->name('pengabdian.show');
 Route::view('/pengabdian/{id}/edit', 'dosen.pengabdian.edit')->whereNumber('id')->name('pengabdian.edit');
 
-// KODE BARU (Menggunakan Route::view karena data diambil via API):
 Route::view('/pengajaran', 'dosen.pengajaran.index')->name('pengajaran.index');
 Route::view('/pengajaran/create', 'dosen.pengajaran.create')->name('pengajaran.create');
 Route::view('/pengajaran/{id}', 'dosen.pengajaran.show')->whereNumber('id')->name('pengajaran.show');
@@ -52,7 +51,6 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/kegiatan/create', [PengajuanController::class, 'createActivity'])->name('kegiatan.create');
     Route::post('/mahasiswa/kegiatan', [PengajuanController::class, 'storeActivity'])->name('kegiatan.store');
 
-    // Mengirimkan semua variabel dummy yang dibutuhkan kegiatan.blade.php
     Route::view('/mahasiswa/kegiatan/{id}/edit', 'kegiatan', [
         'allActivities' => [],
         'categories' => [],
@@ -100,7 +98,6 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
         Route::get('/prestasi', [MahasiswaController::class, 'prestasi'])
             ->name('prestasi');
 
-        // Letakkan route statis sebelum route parameter prestasi.
         Route::get('/prestasi/tambah', [MahasiswaController::class, 'prestasiTambah'])
             ->name('prestasi.tambah');
         Route::post('/prestasi', [MahasiswaController::class, 'prestasiSimpan'])
@@ -131,3 +128,8 @@ Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id)
 
 require __DIR__.'/admin-kaprodi.php';
 require __DIR__.'/api-docs.php';
+
+Route::prefix('api')->group(function () {
+    Route::get('/dosen/pengajuan/{id}/dokumen', [DokumenSuratController::class, 'index']);
+    Route::get('/dosen/pengajuan/{id}/surat', [DokumenSuratController::class, 'showSurat']);
+});
