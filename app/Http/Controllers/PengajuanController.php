@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Kegiatan;
 use App\Models\Timeline;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
@@ -17,6 +19,46 @@ class PengajuanController extends Controller
     private const DELETED_KEY = 'pengajuan.deleted';
 
     private const EDITABLE = ['Diajukan', 'Direview', 'Perlu revisi'];
+
+    private function mapStatusLabel(?string $rawStatus): string
+    {
+        return match (strtolower((string) $rawStatus)) {
+            'diajukan' => 'Diajukan',
+            'direview' => 'Direview',
+            'diterima' => 'Disetujui',
+            'ditolak'  => 'Ditolak',
+            'direvisi' => 'Perlu revisi',
+            'selesai'  => 'Selesai',
+            default    => 'Diajukan',
+        };
+    }
+
+    private function studentProfile(?User $user = null): array
+    {
+        $user = $user ?: Auth::user();
+        $mhs = $user?->mahasiswa;
+
+        return [
+            'name'  => $mhs?->nama ?? $mhs?->nama_mahasiswa ?? config('mahasiswa.nama'),
+            'nim'   => $mhs?->nim ?? config('mahasiswa.nim'),
+            'prodi' => $mhs?->prodi ?? $mhs?->program_studi ?? config('mahasiswa.prodi'),
+        ];
+    }
+
+    private function databaseKegiatan(): Collection
+    {
+        $user = Auth::user();
+
+        $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa']);
+
+        // Filter kegiatan milik user yang sedang login (atau anggota kegiatan);
+        // jika user yang login belum punya data kegiatan, tampilkan semua kegiatan dari DB agar tetap bisa diuji.
+        if ($user && Kegiatan::untukUser($user)->exists()) {
+            $query->untukUser($user);
+        }
+
+        return $query->orderByDesc('id_kegiatan')->get();
+    }
 
     private function items(): array
     {
@@ -349,6 +391,31 @@ class PengajuanController extends Controller
 
     private function rows(): Collection
     {
+        $kegiatanList = $this->databaseKegiatan();
+
+        if ($kegiatanList->isNotEmpty()) {
+            return $kegiatanList->map(function (Kegiatan $k) {
+                $statusLabel = $this->mapStatusLabel($k->statusTerkini?->status);
+                $categoryName = $k->kategori?->nama_kategori ?? 'Kegiatan';
+                $submittedAt = $k->timeline->first()?->tanggal_status
+                    ?? $k->created_at
+                    ?? now();
+
+                return [
+                    'id'           => $k->id_kegiatan,
+                    'title'        => $k->nama_kegiatan,
+                    'category'     => $categoryName,
+                    'type'         => $this->typeFor($categoryName),
+                    'status'       => $statusLabel,
+                    'submitted_at' => Carbon::parse($submittedAt),
+                    'editable'     => in_array($statusLabel, self::EDITABLE, true),
+                ];
+            })
+            ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
+            ->values();
+        }
+
+        // Fallback ke dummy jika tabel kegiatan di database masih kosong
         return $this->all()->map(fn ($i) => $this->toRow($i))
             ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
             ->values();
@@ -371,11 +438,16 @@ class PengajuanController extends Controller
     public function dashboard()
     {
         $submissions = $this->rows();
+        $profile = $this->studentProfile();
 
         return view('mahasiswa.pengajuan.dashboard', [
-            'mahasiswa' => config('mahasiswa'),
-            'totalPengajuan' => $submissions->count(),
-            'totalKegiatan' => $submissions->count(),
+            'mahasiswa' => array_merge(config('mahasiswa', []), [
+                'nama'  => $profile['name'],
+                'nim'   => $profile['nim'],
+                'prodi' => $profile['prodi'],
+            ]),
+            'totalPengajuan'    => $submissions->count(),
+            'totalKegiatan'     => $submissions->count(),
             'latestSubmissions' => $submissions->take(3),
         ]);
     }
@@ -453,27 +525,14 @@ class PengajuanController extends Controller
 
     public function show(int $id)
     {
-        $kegiatan = Kegiatan::with(['kategori', 'user', 'timeline', 'dokumen'])
+        $kegiatan = Kegiatan::with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
             ->find($id);
 
         if ($kegiatan) {
             $timelines = $kegiatan->timeline;
             $latestTimeline = $timelines->last();
-            $rawStatus = strtolower($latestTimeline?->status ?? 'diajukan');
-
-            $statusLabelMap = [
-                'diajukan' => 'Diajukan',
-                'direview' => 'Direview',
-                'diterima' => 'Disetujui',
-                'ditolak'  => 'Ditolak',
-                'direvisi' => 'Perlu revisi',
-                'selesai'  => 'Selesai',
-            ];
-
-            $statusLabel = $statusLabelMap[$rawStatus] ?? 'Diajukan';
-            $categoryName = $kegiatan->kategori?->nama_kategori
-                ?? $kegiatan->kategori?->nama
-                ?? 'Kegiatan';
+            $statusLabel = $this->mapStatusLabel($latestTimeline?->status);
+            $categoryName = $kegiatan->kategori?->nama_kategori ?? 'Kegiatan';
             $submittedAt = $timelines->first()?->tanggal_status
                 ?? $kegiatan->created_at
                 ?? now();
@@ -489,12 +548,10 @@ class PengajuanController extends Controller
                 'review_note'  => $latestTimeline?->catatan_revisi,
             ];
 
-            $pengajuNama = $kegiatan->user?->name
-                ?? $kegiatan->user?->nama
-                ?? config('mahasiswa.nama');
+            $student = $this->studentProfile($kegiatan->user);
 
             $actorMap = [
-                'diajukan' => $pengajuNama,
+                'diajukan' => $student['name'],
                 'direview' => 'Tim administrasi',
                 'diterima' => 'Reviewer akademik',
                 'ditolak'  => 'Reviewer akademik',
@@ -525,15 +582,9 @@ class PengajuanController extends Controller
                 : collect([[
                     'title' => 'Diajukan',
                     'at'    => Carbon::parse($submittedAt),
-                    'actor' => $pengajuNama,
+                    'actor' => $student['name'],
                     'note'  => 'Pengajuan dikirim untuk ditinjau.',
                 ]]);
-
-            $student = [
-                'name'  => $pengajuNama,
-                'nim'   => $kegiatan->user?->nim ?? config('mahasiswa.nim'),
-                'prodi' => $kegiatan->user?->prodi ?? config('mahasiswa.prodi'),
-            ];
 
             $files = $kegiatan->dokumen->map(function ($doc) {
                 $path = $doc->path ?? $doc->file_path ?? $doc->url ?? null;
@@ -579,11 +630,7 @@ class PengajuanController extends Controller
             'title' => $s, 'at' => $meta[$s][0], 'actor' => $meta[$s][1], 'note' => $meta[$s][2],
         ]);
 
-        $student = [
-            'name'  => config('mahasiswa.nama'),
-            'nim'   => config('mahasiswa.nim'),
-            'prodi' => config('mahasiswa.prodi'),
-        ];
+        $student = $this->studentProfile();
 
         $files = collect($item['documents'] ?? [])->map(fn ($f) => [
             'name' => $f['name'] ?? 'Dokumen pendukung',
