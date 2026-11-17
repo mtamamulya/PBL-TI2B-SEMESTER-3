@@ -1,7 +1,7 @@
 {{--
     resources/views/admin/dosen-detail.blade.php
     Detail dosen. Tab Aktivitas (Penelitian / Pengabdian / Pengajaran / Kegiatan) berganti tanpa
-    memuat ulang halaman. Data dikirim DosenController@show (sementara data contoh).
+    memuat ulang halaman. Data dikirim DosenController@show (via ApiClient).
 --}}
 @extends('layouts.admin')
 
@@ -162,9 +162,6 @@
     tabs.forEach(function (t) {
         t.addEventListener('click', function () { show(t.dataset.tab, true); });
     });
-
-    /* TODO-DB: bila data tiap tab banyak, ganti `data[key].items` dengan fetch ke endpoint
-       (mis. GET /admin/dosen/{id}/aktivitas?tab=key) lalu render hasilnya di sini. */
 
     show(@js($tabAwal), false);
 })();
