@@ -200,7 +200,7 @@ class KategoriKegiatanController extends Controller
             'input' => $i->input,
             'jenis_input' => $i->jenis_input,
             'wajib' => $i->aturan === 'NOT NULL',
-            'jumlah_isian' => $i->jumlah_isian === null ? null : (int) $i->jumlah_isian,
+            'jumlah_isian' => empty($i->jumlah_isian) ? 0 : 1, // 1 = satu isian, 0 = lebih dari satu
             'pilihan' => null, // diisi pada detail untuk tipe pilihan baku
         ];
     }
@@ -260,7 +260,7 @@ class KategoriKegiatanController extends Controller
             'isian.*.input' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'isian.*.jenis_input' => ['required', Rule::in(PilihanBaku::semuaJenis())],
             'isian.*.wajib' => ['nullable', 'boolean'],
-            'isian.*.jumlah_isian' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'isian.*.jumlah_isian' => ['nullable', 'boolean'],
         ], [
             'id_jenis_kegiatan.required' => 'Jenis kegiatan wajib dipilih.',
             'id_jenis_kegiatan.exists' => 'Jenis kegiatan tidak valid.',
@@ -271,7 +271,7 @@ class KategoriKegiatanController extends Controller
             'isian.*.input.required' => 'Nama isian wajib diisi.',
             'isian.*.jenis_input.in' => 'Tipe isian tidak valid.',
             'isian.*.input.distinct' => 'Nama isian tidak boleh sama.',
-            'isian.*.jumlah_isian.min' => 'Batas jawaban minimal satu. Kosongkan (null) untuk tanpa batas.',
+            'isian.*.jumlah_isian.boolean' => 'Jumlah isian harus 1 (satu isian) atau 0 (lebih dari satu).',
         ]);
 
         return $data;
@@ -293,8 +293,8 @@ class KategoriKegiatanController extends Controller
                 'input' => $f['input'],
                 'jenis_input' => $f['jenis_input'],
                 'aturan' => ! empty($f['wajib']) ? 'NOT NULL' : 'NULL',
-                // batas jawaban: tidak dikirim = 1 (satu isian); null = tanpa batas; angka = batas maksimal
-                'jumlah_isian' => array_key_exists('jumlah_isian', $f) ? $f['jumlah_isian'] : 1,
+                // jumlah_isian: 1 = satu isian (juga bila tidak dikirim); 0 atau null = lebih dari satu
+                'jumlah_isian' => array_key_exists('jumlah_isian', $f) ? (empty($f['jumlah_isian']) ? 0 : 1) : 1,
             ];
 
             $id = $f['id_isian_kategori'] ?? null;

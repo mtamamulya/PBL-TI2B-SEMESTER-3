@@ -156,7 +156,7 @@ class KategoriKegiatanController extends Controller
         }
 
         // Bentuk isian dari form sudah sama dengan API; cukup disaring field-nya.
-        // Kunci jumlah_isian selalu dikirim (null = tanpa batas).
+        // jumlah_isian selalu dikirim: 1 = satu isian, 0 = lebih dari satu.
         if ($request->has('isian')) {
             $payload['isian'] = array_values(array_map(function ($item) {
                 $item = is_array($item) ? $item : [];
@@ -164,9 +164,7 @@ class KategoriKegiatanController extends Controller
                     'input' => trim((string) ($item['input'] ?? '')),
                     'jenis_input' => $item['jenis_input'] ?? 'teks',
                     'wajib' => filter_var($item['wajib'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'jumlah_isian' => array_key_exists('jumlah_isian', $item) && $item['jumlah_isian'] !== null
-                        ? (int) $item['jumlah_isian']
-                        : null,
+                    'jumlah_isian' => filter_var($item['jumlah_isian'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
                 ];
                 if (! empty($item['id_isian_kategori'])) {
                     $baris['id_isian_kategori'] = (int) $item['id_isian_kategori'];

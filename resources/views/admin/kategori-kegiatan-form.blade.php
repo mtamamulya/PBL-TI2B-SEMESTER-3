@@ -304,11 +304,11 @@
     const ikon = (n, ukuran = 15) =>
         `<svg xmlns="http://www.w3.org/2000/svg" width="${ukuran}" height="${ukuran}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IKON[n]}</svg>`;
 
-    // jumlah_isian = batas jawaban: 1 = satu isian, null = tanpa batas, N = maksimal N (min 1)
-    const banyak = (f) => f.jumlah !== 1;
+    // jumlah_isian: 1 = satu isian, 0 = lebih dari satu (pengaju boleh mengisi berkali-kali)
+    const banyak = (f) => f.banyak;
     let isian = (Array.isArray(ROW?.isian) ? ROW.isian : []).map((f) => ({
         id: f.id_isian_kategori ?? null, label: f.input ?? '', tipe: f.jenis_input in TIPE ? f.jenis_input : 'teks',
-        wajib: !!f.wajib, jumlah: f.jumlah_isian === undefined ? 1 : f.jumlah_isian, buka: false,
+        wajib: !!f.wajib, banyak: f.jumlah_isian === 0, buka: false,
     }));
 
     const meta = (f) => `${TIPE[f.tipe]}${banyak(f) ? ' · Lebih dari satu' : ''}${f.wajib ? ' · Wajib' : ''}`;
@@ -334,7 +334,7 @@
                             <label class="mb-1 block text-xs font-semibold text-[#111]">Jumlah isian</label>
                             <select data-f="jumlah" class="h-9 w-full rounded-md border border-[#DEDEE3] bg-white px-2 text-sm outline-none focus:border-[#2277FF]">
                                 <option value="1" ${!banyak(f) ? 'selected' : ''}>Satu isian</option>
-                                <option value="banyak" ${banyak(f) ? 'selected' : ''}>Lebih dari satu</option>
+                                <option value="0" ${banyak(f) ? 'selected' : ''}>Lebih dari satu</option>
                             </select>
                         </div>
                     </div>
@@ -414,7 +414,7 @@
         if (isian.length >= MAKS_ISIAN) return;
         isian.forEach((f) => { f.buka = false; });
         const f = {
-            id: null, label: awal.label ?? '', tipe: awal.tipe ?? 'teks', wajib: false, jumlah: awal.jumlah ?? 1, buka: !awal.label,
+            id: null, label: awal.label ?? '', tipe: awal.tipe ?? 'teks', wajib: false, banyak: !!awal.banyak, buka: !awal.label,
         };
         isian.push(f);
         renderDaftar();
@@ -479,8 +479,7 @@
             renderDaftar();
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="tipe"]`)?.focus();
         } else if (n === 'jumlah') {
-            // 'banyak' = tanpa batas (null); batas N > 1 dari data lama dipertahankan
-            f.jumlah = e.target.value === '1' ? 1 : (f.jumlah > 1 ? f.jumlah : null);
+            f.banyak = e.target.value === '0';
             renderDaftar(); // teks penjelasan ikut berganti
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="jumlah"]`)?.focus();
         }
@@ -577,7 +576,7 @@
             isian: isian.filter((f) => f.label.trim()).map((f) => ({
                 id_isian_kategori: f.id, // ada = diperbarui, kosong = isian baru
                 input: f.label.trim(), jenis_input: f.tipe, wajib: f.wajib,
-                jumlah_isian: f.jumlah, // 1 = satu isian, null = tanpa batas, N = maksimal N
+                jumlah_isian: f.banyak ? 0 : 1, // 1 = satu isian, 0 = lebih dari satu
             })),
         };
         if (!body.name) { bukaTab('data'); tampilError('Nama kategori wajib diisi.'); $('kk-nama').focus(); return; }
