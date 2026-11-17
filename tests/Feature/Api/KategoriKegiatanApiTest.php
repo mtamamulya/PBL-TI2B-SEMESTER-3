@@ -222,16 +222,15 @@ class KategoriKegiatanApiTest extends TestCase
 
     public function test_lecturer_choice_field_lists_lecturers_from_the_database(): void
     {
-        $this->markTestSkipped('Menunggu model Dosen dan tipe isian "dosen" (belum ada di PilihanBaku).');
-
         $user = $this->pengguna('dosen');
-        Dosen::create(['id_user' => $user->getKey(), 'nip' => '1980010120100101', 'nama' => 'Kuwat Santoso']);
+        $dosen = Dosen::create(['id_user' => $user->getKey(), 'nip' => '1980010120100101', 'nama' => 'Kuwat Santoso']);
 
         $id = $this->buat(['isian' => [['input' => 'Dosen pembimbing', 'jenis_input' => 'dosen', 'wajib' => true]]]);
 
         $this->sebagai('mahasiswa')->getJson(self::API.'/'.$id)
             ->assertOk()
             ->assertJsonCount(1, 'data.isian.0.pilihan')
+            ->assertJsonPath('data.isian.0.pilihan.0.nilai', (string) $dosen->getKey())
             ->assertJsonPath('data.isian.0.pilihan.0.label', 'Kuwat Santoso');
     }
 

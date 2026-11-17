@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Prestasi; // Wajib dipanggil agar bisa query ke DB
+use App\Models\Prestasi;
+use App\Support\ApiClient;
+use App\Support\ApiException;
+use Illuminate\Support\Carbon;
 
 class KaprodiPrestasiController extends Controller
 {
@@ -13,69 +16,127 @@ class KaprodiPrestasiController extends Controller
 
     public function show($id)
     {
-        $rows = $this->daftar();
-        $prestasi = collect($rows)->firstWhere('id', (int) $id);
+        try {
+            $hasil = ApiClient::pengguna()->get("/prestasi/{$id}");
+        } catch (ApiException $e) {
+            if ($e->getCode() === 404) {
+                abort(404);
+            }
 
-        if (! $prestasi) {
+            throw $e;
+        }
+
+        $item = $hasil['data'] ?? null;
+
+        if (! is_array($item)) {
             abort(404);
         }
 
-        // Kita juga kirim model aslinya ke view jika detail butuh data relasi Bukti Prestasi
-        $modelAsli = Prestasi::with(['kegiatan', 'buktiPrestasi.jenisDokumen'])->find($id);
+        $prestasi = $this->bentukBaris($item);
+        $modelAsli = $this->bentukObjekDetail($item);
 
         return view('kaprodi.prestasi-detail', compact('prestasi', 'modelAsli'));
     }
 
     private function daftar(): array
     {
-        // Tarik data Prestasi beserta relasi Kegiatan dan User dari database
-        $prestasiDb = Prestasi::with(['kegiatan.user', 'kegiatan.kategori'])->get();
+        $hasil = ApiClient::pengguna()->get('/prestasi', ['per_page' => 100]);
 
-        $rows = [];
-        foreach ($prestasiDb as $p) {
-            $keg = $p->kegiatan;
-            $usr = $keg ? $keg->user : null;
+        return collect($hasil['data'] ?? [])
+            ->map(fn (array $item) => $this->bentukBaris($item))
+            ->all();
+    }
 
-            // 1. Tentukan Nama Pengunggah
-            $namaPengunggah = $usr ? ($usr->nama ?? $usr->name ?? 'User Tidak Diketahui') : 'Sistem';
+    /** @param array<string, mixed> $item */
+    private function bentukBaris(array $item): array
+    {
+        $keg = is_array($item['kegiatan'] ?? null) ? $item['kegiatan'] : null;
+        $usr = is_array($keg['user'] ?? null) ? $keg['user'] : null;
 
-            // 2. Tentukan Tipe (Dosen / Mahasiswa)
-            $tipeUser = 'Mahasiswa';
-            if ($usr) {
-                // CATATAN UNTUKMU: Sesuaikan kata 'role' di bawah dengan nama kolom peran di tabel usermu
-                // Misalnya: $usr->jenis_pengguna === 'Dosen'
-                if (isset($usr->role) && strtolower($usr->role) === 'dosen') {
-                    $tipeUser = 'Dosen';
-                } elseif (isset($usr->is_dosen) && $usr->is_dosen) {
-                    $tipeUser = 'Dosen';
-                }
+        $namaPengunggah = $usr ? ($usr['nama'] ?? 'User Tidak Diketahui') : 'Sistem';
+
+        $tipeUser = 'Mahasiswa';
+        if ($usr) {
+            if (isset($usr['role']) && strtolower((string) $usr['role']) === 'dosen') {
+                $tipeUser = 'Dosen';
+            } elseif (! empty($usr['is_dosen'])) {
+                $tipeUser = 'Dosen';
             }
-
-            // 3. Tentukan Tanggal & Semester
-            $tanggalMulai = $keg && $keg->tanggal_mulai ? $keg->tanggal_mulai : now();
-            $bulanAngka = (int) $tanggalMulai->format('n');
-
-            // Format string: "21 Mei 2024"
-            $namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-            $stringTanggal = $tanggalMulai->format('j').' '.$namaBulan[$bulanAngka].' '.$tanggalMulai->format('Y');
-
-            // Logika Akademik: Agustus(8) s/d Januari(1) = Ganjil, sisanya Genap
-            $semester = ($bulanAngka >= 8 || $bulanAngka <= 1) ? 'Ganjil' : 'Genap';
-
-            // 4. Masukkan ke array sesuai format Frontend
-            $rows[] = [
-                'id' => $p->id_prestasi,
-                'nama' => $keg ? $keg->nama_kegiatan : 'Tidak Ada Judul',
-                'kategori' => $p->jenis_prestasi ?? 'Lomba',
-                'pengunggah' => $namaPengunggah,
-                'tipe' => $tipeUser,
-                'anggota' => [$namaPengunggah], // Default diisi pengunggah dulu
-                'tanggal' => $stringTanggal,
-                'raw_date' => $tanggalMulai->toDateString(), // Penting untuk sorting DataTables
-                'semester' => $semester,
-            ];
         }
 
-        return $rows;
+        $tanggalMulai = ! empty($keg['tanggal_mulai'])
+            ? Carbon::parse($keg['tanggal_mulai'])
+            : now();
+
+        $bulanAngka = (int) $tanggalMulai->format('n');
+        $namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $stringTanggal = $tanggalMulai->format('j').' '.$namaBulan[$bulanAngka].' '.$tanggalMulai->format('Y');
+        $semester = ($bulanAngka >= 8 || $bulanAngka <= 1) ? 'Ganjil' : 'Genap';
+
+        return [
+            'id' => $item['id_prestasi'] ?? null,
+            'nama' => $keg['nama_kegiatan'] ?? 'Tidak Ada Judul',
+            'kategori' => $item['jenis_prestasi'] ?? 'Lomba',
+            'pengunggah' => $namaPengunggah,
+            'tipe' => $tipeUser,
+            'anggota' => [$namaPengunggah],
+            'tanggal' => $stringTanggal,
+            'raw_date' => $tanggalMulai->toDateString(),
+            'semester' => $semester,
+        ];
+    }
+
+    /**
+     * Membentuk objek kompatibel Eloquent dari respons API agar view kaprodi.prestasi-detail tetap berjalan tanpa query DB langsung.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function bentukObjekDetail(array $item): Prestasi
+    {
+        $model = new Prestasi;
+        $model->forceFill([
+            'id_prestasi' => $item['id_prestasi'] ?? null,
+            'id_kegiatan' => $item['id_kegiatan'] ?? null,
+            'id_prodi' => $item['id_prodi'] ?? null,
+            'jenis_prestasi' => $item['jenis_prestasi'] ?? null,
+            'bidang_lomba' => $item['bidang_lomba'] ?? null,
+            'capaian' => $item['capaian'] ?? null,
+            'catatan' => $item['catatan'] ?? null,
+        ]);
+
+        if (is_array($item['kegiatan'] ?? null)) {
+            $kegData = $item['kegiatan'];
+            $kegObj = (object) $kegData;
+            if (! empty($kegData['tanggal_mulai'])) {
+                $kegObj->tanggal_mulai = Carbon::parse($kegData['tanggal_mulai']);
+            }
+            if (! empty($kegData['tanggal_selesai'])) {
+                $kegObj->tanggal_selesai = Carbon::parse($kegData['tanggal_selesai']);
+            }
+            $model->setRelation('kegiatan', $kegObj);
+        } else {
+            $model->setRelation('kegiatan', null);
+        }
+
+        $buktiList = collect($item['bukti_prestasi'] ?? [])->map(function (array $b) {
+            $bObj = (object) array_merge([
+                'nama_file' => $b['nama_file'] ?? $b['file_path'] ?? null,
+                'link' => $b['link'] ?? null,
+            ], $b);
+
+            if (is_array($b['jenis_dokumen'] ?? null)) {
+                $jd = $b['jenis_dokumen'];
+                $bObj->jenisDokumen = (object) array_merge([
+                    'nama_jenis' => $jd['nama_jenis'] ?? $jd['nama_jenis_dokumen'] ?? null,
+                ], $jd);
+            } else {
+                $bObj->jenisDokumen = null;
+            }
+
+            return $bObj;
+        });
+        $model->setRelation('buktiPrestasi', $buktiList);
+
+        return $model;
     }
 }

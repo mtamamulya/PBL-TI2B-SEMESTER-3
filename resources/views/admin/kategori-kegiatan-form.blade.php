@@ -286,16 +286,19 @@
     // ======================================================================
     // ISIAN FORM (dibuat admin per kategori)
     // ======================================================================
-    const TIPE = {
-        teks: 'Teks pendek', paragraf: 'Teks panjang', angka: 'Angka',
-        tanggal: 'Tanggal', berkas: 'Unggah berkas',
-        tingkat_kejuaraan: 'Pilihan: Tingkat kejuaraan', jenis_prestasi: 'Pilihan: Jenis prestasi',
-    };
-    // Pilihan baku (sama dengan PilihanBaku di API / enum tabel prestasi)
-    const BAKU = {
-        tingkat_kejuaraan: ['kabupaten/kota', 'provinsi', 'nasional', 'internasional'],
-        jenis_prestasi: ['akademik', 'non-akademik'],
-    };
+    // Daftar tipe berasal dari API (/tipe-isian, sumbernya PilihanBaku di backend): [{nilai, label, baku, pilihan?}].
+    // Menambah tipe baru cukup di PilihanBaku. Daftar cadangan di bawah hanya dipakai kalau API gagal dimuat.
+    const TIPE_API = @json($tipeIsian ?? []);
+    const TIPE_CADANGAN = [
+        { nilai: 'teks', label: 'Teks pendek' }, { nilai: 'paragraf', label: 'Teks panjang' },
+        { nilai: 'angka', label: 'Angka' }, { nilai: 'tanggal', label: 'Tanggal' }, { nilai: 'berkas', label: 'Unggah berkas' },
+        { nilai: 'tingkat_kejuaraan', label: 'Pilihan: Tingkat kejuaraan', baku: true, pilihan: ['kabupaten/kota', 'provinsi', 'nasional', 'internasional'] },
+        { nilai: 'jenis_prestasi', label: 'Pilihan: Jenis prestasi', baku: true, pilihan: ['akademik', 'non-akademik'] },
+    ];
+    const DAFTAR_TIPE = Array.isArray(TIPE_API) && TIPE_API.length ? TIPE_API : TIPE_CADANGAN;
+    const TIPE = Object.fromEntries(DAFTAR_TIPE.map((t) => [t.nilai, t.label]));
+    // Tipe "pilihan baku": nilai => daftar pilihan (kosong bila isinya diambil dari tabel, mis. dosen)
+    const BAKU = Object.fromEntries(DAFTAR_TIPE.filter((t) => t.baku).map((t) => [t.nilai, t.pilihan ?? []]));
     const MAKS_ISIAN = 20;
     const IKON = {
         edit:  '<path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16v4M13.5 6.5l4 4"/>',
@@ -387,11 +390,12 @@
                 case 'paragraf': kontrol = `<textarea rows="3" disabled class="block w-full resize-none rounded-lg border border-[#DEDEE3] bg-white px-3 py-2 text-sm"></textarea>`; break;
                 case 'angka':    kontrol = `<input type="number" disabled placeholder="0" class="${dasar}">`; break;
                 case 'tanggal':  kontrol = `<input type="date" disabled class="${dasar}">`; break;
-                case 'tingkat_kejuaraan':
-                case 'jenis_prestasi':
-                    kontrol = `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option>${BAKU[f.tipe].map((o) => `<option>${esc(o)}</option>`).join('')}</select>`; break;
                 case 'berkas':   kontrol = `<div class="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#C9C9D1] text-sm text-[#6E6E76]">${banyak(f) ? 'Pilih beberapa berkas atau seret ke sini' : 'Pilih berkas atau seret ke sini'}</div>`; break;
-                default:         kontrol = `<input type="text" disabled class="${dasar}">`;
+                default:
+                    // Tipe pilihan baku (daftar dari API); isinya bisa kosong bila diambil dari tabel (mis. dosen)
+                    kontrol = (f.tipe in BAKU)
+                        ? `<select disabled class="${dasar}"><option>Pilih ${esc(f.label.toLowerCase())}</option>${BAKU[f.tipe].map((o) => `<option>${esc(o)}</option>`).join('')}</select>`
+                        : `<input type="text" disabled class="${dasar}">`;
             }
             // Isian "lebih dari satu" (selain berkas): kontrol + tombol tambah, seperti Anggota tim
             if (banyak(f) && f.tipe !== 'berkas') {

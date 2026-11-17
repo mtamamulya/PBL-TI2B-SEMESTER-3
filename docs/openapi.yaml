@@ -69,6 +69,8 @@ tags:
 =======
   - name: Dosen
     description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
+  - name: Mahasiswa
+    description: Data mahasiswa, status akademik, dan sinkronisasi kelas semester (baca publik/lintas kelompok, kelola khusus admin, ubah profil oleh admin atau mahasiswa pemilik).
   - name: Jenis Dokumen
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
   - name: Berita
@@ -928,6 +930,157 @@ paths:
         '422':
           $ref: '#/components/responses/DosenValidasiGagal'
 
+  /mahasiswa:
+    get:
+      tags: [Mahasiswa]
+      summary: Daftar mahasiswa
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mendukung pencarian nama/NIM serta filter tingkat dan status akademik.
+      parameters:
+        - name: q
+          in: query
+          description: Cari berdasarkan nama atau NIM mahasiswa.
+          schema:
+            type: string
+            maxLength: 100
+        - name: level
+          in: query
+          description: Saring berdasarkan tingkat semester (mis. `Tingkat 1`, `Tingkat 2`, `Tingkat 3`, `Tingkat 4`, atau `all`).
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Lulus`, `Non-aktif`, atau `all`).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar mahasiswa berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaListResponse'
+    post:
+      tags: [Mahasiswa]
+      summary: Tambah mahasiswa baru
+      description: |
+        Khusus peran **admin**. Membuat data profil mahasiswa dan akun login baru.
+        Format NIM harus mengikuti pola `jenjang.prodi.tahun.kelas.absen` (contoh: `4.33.25.1.09`) dan digit tahun pada NIM harus sama dengan nilai `angkatan`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MahasiswaCreateInput'
+      responses:
+        '201':
+          description: Mahasiswa baru berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
+
+  /mahasiswa/{id}:
+    get:
+      tags: [Mahasiswa]
+      summary: Detail satu mahasiswa
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mengembalikan profil mahasiswa, ringkasan akademik, riwayat kelas, dan daftar kegiatan.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail mahasiswa berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaDetailResponse'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+    put:
+      tags: [Mahasiswa]
+      summary: Ubah data mahasiswa
+      description: |
+        Dapat diakses oleh peran **admin** atau **mahasiswa** pemilik profil yang bersangkutan.
+        Pengguna non-admin hanya dapat mengubah nama, email, kata sandi, dan foto profil (field `nim`, `angkatan`, dan `status` diabaikan).
+        Untuk mengirim berkas foto profil, gunakan `POST` dengan field tambahan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MahasiswaUpdateInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MahasiswaUpdateInput'
+      responses:
+        '200':
+          description: Perubahan data mahasiswa berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/MahasiswaDilarang'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
+
+  /mahasiswa/{id}/status:
+    patch:
+      tags: [Mahasiswa]
+      summary: Toggle status aktif/nonaktif mahasiswa
+      description: Khusus peran **admin**. Membalik status keaktifan akun dan status akademik mahasiswa (`Aktif` <-> `Non-aktif`) tanpa body request.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Status mahasiswa berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+
+  /mahasiswa/sinkronisasi-kelas:
+    post:
+      tags: [Mahasiswa]
+      summary: Sinkronisasi kelas semester mahasiswa
+      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan serta menempatkannya ke kelas yang sesuai.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sinkronisasi kelas semester selesai dijalankan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+
   /jenis-dokumen:
     get:
       tags: [Jenis Dokumen]
@@ -1449,6 +1602,38 @@ components:
             errors:
               nip:
                 - NIP sudah dipakai dosen lain.
+              email:
+                - Email sudah dipakai akun lain.
+    MahasiswaTidakDitemukan:
+      description: Data mahasiswa tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data mahasiswa tidak ditemukan.
+    MahasiswaDilarang:
+      description: Peran akun tidak diizinkan atau bukan pemilik profil mahasiswa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengubah data mahasiswa ini.
+    MahasiswaValidasiGagal:
+      description: Input data mahasiswa tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatValidasi'
+          example:
+            success: false
+            message: Data yang dikirim tidak valid. Periksa kembali isian Anda.
+            errors:
+              nim:
+                - Tahun pada NIM (2025) tidak sama dengan angkatan (2024).
               email:
                 - Email sudah dipakai akun lain.
 
@@ -2359,6 +2544,196 @@ components:
           type: object
           additionalProperties: true
 
+    MahasiswaItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nim:
+          type: string
+          example: '4.33.24.0.01'
+        nama:
+          type: string
+          example: Rizky Pratama
+        angkatan:
+          type: string
+          example: '2024'
+        kelas:
+          type: string
+          nullable: true
+          example: TI-2A
+        tingkat:
+          type: string
+          nullable: true
+          example: Tingkat 2
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          example: Aktif
+        email:
+          type: string
+          format: email
+          example: rizkypratama@mhs.polines.ac.id
+
+    MahasiswaListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data mahasiswa berhasil diambil.
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 24
+            levels:
+              type: array
+              items:
+                type: string
+              example: [Tingkat 1, Tingkat 2, Tingkat 3, Tingkat 4]
+            tahun:
+              type: array
+              items:
+                type: integer
+              example: [2026, 2025, 2024, 2023]
+            status:
+              type: array
+              items:
+                type: string
+              example: [Aktif, Cuti, Lulus, Non-aktif]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MahasiswaItem'
+
+    MahasiswaDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Detail mahasiswa berhasil diambil.
+        fotoUrl:
+          type: string
+          nullable: true
+          example: http://127.0.0.1:8001/storage/mahasiswa-foto/profil.jpg
+        data:
+          type: object
+          additionalProperties: true
+        academic:
+          type: object
+          additionalProperties: true
+        history:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        kegiatan:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    MahasiswaCreateInput:
+      type: object
+      required: [nama, nim, angkatan, status, email, password]
+      properties:
+        nama:
+          type: string
+          maxLength: 100
+          example: Galih Virgi Pramudya
+        nim:
+          type: string
+          pattern: '^4\.33\.\d{2}\.\d\.\d{2}$'
+          description: Format jenjang.prodi.tahun.kelas.absen (contoh 4.33.25.1.09). Tahun pada NIM harus sesuai dengan angkatan.
+          example: '4.33.25.1.09'
+        angkatan:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          example: 2025
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          example: Aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: galih.virgi@mhs.polines.ac.id
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: password123
+
+    MahasiswaUpdateInput:
+      type: object
+      required: [nama, email]
+      properties:
+        nama:
+          type: string
+          maxLength: 100
+          example: Galih Virgi Pramudya, S.Tr.Kom.
+        nim:
+          type: string
+          pattern: '^4\.33\.\d{2}\.\d\.\d{2}$'
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: '4.33.25.1.09'
+        angkatan:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: 2025
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: Aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: galih.virgi@mhs.polines.ac.id
+        password:
+          type: string
+          format: password
+          minLength: 8
+          nullable: true
+          description: Kosongkan jika tidak ingin mengubah password.
+        foto:
+          type: string
+          format: binary
+          description: Foto profil baru JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        hapus_foto:
+          type: boolean
+          nullable: true
+          description: Kirim `true` atau `1` untuk menghapus foto profil yang sudah ada.
+
+    MahasiswaMutationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Perubahan data mahasiswa berhasil disimpan.
+        data:
+          type: object
+          additionalProperties: true
+
     JenisDokumen:
       type: object
       properties:
@@ -2414,7 +2789,7 @@ components:
             $ref: '#/components/schemas/JenisDokumen'
         meta:
           $ref: '#/components/schemas/Meta'
-    
+
     Berita:
       type: object
       properties:

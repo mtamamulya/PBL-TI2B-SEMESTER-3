@@ -11,10 +11,22 @@ class AdminOnly
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $isAdmin = $user && (
-            ($user->role->nama_role ?? $user->role ?? '') === 'admin'
-            || (int) ($user->id_role ?? 0) === 1
-        );
+
+        // 1. Jika belum login
+        if (! $user) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum login atau token tidak valid.',
+                ], 401);
+            }
+
+            return redirect()->guest(route('login'));
+        }
+
+        // 2. Jika sudah login, pastikan perannya Admin
+        $isAdmin = ($user->role->nama_role ?? $user->role ?? '') === 'admin'
+            || (int) ($user->id_role ?? 0) === 1;
 
         if (! $isAdmin) {
             if ($request->is('api/*') || $request->expectsJson()) {
