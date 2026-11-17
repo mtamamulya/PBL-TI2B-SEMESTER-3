@@ -95,6 +95,11 @@
 
 @section('content')
 <style>
+    /* Slideshow hero */
+    [data-slide][data-active="true"] { opacity: 1 !important; }
+    [data-caption][data-active="true"] { opacity: 1 !important; pointer-events: auto !important; }
+    [data-dot][data-active="true"] { width: 1.75rem !important; background-color: #FFD121 !important; }
+
     /* Efek masuk section saat navbar diklik: isi section naik + memudar bergantian */
     [data-reveal].reveal-hide > * { opacity: 0; transform: translateY(36px); }
     [data-reveal].reveal-play > * { animation: revealUp .8s cubic-bezier(.16, 1, .3, 1) both; }
