@@ -32,9 +32,8 @@ use App\Http\Controllers\KaprodiMahasiswaController;
 use App\Http\Controllers\KaprodiMataKuliahController;
 use App\Http\Controllers\KaprodiPengajuanController;
 use App\Http\Controllers\KaprodiPrestasiController;
-use App\Http\Controllers\TahunAkademikController;
-// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiProfilController;
+// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiTandaTanganController;
 use App\Http\Controllers\KategoriKegiatanController;
 use App\Http\Controllers\KegiatanDosenController;
@@ -48,6 +47,7 @@ use App\Http\Controllers\MataKuliahController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PublicBeritaController;
+use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\KaprodiOnly;
 use Illuminate\Support\Facades\Route;
