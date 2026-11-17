@@ -3,6 +3,7 @@
 namespace App\BackendKel1\ImportExcel;
 
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as PembacaXlsx;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Throwable;
 
 /**
@@ -123,6 +124,29 @@ class BacaExcel
         }
 
         return trim((string) $nilai);
+    }
+
+    /** Tanggal Y-m-d dari sel Excel (angka serial tanggal, "2022-01-12", atau "12/01/2022"); selain itu null. */
+    public static function tanggal(mixed $nilai): ?string
+    {
+        if ($nilai === null || (is_string($nilai) && trim($nilai) === '')) {
+            return null;
+        }
+        try {
+            if (is_int($nilai) || is_float($nilai)) {
+                return Date::excelToDateTimeObject((float) $nilai)->format('Y-m-d');
+            }
+            $t = trim((string) $nilai);
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $t, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+                return $t;
+            }
+            if (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $t, $m) && checkdate((int) $m[2], (int) $m[1], (int) $m[3])) {
+                return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+            }
+        } catch (Throwable) {
+        }
+
+        return null;
     }
 
     private static function kosong(array $baris): bool

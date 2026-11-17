@@ -1,5 +1,6 @@
 <?php
 
+use App\BackendKel1\ImportExcel\ImportDataController;
 use App\BackendKel1\ImportExcel\ImportMataKuliahController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\KaprodiOnly;
@@ -8,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 /*
  * Route WEB (bukan API). Dimuat dari routes/web.php:
  *     require app_path('BackendKel1/ImportExcel/routes.php');
- * Admin dan kaprodi sama-sama boleh mengimpor mata kuliah.
+ * Admin dan kaprodi sama-sama boleh mengimpor mata kuliah; dosen dan mahasiswa hanya admin.
  */
 foreach (['admin' => AdminOnly::class, 'kaprodi' => KaprodiOnly::class] as $peran => $penjaga) {
     Route::prefix($peran.'/kurikulum/mata-kuliah/import')->middleware($penjaga)->group(function () use ($peran) {
@@ -21,3 +22,12 @@ foreach (['admin' => AdminOnly::class, 'kaprodi' => KaprodiOnly::class] as $pera
         Route::post('batal', [ImportMataKuliahController::class, 'batal'])->name($nama.'.batal');
     });
 }
+
+// Impor dosen dan mahasiswa: khusus admin. Awalan admin/impor agar tidak bentrok dengan admin/dosen/{id}.
+Route::prefix('admin/impor/{jenis}')->whereIn('jenis', ['dosen', 'mahasiswa'])->middleware(AdminOnly::class)->group(function () {
+    Route::get('/', [ImportDataController::class, 'form'])->name('admin.impor.form');
+    Route::get('template', [ImportDataController::class, 'template'])->name('admin.impor.template');
+    Route::post('pratinjau', [ImportDataController::class, 'pratinjau'])->name('admin.impor.pratinjau');
+    Route::post('simpan', [ImportDataController::class, 'simpan'])->name('admin.impor.simpan');
+    Route::post('batal', [ImportDataController::class, 'batal'])->name('admin.impor.batal');
+});
