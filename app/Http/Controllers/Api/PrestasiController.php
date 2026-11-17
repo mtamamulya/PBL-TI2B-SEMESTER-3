@@ -177,7 +177,10 @@ class PrestasiController extends Controller
     {
         if ($prestasi->isTim() && is_null($prestasi->id_kegiatan)) {
             $daftarAnggota = collect($validated['anggota'] ?? [])->map(function ($item) {
-                $idUser = $item['id_user'] ?? User::where('nama', $item['nama'] ?? '')->value('id_user');
+                $nama = $item['nama'] ?? '';
+                $idUser = $item['id_user'] 
+                ?? Dosen::where('nama', $nama)->value('id_user') 
+                ?? Mahasiswa::where('nama', $nama)->value('id_user');
                 $peran = strtolower($item['peran'] ?? 'anggota');
 
                 return [
