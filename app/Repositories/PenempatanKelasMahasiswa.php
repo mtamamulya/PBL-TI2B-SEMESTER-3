@@ -48,8 +48,7 @@ class PenempatanKelasMahasiswa
         }
 
         // JIKA SEMESTER MELEBIHI BATAS (LULUS)
-        if ($semester > NimMahasiswa::maxSemester($nim['jenjang'])) {
-            // Nonaktifkan akun loginnya secara otomatis
+        if ($semester > NimMahasiswa::maxSemester($nim['jenjang_kode'] ?? $nim['jenjang'] ?? '4')) {
             DB::table('users')->where('id_user', $m->id_user)->update(['status' => false]);
 
             return 'lulus';
