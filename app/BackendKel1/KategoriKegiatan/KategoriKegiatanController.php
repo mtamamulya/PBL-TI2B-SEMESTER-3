@@ -180,8 +180,8 @@ class KategoriKegiatanController extends Controller
             $out['isian'] = $k->isianKategori->map(function ($i) {
                 $row = self::bentukIsian($i);
 
-                if ($tetap = PilihanBaku::nilai($i->jenis_input)) {
-                    $row['pilihan'] = array_map(fn ($v) => ['nilai' => $v, 'label' => Str::title($v)], $tetap);
+                if (($opsi = PilihanBaku::opsi($i->jenis_input)) !== null) {
+                    $row['pilihan'] = $opsi;
                 }
 
                 return $row;
