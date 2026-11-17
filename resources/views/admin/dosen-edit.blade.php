@@ -1,6 +1,6 @@
 {{--
     resources/views/admin/dosen-edit.blade.php
-    Form edit dosen -> PUT /admin/dosen/{id} (DosenController@update).
+    Form edit dosen -> PUT /admin/dosen/{id} (DosenController@update via ApiClient).
     Nilai terisi ulang otomatis (old) bila validasi gagal.
 --}}
 @extends('layouts.admin')
@@ -8,12 +8,13 @@
 @section('title', 'Edit Dosen')
 
 @php
-    $field = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
-    $label = 'text-base font-medium leading-[22px] tracking-[-0.18px] text-[#0A0A0A]';
-    $hint  = 'text-base leading-[22px] tracking-[-0.18px] text-[#A8A8A8]';
-    $error = 'text-sm text-[#FF3F3F]';
-    $chev  = '<svg class="pointer-events-none absolute right-4 top-1/2 size-[18px] -translate-y-1/2 text-[#1C2024]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
-    $fotoLama = !empty($dosen['foto']) ? asset('storage/'.$dosen['foto']) : null;
+    $field    = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
+    $label    = 'text-base font-medium leading-[22px] tracking-[-0.18px] text-[#0A0A0A]';
+    $hint     = 'text-base leading-[22px] tracking-[-0.18px] text-[#A8A8A8]';
+    $error    = 'text-sm text-[#FF3F3F]';
+    $chev     = '<svg class="pointer-events-none absolute right-4 top-1/2 size-[18px] -translate-y-1/2 text-[#1C2024]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+    $fotoLama = $dosen['foto'] ?? null;
+    $inisial  = strtoupper(mb_substr(trim($dosen['nama_lengkap'] ?? '') ?: 'D', 0, 1));
 @endphp
 
 @section('content')
@@ -23,7 +24,7 @@
         <p class="text-xl font-medium tracking-[-0.15px] text-[#A8A8A8] md:text-2xl md:leading-[30px]">Dashboard / Data Dosen / Detail / Edit</p>
     </div>
 
-    <form method="POST" action="{{ route('admin.dosen.update', $dosen['id']) }}" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
+    <form method="POST" action="{{ route('admin.dosen.update', $dosen['id']) }}" enctype="multipart/form-data" class="flex flex-col items-end gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
         @csrf
         @method('PUT')
 
@@ -112,11 +113,6 @@
                     </div>
                 </div>
 
-                @php
-                    $fotoLama = $dosen['foto'] ?? null;   // URL foto dari data dosen
-                    $inisial = strtoupper(mb_substr(trim($dosen['nama_lengkap'] ?? '') ?: 'D', 0, 1));
-                @endphp
-
                 <div class="flex flex-col gap-4 md:flex-row md:items-start">
                     {{-- KIRI: Password baru --}}
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
@@ -126,7 +122,7 @@
                         @error('password') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
 
-                    {{-- KANAN: Foto profil (lingkaran + pensil). Foto lama tampil bila ada, kalau tidak: inisial --}}
+                    {{-- KANAN: Foto profil --}}
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <span class="{{ $label }}">Foto profil<span class="text-[#A8A8A8]"> (opsional)</span></span>
 

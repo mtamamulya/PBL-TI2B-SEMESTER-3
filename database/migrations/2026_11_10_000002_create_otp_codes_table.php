@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('code_hash');
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->timestamp('expires_at');
-            $table->timestamp('last_sent_at');
+            $table->timestamp('last_sent_at')->nullable();
             $table->timestamp('verified_at')->nullable();
             $table->timestamp('consumed_at')->nullable();
             $table->timestamps();
