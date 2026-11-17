@@ -19,14 +19,14 @@ class PrestasiApiTest extends TestCase
 
         $mahasiswa = User::firstOrCreate(
             ['email' => 'mahasiswa.prestasi@trk.ac.id'],
-            ['id_role' => 3, 'password' => 'password', 'status' => true]
+            ['id_role' => 4, 'password' => 'password', 'status' => true]
         );
 
         $prestasi = Prestasi::create([
             'id_user' => $mahasiswa->id_user,
             'created_by' => $mahasiswa->id_user,
             'id_kegiatan' => null,
-            'jenis_prestasi' => 'Juara 1 Nasional',
+            'jenis_prestasi' => 'akademik',
             'bidang_lomba' => 'Rekayasa Perangkat Lunak',
             'nama_lomba' => 'Gemastik XIX',
             'penyelenggara' => 'Kemendikbudristek',
@@ -61,7 +61,7 @@ class PrestasiApiTest extends TestCase
             ])
             ->assertJsonPath('meta.per_page', 10)
             ->assertJsonPath('data.0.id_prestasi', $prestasi->id_prestasi)
-            ->assertJsonPath('data.0.jenis_prestasi', 'Juara 1 Nasional')
+            ->assertJsonPath('data.0.jenis_prestasi', 'akademik')
             ->assertJsonPath('data.0.bidang_lomba', 'Rekayasa Perangkat Lunak');
     }
 
@@ -74,7 +74,7 @@ class PrestasiApiTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.id_prestasi', $prestasi->id_prestasi)
             ->assertJsonPath('data.capaian', 'Juara 1')
-            ->assertJsonPath('data.jenis_prestasi', 'Juara 1 Nasional')
+            ->assertJsonPath('data.jenis_prestasi', 'akademik')
             ->assertJsonStructure([
                 'data' => [
                     'id_prestasi',
