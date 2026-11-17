@@ -368,9 +368,9 @@
 
                         <span class="absolute left-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold text-white" style="background: {{ $a['color'] }}">{{ $a['badge'] }}</span>
 
-                        <div class="absolute inset-x-0 bottom-0 flex min-h-[60px] flex-col justify-center gap-0.5 p-2.5 text-[#0B3A8C] {{ $a['img'] ? 'bg-[linear-gradient(180deg,rgba(153,125,20,0)_-70%,#FFD121_30%)]' : 'bg-[#F5C400]' }}">
+                        <div class="absolute inset-x-0 bottom-0 flex min-h-[60px] flex-col justify-center gap-0.5 p-2.5 text-[#0B3A8C] {{ data_get($a, 'img') ? 'bg-[linear-gradient(180deg,rgba(153,125,20,0)_-70%,#FFD121_30%)]' : 'bg-[#F5C400]' }}">
                             <div class="line-clamp-2 text-xs font-bold leading-tight">
-                                {{ $a['title'] }}
+                                {{ $a['title'] }}   
                             </div>
                             <div class="truncate text-[9px] font-medium">
                                 {{ $a['badge'] }}{{ $a['sub'] ? ' · '.$a['sub'] : '' }}
