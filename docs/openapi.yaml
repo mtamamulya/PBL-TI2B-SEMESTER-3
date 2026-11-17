@@ -68,6 +68,8 @@ tags:
     description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
   - name: Jenis Dokumen
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
+  - name: Berita
+    description: Pengelolaan dan peninjauan berita prodi (baca publik, tulis/tinjau admin dan kaprodi).
 
 paths:
 
@@ -1047,6 +1049,206 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+
+  /berita:
+    get:
+      tags: [Berita]
+      summary: Daftar berita (berhalaman)
+      description: Tanpa token hanya menampilkan berita berstatus `publish`. Pengguna login dapat menyaring semua status.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, diajukan, revisi, ditolak, publish]
+        - name: id_kategori
+          in: query
+          schema:
+            type: integer
+        - name: id_kegiatan
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          description: Cari pada judul berita.
+          schema:
+            type: string
+            maxLength: 150
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar berita berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Berita]
+      summary: Tambah berita baru
+      description: Peran **admin** atau **kaprodi**. Dikirim sebagai `multipart/form-data` bila menyertakan berkas sampul.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BeritaInput'
+      responses:
+        '201':
+          description: Berita berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /berita/opsi:
+    get:
+      tags: [Berita]
+      summary: Opsi kategori dan daftar kegiatan untuk form berita
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar opsi form berita.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      kategori:
+                        type: array
+                        items:
+                          type: string
+                      kegiatanList:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /berita/{id}:
+    get:
+      tags: [Berita]
+      summary: Detail satu berita beserta berita terkait
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail berita berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Berita]
+      summary: Ubah data berita
+      description: Peran **admin** atau **kaprodi**. Untuk mengirim berkas sampul baru, gunakan `POST` dengan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BeritaInput'
+      responses:
+        '200':
+          description: Berita berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Berita]
+      summary: Hapus berita
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Berita berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /berita/{id}/tinjau:
+    patch:
+      tags: [Berita]
+      summary: Tinjau pengajuan berita (terima, revisi, atau tolak)
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aksi]
+              properties:
+                aksi:
+                  type: string
+                  enum: [terima, revisi, tolak]
+                catatan_revisi:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Keputusan tinjauan disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
 
 components:
 
@@ -2121,5 +2323,106 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JenisDokumen'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    
+    Berita:
+      type: object
+      properties:
+        id_berita:
+          type: integer
+          example: 1
+        id_kegiatan:
+          type: integer
+          nullable: true
+          example: 2
+        id_kategori:
+          type: integer
+          nullable: true
+          example: 1
+        id_user:
+          type: integer
+          nullable: true
+          example: 1
+        judul_berita:
+          type: string
+          example: Mahasiswa TRK Juara Lomba Nasional
+        isi_berita:
+          type: string
+        status:
+          type: string
+          enum: [draft, diajukan, revisi, ditolak, publish]
+          example: publish
+        tanggal_publish:
+          type: string
+          format: date-time
+          nullable: true
+        sampul:
+          type: string
+          nullable: true
+        sampul_url:
+          type: string
+          nullable: true
+        is_gambar:
+          type: boolean
+        catatan_revisi:
+          type: string
+          nullable: true
+        nama_kegiatan:
+          type: string
+          nullable: true
+        nama_kategori:
+          type: string
+          nullable: true
+
+    BeritaInput:
+      type: object
+      required: [judul, isi, status]
+      properties:
+        judul:
+          type: string
+          maxLength: 255
+        isi:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Publish, draft, publish, diajukan]
+        sumber:
+          type: string
+          enum: [prev, none]
+        kegiatan_id:
+          type: integer
+          nullable: true
+        kategori:
+          type: string
+          nullable: true
+        foto:
+          type: string
+          format: binary
+          description: Berkas JPG, PNG, atau PDF maksimal 5 MB.
+
+    BeritaResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Berita'
+
+    BeritaListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Berita'
         meta:
           $ref: '#/components/schemas/Meta'
