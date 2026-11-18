@@ -2,24 +2,31 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\AkreditasiStore;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Support\Str;
 
 class AkreditasiController extends Controller
 {
-    /** Halaman publik: menampilkan PDF akreditasi yang sedang aktif (diatur dari halaman admin). */
-    public function index(AkreditasiStore $store)
+    /** Halaman publik: menampilkan PDF akreditasi yang sedang aktif (diambil dari API). */
+    public function index()
     {
-        // TODO-DB: ganti dengan query model Akreditasi (status aktif) saat database dipakai.
-        $aktif = collect($store->all())->firstWhere('status', 'aktif');
-        $pdfUrl = $aktif ? $store->pdfUrl($aktif) : null;
+        try {
+            $aktif = ApiClient::publik()->get('/akreditasi/aktif')['data'] ?? null;
+        } catch (ApiException $e) {
+            // 404 = belum ada akreditasi aktif; kegagalan lain (mis. 503) diteruskan.
+            if ($e->getStatusCode() !== 404) {
+                throw $e;
+            }
+            $aktif = null;
+        }
 
         return view('akreditasi', [
             'title' => 'Akreditasi',
             'subtitle' => 'Dokumen akreditasi Program Studi Teknologi Rekayasa Komputer Politeknik Negeri Semarang',
-            'pdfUrl' => $pdfUrl,
+            'pdfUrl' => $aktif['link'] ?? null,
             'fileName' => $aktif
-                ? Str::slug($aktif['lembaga'].' '.$aktif['year']).'.pdf'
+                ? Str::slug($aktif['lembaga'].' '.($aktif['tahun_terbit'] ?? '')).'.pdf'
                 : 'akreditasi-trk.pdf',
         ]);
     }
