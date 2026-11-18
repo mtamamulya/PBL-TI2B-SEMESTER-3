@@ -6,22 +6,17 @@
 @php
     $nama     = $mahasiswa->nama     ?? config('mahasiswa.nama');
     $angkatan = $mahasiswa->angkatan ?? config('mahasiswa.angkatan');
-    $email    = auth()->user()?->email ?? ($mahasiswa->email ?? config('mahasiswa.email'));
+    $email    = $mahasiswa->email    ?? config('mahasiswa.email');
     $nim      = $mahasiswa->nim      ?? config('mahasiswa.nim');
     $prodi    = $mahasiswa->prodi    ?? config('mahasiswa.prodi');
     $status   = $mahasiswa->status   ?? config('mahasiswa.status');
-    $otpEmail = config('mahasiswa.otp_email');
 
     [$local, $domain] = explode('@', $email, 2);
     $maskedEmail = substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
-    [$otpLocal, $otpDomain] = explode('@', $otpEmail, 2);
-    $maskedOtpEmail = substr($otpLocal, 0, 1).str_repeat('*', max(strlen($otpLocal) - 1, 3)).'@'.$otpDomain;
 @endphp
 
 <div class="mx-auto flex w-full max-w-7xl flex-col gap-6"
      x-data="profilMahasiswa()"
-     data-password-otp-url="{{ route('mahasiswa.password.otp') }}"
-     data-password-verify-url="{{ route('mahasiswa.password.verify') }}"
      x-on:keydown.escape.window="close(); openPhotoModal = false">
 
     {{-- Tombol Kembali --}}
@@ -38,12 +33,8 @@
             <p class="mt-0.5 text-xs text-[#6B7280]">Informasi identitas dan status akademikmu dalam satu tempat.</p>
         </div>
 
-        <div x-show="passwordSuccess" x-cloak role="status"
-             class="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-3 text-xs font-medium text-[#047857]"
-             x-text="passwordSuccess"></div>
-
         <div class="flex items-center gap-2">
-            <button type="button" x-on:click="open = true; step = 1; passwordError = ''; passwordSuccess = ''"
+            <button type="button" x-on:click="open = true; step = 1"
                     class="flex items-center gap-1.5 rounded-xl bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700">
                 <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 Ubah Kata Sandi
@@ -243,9 +234,6 @@
 
             {{-- Panel kanan --}}
             <div class="flex min-w-0 flex-1 flex-col justify-between p-6">
-                <p x-show="passwordError" x-cloak role="alert"
-                   class="mb-4 rounded-lg bg-[#FEF2F2] px-3 py-2 text-xs font-medium text-[#B91C1C]"
-                   x-text="passwordError"></p>
 
                 {{-- LANGKAH 1: kata sandi baru --}}
                 <div x-show="step === 1" class="flex h-full flex-col justify-between gap-6">
@@ -309,7 +297,7 @@
                                 <p x-show="confirm.length > 0 && !matches" x-cloak class="text-[11px] font-semibold text-[#EF4444]">Konfirmasi kata sandi tidak cocok.</p>
                             </div>
 
-                            <p class="text-[11px] text-[#9CA3AF]">Kode OTP akan dikirim ke {{ $maskedOtpEmail }}.</p>
+                            <p class="text-[11px] text-[#9CA3AF]">Kode OTP akan dikirim ke {{ $maskedEmail }}.</p>
                         </div>
                     </div>
 
@@ -318,9 +306,9 @@
                                 class="rounded-lg bg-[#EF4444] px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-600">
                             Batal
                         </button>
-                        <button type="button" x-on:click="goToStep2()" :disabled="!canSubmit || loading"
+                        <button type="button" x-on:click="goToStep2()" :disabled="!canSubmit"
                                 class="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-text="loading ? 'Mengirim...' : 'Kirim Kode OTP'"></span>
+                            Kirim Kode OTP
                         </button>
                     </div>
                 </div>
@@ -330,7 +318,7 @@
                     <div class="flex flex-col gap-4">
                         <div>
                             <h2 class="text-lg font-bold text-[#0A0A0A]">Masukkan kode OTP</h2>
-                            <p class="mt-0.5 text-xs text-[#6B7280]">Kami mengirimkan kode 6 digit ke {{ $maskedOtpEmail }}. Kode berlaku 5 menit.</p>
+                            <p class="mt-0.5 text-xs text-[#6B7280]">Kami mengirimkan kode 6 digit ke {{ $maskedEmail }}. Kode berlaku 5 menit.</p>
                         </div>
 
                         <div class="flex flex-col gap-4">
@@ -354,9 +342,8 @@
                             </div>
 
                             <div class="flex items-center justify-start">
-                                <button type="button" x-on:click="kirimUlangOtp()" :disabled="resendCooldown > 0 || loading"
-                                        class="text-xs font-semibold text-[#2563EB] hover:underline disabled:cursor-not-allowed disabled:text-[#9CA3AF]">
-                                    <span x-text="resendCooldown > 0 ? `Kirim ulang (${resendCooldown} dtk)` : 'Kirim ulang kode'"></span>
+                                <button type="button" x-on:click="startTimer()" class="text-xs font-semibold text-[#2563EB] hover:underline">
+                                    Kirim ulang kode
                                 </button>
                             </div>
                         </div>
@@ -367,9 +354,10 @@
                                 class="rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition hover:bg-gray-50">
                             Kembali
                         </button>
-                        <button type="button" x-on:click="simpanKataSandi()" :disabled="!isOtpComplete || loading"
+                        {{-- Sementara dummy. Nanti backend mengganti ini dengan form POST ke route verifikasi OTP. --}}
+                        <button type="button" x-on:click="simpanKataSandi()" :disabled="!isOtpComplete"
                                 class="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-                            <span x-text="loading ? 'Memverifikasi...' : 'Simpan Kata Sandi'"></span>
+                            Simpan Kata Sandi
                         </button>
                     </div>
                 </div>
@@ -385,9 +373,6 @@
             // --- Modal ---
             open: false,
             step: 1,
-            loading: false,
-            passwordError: '',
-            passwordSuccess: '',
             openPhotoModal: false,
             previewPhoto: null,
 
@@ -411,8 +396,6 @@
             otp: ['', '', '', '', '', ''],
             timer: 300,
             timerInterval: null,
-            resendCooldown: 0,
-            resendInterval: null,
 
             init() {
                 try {
@@ -447,8 +430,8 @@
             },
             get isOtpComplete() { return this.otp.every((d) => d !== ''); },
 
-            startTimer(seconds = 300) {
-                this.timer = seconds;
+            startTimer() {
+                this.timer = 300;
                 clearInterval(this.timerInterval);
                 this.timerInterval = setInterval(() => {
                     if (this.timer > 0) {
@@ -459,58 +442,17 @@
                 }, 1000);
             },
 
-            startResendCooldown(seconds = 60) {
-                this.resendCooldown = seconds;
-                clearInterval(this.resendInterval);
-                this.resendInterval = setInterval(() => {
-                    if (this.resendCooldown > 0) {
-                        this.resendCooldown--;
-                    } else {
-                        clearInterval(this.resendInterval);
+            goToStep2() {
+                if (!this.canSubmit) return;
+                this.step = 2;
+                this.startTimer();
+                setTimeout(() => {
+                    const first = document.getElementById('otp-0');
+                    if (first) {
+                        first.focus();
+                        first.select();
                     }
-                }, 1000);
-            },
-
-            async goToStep2() {
-                if (!this.canSubmit || this.loading) return;
-
-                this.passwordError = '';
-                this.loading = true;
-                try {
-                    const result = await this.postJson(this.$root.dataset.passwordOtpUrl, {
-                        password: this.pw,
-                        password_confirmation: this.confirm,
-                    });
-                    this.step = 2;
-                    this.startTimer(result.expires_in_seconds);
-                    this.startResendCooldown(result.resend_after_seconds);
-                    this.$nextTick(() => this.focusOtp(0));
-                } catch (error) {
-                    this.passwordError = error instanceof Error ? error.message : 'Kode OTP gagal dikirim. Coba lagi.';
-                } finally {
-                    this.loading = false;
-                }
-            },
-
-            async kirimUlangOtp() {
-                if (this.resendCooldown > 0 || this.loading) return;
-
-                this.passwordError = '';
-                this.loading = true;
-                try {
-                    const result = await this.postJson(this.$root.dataset.passwordOtpUrl, {
-                        password: this.pw,
-                        password_confirmation: this.confirm,
-                    });
-                    this.startTimer(result.expires_in_seconds);
-                    this.startResendCooldown(result.resend_after_seconds);
-                    this.otp = ['', '', '', '', '', ''];
-                    this.$nextTick(() => this.focusOtp(0));
-                } catch (error) {
-                    this.passwordError = error instanceof Error ? error.message : 'Kode OTP gagal dikirim. Coba lagi.';
-                } finally {
-                    this.loading = false;
-                }
+                }, 150);
             },
 
             // --- Handler OTP ---
@@ -559,50 +501,10 @@
                 this.focusOtp(Math.min(pasted.length, 5));
             },
 
-            async simpanKataSandi() {
-                if (!this.isOtpComplete || this.loading) return;
-
-                this.passwordError = '';
-                this.loading = true;
-                try {
-                    const result = await this.postJson(this.$root.dataset.passwordVerifyUrl, {
-                        otp: this.otp.join(''),
-                        password: this.pw,
-                        password_confirmation: this.confirm,
-                    });
-                    this.close();
-                    this.passwordSuccess = result.message;
-                } catch (error) {
-                    this.passwordError = error instanceof Error ? error.message : 'Kata sandi gagal diperbarui.';
-                } finally {
-                    this.loading = false;
-                }
-            },
-
-            async postJson(url, payload) {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-                const response = await fetch(url, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                    body: JSON.stringify(payload),
-                });
-                if (!response.headers.get('content-type')?.includes('application/json')) {
-                    throw new Error('Sesi login berakhir. Muat ulang halaman dan masuk kembali.');
-                }
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    const validationMessage = result.errors ? Object.values(result.errors).flat()[0] : null;
-                    throw new Error(validationMessage || result.message || 'Permintaan gagal. Coba lagi.');
-                }
-
-                return result;
+            simpanKataSandi() {
+                if (!this.isOtpComplete) return;
+                alert('Kata sandi berhasil disimpan!');
+                this.close();
             },
 
             close() {
@@ -613,10 +515,7 @@
                 this.showPw = false;
                 this.showConfirm = false;
                 this.otp = ['', '', '', '', '', ''];
-                this.passwordError = '';
                 clearInterval(this.timerInterval);
-                clearInterval(this.resendInterval);
-                this.resendCooldown = 0;
             },
 
             // --- Editor foto ---

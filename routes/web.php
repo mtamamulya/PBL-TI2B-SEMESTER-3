@@ -5,7 +5,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\MahasiswaController;
-use App\Http\Controllers\MahasiswaPasswordController;
 use App\Http\Controllers\PengajuanController;
 use App\Http\Middleware\MahasiswaOnly;
 use Illuminate\Support\Facades\Route;
@@ -97,12 +96,6 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/mata-kuliah/katalog', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'katalog')->name('mahasiswa.mata-kuliah.katalog');
     Route::get('/mahasiswa/mata-kuliah/riwayat', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'semua')->name('mahasiswa.mata-kuliah.riwayat');
     Route::view('/mahasiswa/profil', 'mahasiswa.mahasiswa.profil')->name('mahasiswa.profil');
-    Route::post('/mahasiswa/profil/kata-sandi/otp', [MahasiswaPasswordController::class, 'kirimOtp'])
-        ->middleware('throttle:5,1')
-        ->name('mahasiswa.password.otp');
-    Route::post('/mahasiswa/profil/kata-sandi/verifikasi', [MahasiswaPasswordController::class, 'verifikasi'])
-        ->middleware('throttle:5,1')
-        ->name('mahasiswa.password.verify');
     Route::prefix('mahasiswa')->name('mahasiswa.')->group(function () {
         Route::get('/prestasi', [MahasiswaController::class, 'prestasi'])
             ->name('prestasi');

@@ -137,6 +137,82 @@ class PengajuanFormTest extends TestCase
         }
     }
 
+    public function test_magang_submission_preserves_the_optional_advisor(): void
+    {
+        $this->get(route('pengajuan.create'))
+            ->assertOk()
+            ->assertSee('Dosen Pendamping')
+            ->assertSee('Masukkan nama dosen pendamping');
+
+        $this->post(route('pengajuan.store'), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Kuwat Santoso',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ])->assertRedirect(route('pengajuan.show', 101))
+            ->assertSessionHas('pengajuan.items.0.data.advisor', 'Kuwat Santoso');
+    }
+
+    public function test_database_magang_submission_persists_and_displays_the_advisor(): void
+    {
+        $jenis = DB::table('jenis_kegiatan')->insertGetId([
+            'nama_jenis_kegiatan' => 'Kegiatan Mahasiswa',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('kategori')->insert([
+            'id_jenis_kegiatan' => $jenis,
+            'nama_kategori' => 'Magang',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->post(route('pengajuan.store'), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Kuwat Santoso',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ])->assertRedirect(route('pengajuan.show', 1));
+
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => 1,
+            'dosen_pendamping' => 'Kuwat Santoso',
+        ]);
+
+        $this->get(route('pengajuan.show', 1))
+            ->assertOk()
+            ->assertSee('Dosen Pendamping')
+            ->assertSee('Kuwat Santoso');
+
+        $this->get(route('pengajuan.edit', 1))
+            ->assertOk()
+            ->assertSee('value="Kuwat Santoso"', false);
+
+        $this->put(route('pengajuan.update', 1), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Tahan Prahara',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ])->assertRedirect(route('pengajuan.show', 1));
+
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => 1,
+            'dosen_pendamping' => 'Tahan Prahara',
+        ]);
+    }
+
     public function test_documents_are_optional_and_have_no_count_limit(): void
     {
         $submission = [

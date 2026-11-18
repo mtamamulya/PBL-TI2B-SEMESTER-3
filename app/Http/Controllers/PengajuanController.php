@@ -545,6 +545,7 @@ class PengajuanController extends Controller
                     'start_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
                     'end_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
                     'description' => $detail['item']->deskripsi ?? '',
+                    'advisor' => $detail['item']->dosen_pendamping ?? '',
                     'participation' => 'Individu',
                     'level' => 'Nasional',
                     'organizer' => '-',
@@ -758,6 +759,7 @@ class PengajuanController extends Controller
                 'role' => ['required', 'string', 'max:255'],
                 'organizer' => ['required', 'string', 'max:255'],
                 'duration_months' => ['required', 'integer', 'min:1', 'max:60'],
+                'advisor' => ['nullable', 'string', 'max:255'],
             ],
             'Pengabdian' => [
                 'title' => ['required', 'string', 'max:255'],
@@ -845,6 +847,7 @@ class PengajuanController extends Controller
                 'id_kategori' => $kategori->id_kategori,
                 'id_user' => $idUser,
                 'nama_kegiatan' => $data['title'],
+                'dosen_pendamping' => $data['category'] === 'Magang' ? ($data['advisor'] ?? null) : null,
                 'lokasi' => $data['location'] ?? null,
                 'deskripsi' => $data['description'] ?? null,
                 'tanggal_mulai' => $data['start_date'] ?? null,
@@ -902,9 +905,20 @@ class PengajuanController extends Controller
                 ->where('nama_kategori', 'like', '%'.$request->input('category').'%')
                 ->first();
 
+            $namaKegiatan = $request->input('title') ?? $request->input('nama_kegiatan');
+            if ($request->input('category') === 'Magang') {
+                $magangData = $request->validate([
+                    'role' => ['required', 'string', 'max:255'],
+                    'organizer' => ['required', 'string', 'max:255'],
+                    'advisor' => ['nullable', 'string', 'max:255'],
+                ]);
+                $namaKegiatan = 'Magang '.$magangData['role'].' di '.$magangData['organizer'];
+            }
+
             $request->merge([
                 'id_kategori' => $kategori?->id_kategori,
-                'nama_kegiatan' => $request->input('title') ?? $request->input('nama_kegiatan'),
+                'nama_kegiatan' => $namaKegiatan,
+                'dosen_pendamping' => $request->input('category') === 'Magang' ? $request->input('advisor') : null,
             ]);
 
             $backend->apiUpdate($request, $id);
