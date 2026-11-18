@@ -77,7 +77,7 @@ trait PanggilApiWeb
                 }
             }
 
-            if (method_exists($user, 'createToken') && $user->getKey() !== null) {
+            if (method_exists($user, 'createToken') && $user->getKey() !== null && Schema::hasTable('personal_access_tokens')) {
                 $tokenSementara = $user->createToken('phpunit-web-bridge');
                 $headers['HTTP_AUTHORIZATION'] = 'Bearer '.$tokenSementara->plainTextToken;
             } else {
@@ -86,7 +86,7 @@ trait PanggilApiWeb
         }
 
         $apiRequest = Request::create(
-            '/api/v1/'.ltrim($path, '/'),
+            'http://api.internal/api/v1/'.ltrim($path, '/'),
             $metode,
             $data,
             [],
@@ -95,6 +95,7 @@ trait PanggilApiWeb
         );
 
         $requestAsli = request();
+        auth()->forgetGuards();
 
         try {
             $respons = app()->handle($apiRequest);
@@ -103,6 +104,7 @@ trait PanggilApiWeb
                 $tokenSementara->accessToken->delete();
             }
             app()->instance('request', $requestAsli);
+            auth()->forgetGuards();
             auth()->shouldUse($guardAsli);
             if ($user !== null) {
                 auth()->guard($guardAsli)->setUser($user);

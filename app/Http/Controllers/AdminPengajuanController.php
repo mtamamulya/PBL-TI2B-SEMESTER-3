@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\ApiClient;
+use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 
 /** Daftar pengajuan sisi admin dari API (Diajukan / Direvisi). */
 class AdminPengajuanController extends Controller
 {
+    use PanggilApiWeb;
+
     public function index()
     {
-        $hasil = ApiClient::pengguna()->get('/admin/pengajuan', [
+        $hasil = $this->apiGet('/admin/pengajuan', [
             'status' => 'antrean',
             'per_page' => 100,
         ]);

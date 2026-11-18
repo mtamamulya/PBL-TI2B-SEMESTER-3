@@ -63,10 +63,8 @@ tags:
     description: Kategori kegiatan beserta isian form pengajuan (baca semua pengguna login, tulis admin).
   - name: Pengajuan Admin
     description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
-<<<<<<< HEAD
   - name: Pengajuan Kaprodi
     description: Tinjauan dan penandatanganan pengajuan kegiatan oleh Kaprodi
-=======
   - name: Dosen
     description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
   - name: Mahasiswa
@@ -75,7 +73,7 @@ tags:
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
   - name: Berita
     description: Pengelolaan berita prodi (baca publik, tulis admin dan kaprodi, tinjau khusus admin).
->>>>>>> 7b2c06f807dc9aeef77ac7f18fcfab8f29cf5811
+
 
 paths:
 

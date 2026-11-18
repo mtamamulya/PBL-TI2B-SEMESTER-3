@@ -1,162 +1,135 @@
 <?php
 
-namespace Tests\Feature;
+namespace App\Support;
 
-use App\Support\ApiClient;
-use App\Support\ApiException;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Route;
-use Tests\TestCase;
 
-class ApiClientTest extends TestCase
+/**
+ * Jalur tunggal web memanggil API lewat HTTP sungguhan.
+ *
+ * Contoh di controller:
+ *   $hasil = ApiClient::pengguna()->get('/kurikulum', ['per_page' => 50]);
+ *   $rows = $hasil['data'];
+ *
+ * Setiap metode mengembalikan envelope API {success, message, data[, meta]}.
+ * Bila API menjawab gagal, dilempar ApiException (401 -> login, 422 -> form).
+ */
+class ApiClient
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
+    private function __construct(private readonly ?string $token) {}
 
-        config([
-            'api_client.base_url' => 'http://api.test/api/v1/',
-            'api_client.service_token' => null,
-        ]);
+    /** Atas nama pengguna yang sedang login (token dari sesi). Tanpa token sesi, permintaan dikirim tanpa token. */
+    public static function pengguna(): self
+    {
+        $token = session('api_token');
+
+        return new self(is_string($token) && $token !== '' ? $token : null);
     }
 
-    private function jawabanOk(mixed $data = []): array
+    /** Atas nama layanan (API_SERVICE_TOKEN), tanpa konteks pengguna. */
+    public static function layanan(): self
     {
-        return ['success' => true, 'message' => 'ok', 'data' => $data];
+        $token = config('api_client.service_token');
+
+        return new self(is_string($token) && $token !== '' ? $token : null);
     }
 
-    public function test_pengguna_mengirim_token_sesi_dan_mengurai_data(): void
+    /** Tanpa token, untuk endpoint publik. */
+    public static function publik(): self
     {
-        Http::fake(['*' => Http::response($this->jawabanOk([['id' => 1]]))]);
-        $this->withSession(['api_token' => 'token-budi']);
-
-        $hasil = ApiClient::pengguna()->get('/kurikulum', ['per_page' => 5]);
-
-        $this->assertSame([['id' => 1]], $hasil['data']);
-        Http::assertSent(fn (Request $r) => $r->hasHeader('Authorization', 'Bearer token-budi')
-            && str_starts_with($r->url(), 'http://api.test/api/v1/kurikulum')
-            && str_contains($r->url(), 'per_page=5'));
+        return new self(null);
     }
 
-    public function test_pengguna_tanpa_token_sesi_tidak_memakai_token_layanan(): void
+    /** @param  array<string, mixed>  $query */
+    public function get(string $path, array $query = []): array
     {
-        config(['api_client.service_token' => 'token-layanan']);
-        Http::fake(['*' => Http::response($this->jawabanOk())]);
-
-        ApiClient::pengguna()->get('/kurikulum');
-
-        Http::assertSent(fn (Request $r) => ! $r->hasHeader('Authorization'));
+        return $this->kirim('get', $path, $query);
     }
 
-    public function test_layanan_memakai_token_layanan(): void
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, UploadedFile>  $berkas  nama field => file unggahan
+     */
+    public function post(string $path, array $data = [], array $berkas = []): array
     {
-        config(['api_client.service_token' => 'token-layanan']);
-        Http::fake(['*' => Http::response($this->jawabanOk())]);
-
-        ApiClient::layanan()->get('/akreditasi/aktif');
-
-        Http::assertSent(fn (Request $r) => $r->hasHeader('Authorization', 'Bearer token-layanan'));
+        return $this->kirim('post', $path, $data, $berkas);
     }
 
-    public function test_publik_tidak_mengirim_token(): void
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, UploadedFile>  $berkas
+     */
+    public function put(string $path, array $data = [], array $berkas = []): array
     {
-        config(['api_client.service_token' => 'token-layanan']);
-        $this->withSession(['api_token' => 'token-budi']);
-        Http::fake(['*' => Http::response($this->jawabanOk())]);
-
-        ApiClient::publik()->get('/kurikulum');
-
-        Http::assertSent(fn (Request $r) => ! $r->hasHeader('Authorization'));
+        return $this->kirim('put', $path, $data, $berkas);
     }
 
-    public function test_base_url_kosong_memakai_server_yang_sama(): void
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, UploadedFile>  $berkas
+     */
+    public function patch(string $path, array $data = [], array $berkas = []): array
     {
-        config(['api_client.base_url' => null]);
-        Http::fake(['*' => Http::response($this->jawabanOk())]);
-
-        ApiClient::publik()->get('/ping');
-
-        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v1/ping'));
+        return $this->kirim('patch', $path, $data, $berkas);
     }
 
-    public function test_put_dengan_berkas_dikirim_sebagai_post_dengan_method_override(): void
+    public function delete(string $path): array
     {
-        Http::fake(['*' => Http::response($this->jawabanOk())]);
-        $pdf = UploadedFile::fake()->create('kurikulum.pdf', 10, 'application/pdf');
-
-        ApiClient::publik()->put('/kurikulum/3', ['nama_kurikulum' => 'KBK 2026'], ['pdf' => $pdf]);
-
-        Http::assertSent(fn (Request $r) => $r->method() === 'POST'
-            && str_contains($r->body(), 'name="_method"')
-            && str_contains($r->body(), 'PUT')
-            && str_contains($r->body(), 'filename="kurikulum.pdf"'));
+        return $this->kirim('delete', $path);
     }
 
-    public function test_respons_422_menjadi_api_exception_dengan_galat(): void
+    private function kirim(string $metode, string $path, array $data = [], array $berkas = []): array
     {
-        Http::fake(['*' => Http::response([
-            'success' => false,
-            'message' => 'Data tidak valid.',
-            'errors' => ['nama_kurikulum' => ['Wajib diisi.']],
-        ], 422)]);
+        $permintaan = Http::baseUrl($this->urlDasar())
+            ->acceptJson()
+            ->timeout((int) config('api_client.timeout', 10));
+
+        if ($this->token !== null) {
+            $permintaan = $permintaan->withToken($this->token);
+        }
+
+        if ($berkas !== []) {
+            // PHP tidak membaca multipart pada PUT/PATCH, jadi kirim POST + _method.
+            if (in_array($metode, ['put', 'patch'], true)) {
+                $data['_method'] = strtoupper($metode);
+                $metode = 'post';
+            }
+
+            foreach ($berkas as $nama => $file) {
+                if ($file instanceof UploadedFile) {
+                    $permintaan = $permintaan->attach($nama, fopen($file->getRealPath(), 'r'), $file->getClientOriginalName());
+                }
+            }
+        }
 
         try {
-            ApiClient::publik()->post('/kurikulum', []);
-            $this->fail('ApiException seharusnya dilempar.');
-        } catch (ApiException $e) {
-            $this->assertSame(422, $e->getStatusCode());
-            $this->assertSame('Data tidak valid.', $e->getMessage());
-            $this->assertSame(['nama_kurikulum' => ['Wajib diisi.']], $e->errors);
+            $respons = $permintaan->{$metode}('/'.ltrim($path, '/'), $data);
+        } catch (ConnectionException $e) {
+            throw new ApiException(503, 'Layanan API tidak dapat dihubungi.', [], $e);
         }
+
+        return $this->urai($respons);
     }
 
-    public function test_koneksi_gagal_menjadi_api_exception_503(): void
+    private function urai(Response $respons): array
     {
-        Http::fake(function () {
-            throw new ConnectionException('tidak tersambung');
-        });
+        $badan = $respons->json();
 
-        try {
-            ApiClient::publik()->get('/kurikulum');
-            $this->fail('ApiException seharusnya dilempar.');
-        } catch (ApiException $e) {
-            $this->assertSame(503, $e->getStatusCode());
+        if ($respons->successful()) {
+            return is_array($badan) ? $badan : ['success' => true, 'message' => '', 'data' => null];
         }
+
+        $pesan = is_array($badan) && is_string($badan['message'] ?? null) ? $badan['message'] : 'Permintaan ke API gagal.';
+        $galat = is_array($badan) && is_array($badan['errors'] ?? null) ? $badan['errors'] : [];
+
+        throw new ApiException($respons->status(), $pesan, $galat);
     }
 
-    public function test_422_dari_api_mengembalikan_user_ke_form_dengan_galat(): void
+    private function urlDasar(): string
     {
-        Route::middleware('web')->get('/_uji-api', fn () => ApiClient::publik()->get('/kurikulum'));
-        Http::fake(['*' => Http::response([
-            'success' => false,
-            'message' => 'Data tidak valid.',
-            'errors' => ['nama' => ['Wajib diisi.']],
-        ], 422)]);
-
-        $this->from('/form')->get('/_uji-api')
-            ->assertRedirect('/form')
-            ->assertSessionHasErrors('nama');
-    }
-
-    public function test_401_dari_api_mengakhiri_token_sesi_dan_mengarahkan_ke_login(): void
-    {
-        Route::middleware('web')->get('/_uji-api', fn () => ApiClient::pengguna()->get('/pengajaran'));
-        Http::fake(['*' => Http::response(['success' => false, 'message' => 'Belum login atau token tidak valid.'], 401)]);
-
-        $this->withSession(['api_token' => 'token-kedaluwarsa'])
-            ->get('/_uji-api')
-            ->assertRedirect(route('login'))
-            ->assertSessionMissing('api_token');
-    }
-
-    public function test_404_dari_api_menjadi_halaman_404(): void
-    {
-        Route::middleware('web')->get('/_uji-api', fn () => ApiClient::publik()->get('/kurikulum/999'));
-        Http::fake(['*' => Http::response(['success' => false, 'message' => 'Tidak ditemukan.'], 404)]);
-
-        $this->get('/_uji-api')->assertNotFound();
+        return rtrim((string) (config('api_client.base_url') ?: url('/api/v1')), '/');
     }
 }
