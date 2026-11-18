@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
+use App\Models\Kegiatan;
+use App\Models\Timeline;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
@@ -15,6 +21,46 @@ class PengajuanController extends Controller
     private const DELETED_KEY = 'pengajuan.deleted';
 
     private const EDITABLE = ['Diajukan', 'Direview', 'Perlu revisi'];
+
+    private function mapStatusLabel(?string $rawStatus): string
+    {
+        return match (strtolower((string) $rawStatus)) {
+            'diajukan' => 'Diajukan',
+            'direview' => 'Direview',
+            'diterima' => 'Disetujui',
+            'ditolak' => 'Ditolak',
+            'direvisi' => 'Perlu revisi',
+            'selesai' => 'Selesai',
+            default => 'Diajukan',
+        };
+    }
+
+    private function studentProfile(?User $user = null): array
+    {
+        $user = $user ?: Auth::user();
+        $mhs = $user?->mahasiswa;
+
+        return [
+            'name' => $mhs?->nama ?? $mhs?->nama_mahasiswa ?? config('mahasiswa.nama'),
+            'nim' => $mhs?->nim ?? config('mahasiswa.nim'),
+            'prodi' => $mhs?->prodi ?? $mhs?->program_studi ?? config('mahasiswa.prodi'),
+        ];
+    }
+
+    private function databaseKegiatan(): Collection
+    {
+        $user = Auth::user();
+
+        $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa']);
+
+        // Filter kegiatan milik user yang sedang login (atau anggota kegiatan);
+        // jika user yang login belum punya data kegiatan, tampilkan semua kegiatan dari DB agar tetap bisa diuji.
+        if ($user && Kegiatan::untukUser($user)->exists()) {
+            $query->untukUser($user);
+        }
+
+        return $query->orderByDesc('id_kegiatan')->get();
+    }
 
     private function items(): array
     {
@@ -347,6 +393,31 @@ class PengajuanController extends Controller
 
     private function rows(): Collection
     {
+        $kegiatanList = $this->databaseKegiatan();
+
+        if ($kegiatanList->isNotEmpty()) {
+            return $kegiatanList->map(function (Kegiatan $k) {
+                $statusLabel = $this->mapStatusLabel($k->statusTerkini?->status);
+                $categoryName = $k->kategori?->nama_kategori ?? 'Kegiatan';
+                $submittedAt = $k->timeline->first()?->tanggal_status
+                    ?? $k->created_at
+                    ?? now();
+
+                return [
+                    'id' => $k->id_kegiatan,
+                    'title' => $k->nama_kegiatan,
+                    'category' => $categoryName,
+                    'type' => $this->typeFor($categoryName),
+                    'status' => $statusLabel,
+                    'submitted_at' => Carbon::parse($submittedAt),
+                    'editable' => in_array($statusLabel, self::EDITABLE, true),
+                ];
+            })
+                ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
+                ->values();
+        }
+
+        // Fallback ke dummy jika tabel kegiatan di database masih kosong
         return $this->all()->map(fn ($i) => $this->toRow($i))
             ->sortByDesc(fn ($r) => $r['submitted_at']->timestamp * 1000 + $r['id'])
             ->values();
@@ -369,9 +440,14 @@ class PengajuanController extends Controller
     public function dashboard()
     {
         $submissions = $this->rows();
+        $profile = $this->studentProfile();
 
         return view('mahasiswa.pengajuan.dashboard', [
-            'mahasiswa' => config('mahasiswa'),
+            'mahasiswa' => array_merge(config('mahasiswa', []), [
+                'nama' => $profile['name'],
+                'nim' => $profile['nim'],
+                'prodi' => $profile['prodi'],
+            ]),
             'totalPengajuan' => $submissions->count(),
             'totalKegiatan' => $submissions->count(),
             'latestSubmissions' => $submissions->take(3),
@@ -438,6 +514,50 @@ class PengajuanController extends Controller
 
     public function edit(int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $detail = $backend->showDetailData($id);
+
+            $row = $detail['row'];
+            $status = $row['status'] ?? 'Diajukan';
+
+            abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
+
+            $kategoriNama = $row['category'] ?? 'Lomba';
+            $mappedCategory = match (true) {
+                str_contains(strtolower($kategoriNama), 'volunteer') => 'Volunteer',
+                str_contains(strtolower($kategoriNama), 'magang') => 'Magang',
+                str_contains(strtolower($kategoriNama), 'pengabdian') => 'Pengabdian',
+                default => 'Lomba',
+            };
+
+            $item = [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'category' => $mappedCategory,
+                'type' => $row['type'],
+                'status' => $status,
+                'submitted_at' => Carbon::parse($row['submitted_at'])->toIso8601String(),
+                'data' => [
+                    'title' => $row['title'],
+                    'category' => $mappedCategory,
+                    'location' => $detail['item']->lokasi ?? '',
+                    'start_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
+                    'end_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
+                    'description' => $detail['item']->deskripsi ?? '',
+                    'participation' => 'Individu',
+                    'level' => 'Nasional',
+                    'organizer' => '-',
+                ],
+                'documents' => [],
+            ];
+
+            return view('mahasiswa.pengajuan.create', [
+                'item' => $item,
+                'advisors' => $this->advisorOptions(),
+            ]);
+        }
+
         return view('mahasiswa.pengajuan.create', [
             'item' => $this->findEditable($id),
             'advisors' => $this->advisorOptions(),
@@ -451,6 +571,84 @@ class PengajuanController extends Controller
 
     public function show(int $id)
     {
+        $kegiatan = Kegiatan::with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
+            ->find($id);
+
+        if ($kegiatan) {
+            $timelines = $kegiatan->timeline;
+            $latestTimeline = $timelines->last();
+            $statusLabel = $this->mapStatusLabel($latestTimeline?->status);
+            $categoryName = $kegiatan->kategori?->nama_kategori ?? 'Kegiatan';
+            $submittedAt = $timelines->first()?->tanggal_status
+                ?? $kegiatan->created_at
+                ?? now();
+
+            $row = [
+                'id' => $kegiatan->id_kegiatan,
+                'title' => $kegiatan->nama_kegiatan,
+                'category' => $categoryName,
+                'type' => $this->typeFor($categoryName),
+                'status' => $statusLabel,
+                'submitted_at' => Carbon::parse($submittedAt),
+                'editable' => in_array($statusLabel, self::EDITABLE, true),
+                'review_note' => $latestTimeline?->catatan_revisi,
+            ];
+
+            $student = $this->studentProfile($kegiatan->user);
+
+            $actorMap = [
+                'diajukan' => $student['name'],
+                'direview' => 'Tim administrasi',
+                'diterima' => 'Reviewer akademik',
+                'ditolak' => 'Reviewer akademik',
+                'direvisi' => 'Reviewer akademik',
+                'selesai' => 'Tim administrasi',
+            ];
+
+            $defaultNoteMap = [
+                'diajukan' => 'Pengajuan dikirim untuk ditinjau.',
+                'direview' => 'Verifikasi persyaratan dan periode pengajuan.',
+                'diterima' => 'Pengajuan disetujui. Menunggu penerbitan dokumen hasil.',
+                'ditolak' => 'Pengajuan ditolak. Proses dihentikan.',
+                'direvisi' => 'Perlu perbaikan sesuai catatan reviewer.',
+                'selesai' => 'Dokumen diterbitkan dan proses pengajuan ditutup.',
+            ];
+
+            $steps = $timelines->isNotEmpty()
+                ? $timelines->map(function (Timeline $t) use ($actorMap, $defaultNoteMap) {
+                    $statusKey = strtolower($t->status);
+
+                    return [
+                        'title' => ucfirst($statusKey),
+                        'at' => Carbon::parse($t->tanggal_status ?? $t->created_at),
+                        'actor' => $actorMap[$statusKey] ?? 'Tim administrasi',
+                        'note' => $t->catatan_revisi ?: ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
+                    ];
+                })
+                : collect([[
+                    'title' => 'Diajukan',
+                    'at' => Carbon::parse($submittedAt),
+                    'actor' => $student['name'],
+                    'note' => 'Pengajuan dikirim untuk ditinjau.',
+                ]]);
+
+            $files = $kegiatan->dokumen->map(function ($doc) {
+                $path = $doc->path ?? $doc->file_path ?? $doc->url ?? null;
+                $name = $doc->nama_dokumen ?? $doc->name ?? ($path ? basename($path) : 'Dokumen pendukung');
+
+                return [
+                    'name' => $name,
+                    'meta' => $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
+                    'url' => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
+                ];
+            })->all();
+
+            $item = $kegiatan->toArray();
+
+            return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item'));
+        }
+
+        // Fallback jika ID belum ada di tabel kegiatan database
         $item = $this->find($id);
         $row = $this->toRow($item);
 
@@ -478,11 +676,7 @@ class PengajuanController extends Controller
             'title' => $s, 'at' => $meta[$s][0], 'actor' => $meta[$s][1], 'note' => $meta[$s][2],
         ]);
 
-        $student = [
-            'name' => config('mahasiswa.nama'),
-            'nim' => config('mahasiswa.nim'),
-            'prodi' => config('mahasiswa.prodi'),
-        ];
+        $student = $this->studentProfile();
 
         $files = collect($item['documents'] ?? [])->map(fn ($f) => [
             'name' => $f['name'] ?? 'Dokumen pendukung',
@@ -495,6 +689,14 @@ class PengajuanController extends Controller
 
     public function destroy(int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $backend->apiDestroy($id);
+
+            return redirect()->route('pengajuan.index')
+                ->with('success', 'Pengajuan berhasil dihapus.');
+        }
+
         $this->find($id);
 
         $items = collect($this->items())
@@ -629,6 +831,42 @@ class PengajuanController extends Controller
     private function saveSubmission(Request $request, string $showRoute)
     {
         $data = $this->validated($request);
+
+        $kategori = DB::table('kategori')
+            ->where('nama_kategori', 'like', '%'.$data['category'].'%')
+            ->first()
+            ?? DB::table('kategori')->first();
+
+        if ($kategori) {
+            $idUser = auth()->id()
+                ?? DB::table('users')->value('id_user');
+
+            $apiRequest = Request::create('/api/v1/pengajuan-mahasiswa', 'POST', [
+                'id_kategori' => $kategori->id_kategori,
+                'id_user' => $idUser,
+                'nama_kegiatan' => $data['title'],
+                'lokasi' => $data['location'] ?? null,
+                'deskripsi' => $data['description'] ?? null,
+                'tanggal_mulai' => $data['start_date'] ?? null,
+            ]);
+
+            if ($request->hasFile('lampiran')) {
+                $apiRequest->files->set('lampiran', $request->file('lampiran'));
+            }
+
+            $backend = new PengajuanMahasiswaController;
+            $response = $backend->apiStore($apiRequest);
+            $result = $response->getData(true);
+
+            $newId = $result['data']['id_kegiatan'] ?? null;
+
+            if ($newId) {
+                return redirect()->route($showRoute, $newId)
+                    ->with('success', 'Pengajuan berhasil dikirim ke database.');
+            }
+        }
+
+        // Fallback ke session saat tabel kategori masih kosong (misalnya di environment testing)
         $documents = $data['documents'] ?? [];
         unset($data['documents']);
 
@@ -647,14 +885,34 @@ class PengajuanController extends Controller
         ];
         session([self::KEY => $items]);
 
-        // TODO: ganti penyimpanan session dengan Eloquent (Submission::create) saat database siap.
-
         return redirect()->route($showRoute, $id)
             ->with('success', 'Pengajuan berhasil dikirim.');
     }
 
     public function update(Request $request, int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $detail = $backend->showDetailData($id);
+            $status = $detail['row']['status'] ?? 'Diajukan';
+
+            abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
+
+            $kategori = DB::table('kategori')
+                ->where('nama_kategori', 'like', '%'.$request->input('category').'%')
+                ->first();
+
+            $request->merge([
+                'id_kategori' => $kategori?->id_kategori,
+                'nama_kegiatan' => $request->input('title') ?? $request->input('nama_kegiatan'),
+            ]);
+
+            $backend->apiUpdate($request, $id);
+
+            return redirect()->route('pengajuan.show', $id)
+                ->with('success', 'Perubahan pengajuan berhasil disimpan.');
+        }
+
         $item = $this->findEditable($id);
         $data = $this->validated($request);
         $documents = $data['documents'] ?? [];

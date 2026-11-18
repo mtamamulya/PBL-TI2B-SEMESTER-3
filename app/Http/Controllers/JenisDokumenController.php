@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\JenisDokumen;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -10,13 +11,8 @@ class JenisDokumenController extends Controller
 {
     public function index()
     {
-        $rows = JenisDokumen::all()->map(function ($item) {
-            return [
-                'id' => $item->id_jenis_dokumen,
-                'name' => $item->nama_jenis_dokumen,
-                'description' => $item->keterangan, // Sekarang mengambil dari DB
-            ];
-        })->toArray();
+        $hasil = ApiClient::pengguna()->get('/jenis-dokumen', ['per_page' => 100]);
+        $rows = collect($hasil['data'] ?? [])->map(fn (array $item) => $this->bentukBaris($item))->all();
 
         return view('admin.jenis-dokumen', ['rows' => $rows]);
     }
@@ -25,62 +21,47 @@ class JenisDokumenController extends Controller
     {
         $data = $this->validasi($request);
 
-        if (JenisDokumen::where('nama_jenis_dokumen', $data['name'])->exists()) {
-            return $this->duplikat();
+        try {
+            $hasil = ApiClient::pengguna()->post('/jenis-dokumen', [
+                'nama_jenis_dokumen' => $data['name'],
+                'keterangan' => $data['description'] ?? null,
+            ]);
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
         }
-
-        $jenisDokumen = JenisDokumen::create([
-            'nama_jenis_dokumen' => $data['name'],
-            'keterangan' => $data['description'] ?? null, // Disimpan ke DB
-        ]);
 
         return response()->json([
             'ok' => true,
-            'row' => [
-                'id' => $jenisDokumen->id_jenis_dokumen,
-                'name' => $jenisDokumen->nama_jenis_dokumen,
-                'description' => $jenisDokumen->keterangan,
-            ],
+            'row' => $this->bentukBaris($hasil['data'] ?? []),
         ]);
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
         $data = $this->validasi($request);
-        $jenisDokumen = JenisDokumen::find($id);
 
-        if (! $jenisDokumen) {
-            return response()->json(['message' => 'Data tidak ditemukan.'], 404);
+        try {
+            $hasil = ApiClient::pengguna()->put("/jenis-dokumen/{$id}", [
+                'nama_jenis_dokumen' => $data['name'],
+                'keterangan' => $data['description'] ?? null,
+            ]);
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
         }
-
-        if (JenisDokumen::where('nama_jenis_dokumen', $data['name'])->where('id_jenis_dokumen', '!=', $id)->exists()) {
-            return $this->duplikat();
-        }
-
-        $jenisDokumen->update([
-            'nama_jenis_dokumen' => $data['name'],
-            'keterangan' => $data['description'] ?? null,
-        ]);
 
         return response()->json([
             'ok' => true,
-            'row' => [
-                'id' => $jenisDokumen->id_jenis_dokumen,
-                'name' => $jenisDokumen->nama_jenis_dokumen,
-                'description' => $jenisDokumen->keterangan,
-            ],
+            'row' => $this->bentukBaris($hasil['data'] ?? []),
         ]);
     }
 
     public function destroy(string $id): JsonResponse
     {
-        $jenisDokumen = JenisDokumen::find($id);
-
-        if (! $jenisDokumen) {
-            return response()->json(['message' => 'Data tidak ditemukan.'], 404);
+        try {
+            ApiClient::pengguna()->delete("/jenis-dokumen/{$id}");
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
         }
-
-        $jenisDokumen->delete();
 
         return response()->json(['ok' => true]);
     }
@@ -96,8 +77,28 @@ class JenisDokumenController extends Controller
         ]);
     }
 
-    private function duplikat(): JsonResponse
+    /** @param array<string, mixed> $item */
+    private function bentukBaris(array $item): array
     {
-        return response()->json(['message' => 'Nama jenis dokumen sudah ada.'], 422);
+        return [
+            'id' => $item['id_jenis_dokumen'] ?? null,
+            'name' => $item['nama_jenis_dokumen'] ?? '',
+            'description' => $item['keterangan'] ?? null,
+        ];
+    }
+
+    private function responGagalApi(ApiException $e): JsonResponse
+    {
+        $status = method_exists($e, 'getStatusCode')
+            ? $e->getStatusCode()
+            : ($e->status ?? ($e->getCode() ?: 422));
+
+        if ($status < 400 || $status > 599) {
+            $status = 422;
+        }
+
+        return response()->json([
+            'message' => $e->getMessage(),
+        ], $status);
     }
 }

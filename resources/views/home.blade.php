@@ -95,6 +95,11 @@
 
 @section('content')
 <style>
+    /* Slideshow hero */
+    [data-slide][data-active="true"] { opacity: 1 !important; }
+    [data-caption][data-active="true"] { opacity: 1 !important; pointer-events: auto !important; }
+    [data-dot][data-active="true"] { width: 1.75rem !important; background-color: #FFD121 !important; }
+
     /* Efek masuk section saat navbar diklik: isi section naik + memudar bergantian */
     [data-reveal].reveal-hide > * { opacity: 0; transform: translateY(36px); }
     [data-reveal].reveal-play > * { animation: revealUp .8s cubic-bezier(.16, 1, .3, 1) both; }
@@ -363,9 +368,9 @@
 
                         <span class="absolute left-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-semibold text-white" style="background: {{ $a['color'] }}">{{ $a['badge'] }}</span>
 
-                        <div class="absolute inset-x-0 bottom-0 flex min-h-[60px] flex-col justify-center gap-0.5 p-2.5 text-[#0B3A8C] {{ $a['img'] ? 'bg-[linear-gradient(180deg,rgba(153,125,20,0)_-70%,#FFD121_30%)]' : 'bg-[#F5C400]' }}">
+                        <div class="absolute inset-x-0 bottom-0 flex min-h-[60px] flex-col justify-center gap-0.5 p-2.5 text-[#0B3A8C] {{ data_get($a, 'img') ? 'bg-[linear-gradient(180deg,rgba(153,125,20,0)_-70%,#FFD121_30%)]' : 'bg-[#F5C400]' }}">
                             <div class="line-clamp-2 text-xs font-bold leading-tight">
-                                {{ $a['title'] }}
+                                {{ $a['title'] }}   
                             </div>
                             <div class="truncate text-[9px] font-medium">
                                 {{ $a['badge'] }}{{ $a['sub'] ? ' · '.$a['sub'] : '' }}
