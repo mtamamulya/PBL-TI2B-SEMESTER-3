@@ -265,8 +265,8 @@ class DbStoreTest extends TestCase
         ]);
 
         $idTa = DB::table('tahun_akademik')->insertGetId(['tahun_akademik' => 'Ganjil 2026/2027', 'status' => 1]);
-        $idKelas = DB::table('kelas')->insertGetId(['jenis_kelas' => 'B', 'keterangan' => 'Kelas B']);
-        $idTingkat = DB::table('tingkat')->insertGetId(['tingkat' => 2, 'keterangan' => 'Tingkat 2']);
+        $idKelas = DB::table('kelas')->where('jenis_kelas', 'B')->value('id_kelas');
+        $idTingkat = DB::table('tingkat')->where('tingkat', 2)->value('id_tingkat');
         $idEtk = DB::table('enrollment_tingkat_kelas')->insertGetId([
             'id_kelas' => $idKelas, 'id_prodi' => Prodi::query()->value('id_prodi'),
             'id_tingkat' => $idTingkat, 'id_tahun_akademik' => $idTa,
@@ -286,17 +286,11 @@ class DbStoreTest extends TestCase
         $this->assertSame([], $dosen->aktivitas($b['id'])['pengajaran']['items']);
     }
 
-    /** Data acuan akademik: prodi, kelas A-D, tingkat 1-4, dan tahun akademik (hanya Ganjil 2026/2027 yang aktif). */
+    /** Data acuan akademik: prodi dan tahun akademik (hanya Ganjil 2026/2027 yang aktif). */
     private function siapkanAkademik(): void
     {
         Prodi::query()->firstOrCreate(['kode_prodi' => 'TRK'], ['nama_prodi' => 'Teknologi Rekayasa Komputer', 'jenjang' => 'D4']);
 
-        foreach (['A', 'B', 'C', 'D'] as $k) {
-            DB::table('kelas')->insert(['jenis_kelas' => $k, 'keterangan' => "Kelas {$k}"]);
-        }
-        foreach ([1, 2, 3, 4] as $n) {
-            DB::table('tingkat')->insert(['tingkat' => $n, 'keterangan' => "Tingkat {$n}"]);
-        }
         foreach ([['Ganjil 2025/2026', 0], ['Genap 2025/2026', 0], ['Ganjil 2026/2027', 1], ['Genap 2026/2027', 0]] as [$nama, $status]) {
             DB::table('tahun_akademik')->insert(['tahun_akademik' => $nama, 'status' => $status]);
         }
