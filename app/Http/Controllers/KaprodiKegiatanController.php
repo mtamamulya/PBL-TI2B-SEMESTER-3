@@ -34,11 +34,11 @@ class KaprodiKegiatanController extends Controller
             }
         } catch (ApiException $e) {
             // 401/403 ditangani handler global (login / akses ditolak); selain itu tampilkan pesan di halaman.
-            if (in_array($e->getCode(), [401, 403], true)) {
+            if (in_array($e->getStatusCode(), [401, 403], true)) {
                 throw $e;
             }
-            \Log::error('Gagal memuat daftar kegiatan: '.$e->getMessage().' (Code: '.$e->getCode().')');
-            $apiError = $e->getMessage().' (Status: '.$e->getCode().')';
+            \Log::error('Gagal memuat daftar kegiatan: '.$e->getMessage().' (Status: '.$e->getStatusCode().')');
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
         // Tab "Semua" = gabungan ketiganya, terbaru di atas.

@@ -2,18 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\KegiatanData;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 
 class AdminKegiatanDosenDetailShowController extends Controller
 {
-    public function __construct(private KegiatanData $data) {}
-
-    /** Detail satu kegiatan dosen (baca saja), dari sumber data yang sama dengan daftar. */
+    /** Detail satu kegiatan dosen (baca saja), dari API GET /admin/kegiatan/{id}. */
     public function show(string $id)
     {
-        $row = $this->data->cari('dosen', $id);
+        try {
+            $hasil = ApiClient::pengguna()->get('/admin/kegiatan/'.rawurlencode($id));
+        } catch (ApiException $e) {
+            if ($e->getCode() === 404) {
+                abort(404, 'Kegiatan tidak ditemukan.');
+            }
+            if (in_array($e->getCode(), [401, 403], true)) {
+                throw $e;
+            }
+            \Log::error('Gagal memuat detail kegiatan: '.$e->getMessage().' (Code: '.$e->getCode().')');
 
-        abort_if($row === null, 404, 'Kegiatan tidak ditemukan.');
+            return redirect()->route('admin.kegiatan.dosen')->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
+        }
+
+        $row = is_array($hasil['data'] ?? null) ? $hasil['data'] : [];
+
+        // Halaman ini khusus kegiatan dosen; jenis lain dianggap tidak ditemukan.
+        abort_if($row === [] || (isset($row['jenis']) && $row['jenis'] !== 'dosen'), 404, 'Kegiatan tidak ditemukan.');
 
         $d = $this->susunDetail($row);
 
@@ -37,27 +51,45 @@ class AdminKegiatanDosenDetailShowController extends Controller
 
     private function susunDetail(array $row): array
     {
-        $judul = $this->ambil($row, ['kegiatan', 'nama_kegiatan', 'nama', 'judul', 'name', 'title']);
-        $pengaju = $this->ambil($row, ['dosen', 'pengaju', 'nama_dosen']);
+        $judul = $this->ambil($row, ['nama', 'nama_kegiatan', 'kegiatan', 'judul']);
+        $pengaju = $this->ambil($row, ['pengaju', 'dosen', 'nama_dosen']);
         $tanggal = $this->ambil($row, ['tanggal', 'tgl', 'date']);
-        $status = $this->ambil($row, ['status'], 'Diajukan');
+        $status = $this->ambil($row, ['status'], 'Disetujui');
 
-        // Riwayat: pakai bawaan data bila ada, kalau tidak disusun dari data yang tersedia.
-        $riwayat = $row['riwayat'] ?? [
-            "Diajukan oleh {$pengaju}, {$tanggal}",
-            $status === 'Diajukan' ? 'Menunggu verifikasi admin' : "Status saat ini: {$status}",
-        ];
+        // Riwayat: elemen boleh berupa teks atau objek {status, tanggal, keterangan}.
+        $riwayat = array_map(function ($r) {
+            if (is_array($r)) {
+                return trim(implode(' — ', array_filter([
+                    $r['status'] ?? $r['nama_status'] ?? null,
+                    $r['tanggal'] ?? $r['waktu'] ?? null,
+                    $r['keterangan'] ?? $r['catatan'] ?? null,
+                ])));
+            }
+
+            return (string) $r;
+        }, (array) ($row['riwayat'] ?? $row['timeline'] ?? []));
+
+        if ($riwayat === []) {
+            $riwayat = ["Diajukan oleh {$pengaju}, {$tanggal}", "Status saat ini: {$status}"];
+        }
+
+        $anggota = array_values(array_filter((array) ($row['anggota'] ?? []), 'is_array'));
+        $dokumen = array_values(array_filter((array) ($row['dokumen'] ?? []), 'is_array'));
 
         return [
             'judul' => $judul,
             'status' => $status,
             'pengaju' => $pengaju,
-            'kategori' => $this->ambil($row, ['kategori', 'category']),
+            'kategori' => $this->ambil($row, ['kategori', 'nama_kategori']),
             'jenis' => 'Kegiatan dosen',
             'penyelenggara' => $this->ambil($row, ['penyelenggara', 'organizer']),
             'tanggal' => $tanggal,
-            'anggota' => $row['anggota'] ?? [['nama' => $pengaju, 'status' => 'Pengaju']],
-            'dokumen' => $row['dokumen'] ?? [],
+            'anggota' => $anggota ?: [['nama' => $pengaju, 'status' => 'Pengaju']],
+            'dokumen' => array_map(fn ($x) => [
+                'nama' => $x['nama'] ?? $x['nama_dokumen'] ?? '-',
+                'kategori' => $x['kategori'] ?? $x['jenis_dokumen'] ?? '-',
+                'url' => $x['url'] ?? null,
+            ], $dokumen),
             'riwayat' => $riwayat,
         ];
     }
