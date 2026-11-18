@@ -22,8 +22,8 @@ class UpdateProfilRequest extends FormRequest
     {
         return [
             'nama.required' => 'Nama wajib diisi.',
-            'nama.string'   => 'Nama harus berupa teks.',
-            'nama.max'      => 'Nama maksimal 255 karakter.',
+            'nama.string' => 'Nama harus berupa teks.',
+            'nama.max' => 'Nama maksimal 255 karakter.',
         ];
     }
 }

@@ -17,14 +17,14 @@ class ProfilTest extends TestCase
     private function buatUserDosen(string $email = 'dosen.uji@polines.ac.id'): User
     {
         DB::table('roles')->insertOrIgnore([
-            'id_role'   => 2,
+            'id_role' => 2,
             'nama_role' => 'dosen',
         ]);
 
         return User::factory()->create([
             'id_role' => 2,
-            'email'   => $email,
-            'status'  => true,
+            'email' => $email,
+            'status' => true,
         ]);
     }
 
@@ -33,23 +33,23 @@ class ProfilTest extends TestCase
         $user = $this->buatUserDosen('dosen.uji@polines.ac.id');
         $dosen = Dosen::create([
             'id_user' => $user->id_user,
-            'nip'     => '198501012010121001',
-            'nama'    => 'Dr. Budi Santoso, M.Kom.',
+            'nip' => '198501012010121001',
+            'nama' => 'Dr. Budi Santoso, M.Kom.',
         ]);
 
         HistoriPangkatGolongan::create([
-            'id_dosen'   => $dosen->id_dosen,
-            'pangkat'    => 'Asisten Ahli',
-            'golongan'   => '3B',
-            'nomor_sk'   => 'SK/001/2020',
+            'id_dosen' => $dosen->id_dosen,
+            'pangkat' => 'Asisten Ahli',
+            'golongan' => '3B',
+            'nomor_sk' => 'SK/001/2020',
             'tanggal_sk' => '2020-05-01',
         ]);
 
         HistoriPangkatGolongan::create([
-            'id_dosen'   => $dosen->id_dosen,
-            'pangkat'    => 'Lektor',
-            'golongan'   => '3C',
-            'nomor_sk'   => 'SK/099/2024',
+            'id_dosen' => $dosen->id_dosen,
+            'pangkat' => 'Lektor',
+            'golongan' => '3C',
+            'nomor_sk' => 'SK/099/2024',
             'tanggal_sk' => '2024-10-01',
         ]);
 
@@ -60,13 +60,13 @@ class ProfilTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'success' => true,
-                'data'    => [
-                    'id_dosen'         => $dosen->id_dosen,
-                    'nama'             => 'Dr. Budi Santoso, M.Kom.',
-                    'nip'              => '198501012010121001',
-                    'email'            => 'dosen.uji@polines.ac.id',
+                'data' => [
+                    'id_dosen' => $dosen->id_dosen,
+                    'nama' => 'Dr. Budi Santoso, M.Kom.',
+                    'nip' => '198501012010121001',
+                    'email' => 'dosen.uji@polines.ac.id',
                     'pangkat_terakhir' => [
-                        'pangkat'  => 'Lektor',
+                        'pangkat' => 'Lektor',
                         'golongan' => '3C',
                         'nomor_sk' => 'SK/099/2024',
                     ],
@@ -79,15 +79,15 @@ class ProfilTest extends TestCase
         $user = $this->buatUserDosen('dosen.edit@polines.ac.id');
         $dosen = Dosen::create([
             'id_user' => $user->id_user,
-            'nip'     => '199002022015041002',
-            'nama'    => 'Nama Lama',
+            'nip' => '199002022015041002',
+            'nama' => 'Nama Lama',
         ]);
 
         Sanctum::actingAs($user);
 
         $response = $this->patchJson('/api/v1/dosen/profil', [
-            'nama'     => 'Nama Baru Gelar Baru',
-            'nip'      => '999999999999999999',
+            'nama' => 'Nama Baru Gelar Baru',
+            'nip' => '999999999999999999',
             'id_dosen' => 99999,
         ]);
 
@@ -102,8 +102,8 @@ class ProfilTest extends TestCase
         $user = $this->buatUserDosen('dosen.kosong@polines.ac.id');
         $dosen = Dosen::create([
             'id_user' => $user->id_user,
-            'nip'     => '199203032018031003',
-            'nama'    => 'Dosen Tanpa Riwayat',
+            'nip' => '199203032018031003',
+            'nama' => 'Dosen Tanpa Riwayat',
         ]);
 
         Sanctum::actingAs($user);
@@ -114,23 +114,23 @@ class ProfilTest extends TestCase
             ->assertExactJson([
                 'success' => true,
                 'message' => 'Riwayat pangkat dan golongan berhasil diambil.',
-                'data'    => [],
+                'data' => [],
             ]);
 
         // Tambahkan 2 riwayat dengan tanggal berbeda untuk cek urutan terbaru dulu
         HistoriPangkatGolongan::create([
-            'id_dosen'   => $dosen->id_dosen,
-            'pangkat'    => 'Asisten Ahli',
-            'golongan'   => '3B',
-            'nomor_sk'   => 'SK/LAMA/2021',
+            'id_dosen' => $dosen->id_dosen,
+            'pangkat' => 'Asisten Ahli',
+            'golongan' => '3B',
+            'nomor_sk' => 'SK/LAMA/2021',
             'tanggal_sk' => '2021-01-10',
         ]);
 
         HistoriPangkatGolongan::create([
-            'id_dosen'   => $dosen->id_dosen,
-            'pangkat'    => 'Lektor Kepala',
-            'golongan'   => '4A',
-            'nomor_sk'   => 'SK/BARU/2025',
+            'id_dosen' => $dosen->id_dosen,
+            'pangkat' => 'Lektor Kepala',
+            'golongan' => '4A',
+            'nomor_sk' => 'SK/BARU/2025',
             'tanggal_sk' => '2025-08-15',
         ]);
 
