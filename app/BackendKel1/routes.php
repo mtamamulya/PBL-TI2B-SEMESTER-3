@@ -7,6 +7,7 @@
 require __DIR__.'/Autentikasi/routes.php';
 require __DIR__.'/Kurikulum/routes.php';
 require __DIR__.'/TahunAkademik/routes.php';
+require __DIR__.'/TimelineKegiatan/routes.php';
 require __DIR__.'/Mahasiswa/routes.php';
 require __DIR__.'/MataKuliah/routes.php';
 require __DIR__.'/Akreditasi/routes.php';
