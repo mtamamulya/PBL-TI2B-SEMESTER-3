@@ -24,100 +24,84 @@ class AlurPengajuan
     /**
      * Mengajukan kegiatan pertama kali.
      */
-    public function ajukanBaru(int $idKegiatan, int $idDosen): Timeline
+    public function ajukanBaru(int $idKegiatan, int $idUser): Timeline
     {
-        return DB::transaction(function () use ($idKegiatan, $idDosen) {
-            // Kunci record kegiatan untuk mencegah race condition / klik ganda
+        return DB::transaction(function () use ($idKegiatan, $idUser) {
             $kegiatan = Kegiatan::where('id_kegiatan', $idKegiatan)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $this->validasiKepemilikan($kegiatan, $idDosen);
+            $this->validasiKepemilikan($kegiatan, $idUser);
             $this->validasiKelengkapan($kegiatan);
 
-            // Pastikan kegiatan belum pernah memiliki riwayat tahap pengajuan
-            $sudahAdaTimeline = Timeline::where('id_kegiatan', $idKegiatan)
-                ->lockForUpdate()
-                ->exists();
+            $sudahAdaRiwayat = Timeline::where('id_kegiatan', $kegiatan->id_kegiatan)->exists();
 
-            if ($sudahAdaTimeline) {
+            if ($sudahAdaRiwayat) {
                 throw ValidationException::withMessages([
-                    'status' => 'Kegiatan ini sudah pernah diajukan sebelumnya.',
+                    'status' => 'Kegiatan ini sudah pernah diajukan. Gunakan fitur ajukan ulang jika statusnya direvisi.',
                 ]);
             }
 
             return Timeline::create([
                 'id_kegiatan' => $kegiatan->id_kegiatan,
                 'status' => self::STATUS_DIAJUKAN,
-                'catatan' => null,
-                'id_aktor' => $idDosen,
+                'tanggal_status' => now(),
+                'catatan_revisi' => null,
             ]);
         });
     }
 
     /**
-     * Mengajukan ulang kegiatan yang berstatus direvisi.
+     * Mengajukan ulang kegiatan setelah direvisi dan dilengkapi.
      */
-    public function ajukanUlang(int $idKegiatan, int $idDosen, ?string $catatanPerbaikan = null): Timeline
+    public function ajukanUlang(int $idKegiatan, int $idUser, ?string $catatan = null): Timeline
     {
-        return DB::transaction(function () use ($idKegiatan, $idDosen, $catatanPerbaikan) {
+        return DB::transaction(function () use ($idKegiatan, $idUser, $catatan) {
             $kegiatan = Kegiatan::where('id_kegiatan', $idKegiatan)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $this->validasiKepemilikan($kegiatan, $idDosen);
+            $this->validasiKepemilikan($kegiatan, $idUser);
             $this->validasiKelengkapan($kegiatan);
 
-            // Ambil status terakhir dengan lock untuk mencegah pengiriman ganda bersamaan
-            $statusTerakhir = Timeline::where('id_kegiatan', $idKegiatan)
-                ->orderByDesc('id') // atau orderByDesc('created_at')
-                ->lockForUpdate()
+            $statusTerakhir = Timeline::where('id_kegiatan', $kegiatan->id_kegiatan)
+                ->orderByDesc('tanggal_status')
+                ->orderByDesc('id_timeline')
                 ->first();
 
             if (! $statusTerakhir || $statusTerakhir->status !== self::STATUS_DIREVISI) {
                 throw ValidationException::withMessages([
-                    'status' => 'Pengajuan ulang hanya dapat dilakukan jika status terakhir adalah direvisi.',
+                    'status' => 'Pengajuan ulang hanya dapat dilakukan ketika status terkini adalah direvisi.',
                 ]);
             }
 
-            // Menambah baris baru tanpa menghapus atau menimpa catatan revisi sebelumnya
             return Timeline::create([
                 'id_kegiatan' => $kegiatan->id_kegiatan,
                 'status' => self::STATUS_DIAJUKAN,
-                'catatan' => $catatanPerbaikan,
-                'id_aktor' => $idDosen,
+                'tanggal_status' => now(),
+                'catatan_revisi' => $catatan,
             ]);
         });
     }
 
-    /**
-     * Memastikan hanya dosen pemilik kegiatan yang dapat mengajukan.
-     */
-    private function validasiKepemilikan(Kegiatan $kegiatan, int $idDosen): void
+    private function validasiKepemilikan(Kegiatan $kegiatan, int $idUser): void
     {
-        // Sesuaikan nama kolom pemilik di tabel kegiatan (misal: id_dosen atau user_id)
-        if ((int) $kegiatan->id_dosen !== $idDosen) {
+        if ((int) $kegiatan->id_user !== $idUser) {
             abort(403, 'Anda tidak memiliki akses untuk mengajukan kegiatan ini.');
         }
     }
 
-    /**
-     * Memeriksa kelengkapan kategori dan lampiran sebelum diajukan.
-     */
     private function validasiKelengkapan(Kegiatan $kegiatan): void
     {
-        if (empty($kegiatan->kategori)) {
+        if (empty($kegiatan->id_kategori)) {
             throw ValidationException::withMessages([
-                'kategori' => 'Kategori kegiatan wajib diisi sebelum diajukan.',
+                'id_kategori' => 'Kategori kegiatan wajib diisi sebelum diajukan.',
             ]);
         }
 
-        // Sesuaikan pengecekan lampiran dengan struktur relasi/kolom di model Kegiatan
-        $punyaLampiran = ! empty($kegiatan->lampiran) || (method_exists($kegiatan, 'lampirans') && $kegiatan->lampirans()->exists());
-
-        if (! $punyaLampiran) {
+        if (! $kegiatan->dokumen()->exists()) {
             throw ValidationException::withMessages([
-                'lampiran' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',
+                'dokumen' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',
             ]);
         }
     }
