@@ -48,6 +48,7 @@ class PrestasiController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Daftar prestasi berhasil diambil.',
             'data' => $data->items(),
             'meta' => [
                 'current_page' => $data->currentPage(),
@@ -77,7 +78,7 @@ class PrestasiController extends Controller
                 ->map(fn ($p) => ['id_user' => $p->id_user, 'nama' => $p->nama, 'status' => 'Mahasiswa']))
             ->sortBy('nama')->values();
 
-        return response()->json(['success' => true, 'data' => [
+        return response()->json(['success' => true, 'message' => 'Opsi form prestasi berhasil diambil.', 'data' => [
             'kegiatan' => $kegiatan,
             'kandidat' => $kandidat,
             'pengaju' => ['id_user' => $user->getKey(), 'nama' => $user->dosen?->nama ?? $user->email, 'status' => 'Dosen'],
@@ -116,12 +117,12 @@ class PrestasiController extends Controller
             ->map(fn ($user) => $user->dosen?->nama ?? $user->mahasiswa?->nama ?? $user->email)
             ->values();
 
-        return response()->json(['success' => true, 'data' => $prestasi, 'penerima' => $penerima]);
+        return response()->json(['success' => true, 'message' => 'Detail prestasi berhasil diambil.', 'data' => $prestasi, 'penerima' => $penerima]);
     }
 
     public function update(PrestasiRequest $request, int $id)
     {
-        $prestasi = Prestasi::where('id_user', $request->user()->getKey())->findOrFail($id);
+        $prestasi = Prestasi::untukUser($request->user())->findOrFail($id);
         $validated = $request->validated();
         DB::transaction(function () use ($prestasi, $validated) {
             $prestasi->update($this->atribut($validated, $prestasi->lokasi ?? 'Semarang'));
@@ -137,7 +138,7 @@ class PrestasiController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        Prestasi::where('id_user', $request->user()->getKey())->findOrFail($id)->delete();
+        Prestasi::untukUser($request->user())->findOrFail($id)->delete();
 
         return response()->json(['success' => true, 'message' => 'Prestasi dihapus']);
     }
@@ -145,7 +146,7 @@ class PrestasiController extends Controller
     private function atribut(array $validated, string $lokasi = 'Semarang'): array
     {
         return [
-            'id_kegiatan' => $validated['sumber'] === 'kegiatan' ? $validated['id_kegiatan'] : null,
+            'id_kegiatan' => ($validated['sumber'] ?? 'mandiri') === 'kegiatan' ? ($validated['id_kegiatan'] ?? null) : null,
             'nama_lomba' => $validated['nama_prestasi'],
             'penyelenggara' => $validated['penyelenggara'],
             'tingkat_kejuaraan' => $validated['tingkat'],
@@ -154,7 +155,7 @@ class PrestasiController extends Controller
             'tanggal_selesai' => $validated['tanggal_selesai'],
             'capaian' => $validated['capaian'],
             'bidang_lomba' => $validated['kategori'] ?? null,
-            'bentuk_partisipasi' => strtolower($validated['bentuk']),
+            'bentuk_partisipasi' => strtolower($validated['bentuk'] ?? 'individu'),
             'lokasi' => $validated['lokasi'] ?? $lokasi,
             'deskripsi' => $validated['deskripsi'] ?? null,
         ];
@@ -166,8 +167,8 @@ class PrestasiController extends Controller
             $daftarAnggota = collect($validated['anggota'] ?? [])->map(function ($item) {
                 $nama = $item['nama'] ?? '';
                 $idUser = $item['id_user']
-                ?? Dosen::where('nama', $nama)->value('id_user')
-                ?? Mahasiswa::where('nama', $nama)->value('id_user');
+                    ?? Dosen::where('nama', $nama)->value('id_user')
+                    ?? Mahasiswa::where('nama', $nama)->value('id_user');
                 $peran = strtolower($item['peran'] ?? 'anggota');
 
                 return [
