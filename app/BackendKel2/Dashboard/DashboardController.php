@@ -86,5 +86,5 @@ class DashboardController extends Controller
         abort_unless($user instanceof User, 401);
 
         return $user;
-    }
-}
+    } 
+} 
