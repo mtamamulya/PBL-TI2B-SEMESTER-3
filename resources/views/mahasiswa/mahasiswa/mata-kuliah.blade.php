@@ -17,7 +17,7 @@
     ][$tab];
 
     $ketKartu = [
-        'semua'    => 'Temukan mata kuliah berdasarkan tingkat, periode, atau nama mata kuliah.',
+        'semua'    => 'Temukan mata kuliah berdasarkan tingkat, periode, nama mata kuliah, atau nama dosen.',
         'berjalan' => 'Daftar mata kuliah yang ditetapkan untuk semester aktif Anda.',
         'katalog'  => 'Temukan mata kuliah berdasarkan tingkat, semester, tahun akademik, atau nama mata kuliah.',
     ][$tab];
@@ -30,6 +30,7 @@
 
     $n = $rows->count();
     $pakaiSks = $tab === 'berjalan';
+    $tampilDosen = $tab !== 'katalog';
     $kolomAkhir = $pakaiSks ? 'SKS' : 'Tahun Akademik';
     $tingkatOpsi = [1 => 'Tingkat 1', 2 => 'Tingkat 2', 3 => 'Tingkat 3', 4 => 'Tingkat 4'];
     $tahunOptions = array_combine($tahunList, $tahunList) ?: [];
@@ -121,7 +122,8 @@
                   class="grid grid-cols-1 gap-3 rounded-xl border border-[#EEF0F3] bg-[#F9FAFB] p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_180px_88px]">
                 <div class="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3.5 transition-colors focus-within:border-[#27F] sm:col-span-2 xl:col-span-1">
                     <svg class="size-4 shrink-0 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0"/><path d="M21 21l-6-6"/></svg>
-                    <input type="search" name="q" value="{{ $filter['q'] }}" data-live-search placeholder="Cari mata kuliah..."
+                    <input type="search" name="q" value="{{ $filter['q'] }}" data-live-search
+                           placeholder="{{ $tampilDosen ? 'Cari mata kuliah atau dosen...' : 'Cari mata kuliah...' }}"
                            class="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#A8A8A8]">
                 </div>
 
@@ -143,10 +145,6 @@
                 </a>
                 <button type="submit" class="sr-only">Terapkan</button>
             </form>
-
-            <div class="flex gap-3 rounded-xl bg-[#EEF4FF]">
-                
-            </div>
         @elseif ($tab === 'katalog')
             <div class="flex gap-3 rounded-xl bg-[#EEF4FF] px-4 py-3.5 text-[#003385]">
                 {!! $infoIcon !!}
@@ -155,24 +153,31 @@
                     <p class="text-sm leading-5">Katalog menampilkan referensi mata kuliah Tingkat 1 sampai Tingkat 4. Data ini bukan daftar paket semester yang sedang ditempuh.</p>
                 </div>
             </div>
-        @else
-            <div class="flex gap-3 rounded-xl bg-[#EEF4FF]">
-             
-            </div>
         @endif
 
         {{-- Tabel desktop --}}
         <div class="hidden overflow-x-auto rounded-lg border border-[#E5E7EB] md:block">
-            <table class="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
+            <table class="w-full {{ $tampilDosen ? 'min-w-[760px]' : 'min-w-[640px]' }} table-fixed border-collapse text-left text-sm">
                 <colgroup>
-                    <col class="w-[46%]">
-                    <col class="w-[18%]">
-                    <col class="w-[18%]">
-                    <col class="w-[18%]">
+                    @if ($tampilDosen)
+                        <col class="w-[30%]">
+                        <col class="w-[26%]">
+                        <col class="w-[14%]">
+                        <col class="w-[14%]">
+                        <col class="w-[16%]">
+                    @else
+                        <col class="w-[46%]">
+                        <col class="w-[18%]">
+                        <col class="w-[18%]">
+                        <col class="w-[18%]">
+                    @endif
                 </colgroup>
                 <thead class="bg-[#F3F4F6]">
                     <tr class="text-[#111827]">
                         <th scope="col" class="px-4 py-2.5 font-semibold">Mata Kuliah</th>
+                        @if ($tampilDosen)
+                            <th scope="col" class="px-4 py-2.5 font-semibold">Dosen Pengampu</th>
+                        @endif
                         <th scope="col" class="px-4 py-2.5 font-semibold">Tingkat</th>
                         <th scope="col" class="px-4 py-2.5 font-semibold">Semester</th>
                         <th scope="col" class="px-4 py-2.5 font-semibold">{{ $kolomAkhir }}</th>
@@ -182,24 +187,31 @@
                     @forelse ($barisTampil as $r)
                         <tr class="hover:bg-[#F9FAFB]">
                             <td class="truncate px-4 py-2.5" title="{{ $r['mk'] }}">{{ $r['mk'] }}</td>
+                            @if ($tampilDosen)
+                                <td class="truncate px-4 py-2.5" title="{{ $r['dosen'] ?: '—' }}">{{ $r['dosen'] ?: '—' }}</td>
+                            @endif
                             <td class="px-4 py-2.5">Tingkat {{ $r['tingkat'] }}</td>
                             <td class="px-4 py-2.5">{{ $r['periode'] }}</td>
                             <td class="px-4 py-2.5">{{ $pakaiSks ? ($r['sks'] ?? '—') : ($r['tahun'] ?? '—') }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-4 py-10 text-center text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</td>
+                            <td colspan="{{ $tampilDosen ? 5 : 4 }}" class="px-4 py-10 text-center text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
 
+        {{-- Tampilan mobile --}}
         <div class="flex flex-col gap-3 md:hidden">
             @forelse ($barisTampil as $r)
                 <article class="flex min-w-0 flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3.5">
                     <div class="min-w-0">
                         <h3 class="break-words text-sm font-semibold text-[#111827]">{{ $r['mk'] }}</h3>
+                        @if ($tampilDosen && filled($r['dosen'] ?? null))
+                            <p class="mt-1 break-words text-xs text-[#6B7280]">{{ $r['dosen'] }}</p>
+                        @endif
                     </div>
                     <dl class="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#EEF0F3] pt-3 text-xs">
                         <div>
