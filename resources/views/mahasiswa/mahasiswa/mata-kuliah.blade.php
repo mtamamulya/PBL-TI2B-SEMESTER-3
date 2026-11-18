@@ -17,7 +17,7 @@
     ][$tab];
 
     $ketKartu = [
-        'semua'    => 'Temukan mata kuliah berdasarkan tingkat, periode, atau nama dosen.',
+        'semua'    => 'Temukan mata kuliah berdasarkan tingkat, periode, atau nama mata kuliah.',
         'berjalan' => 'Daftar mata kuliah yang ditetapkan untuk semester aktif Anda.',
         'katalog'  => 'Temukan mata kuliah berdasarkan tingkat, semester, tahun akademik, atau nama mata kuliah.',
     ][$tab];
@@ -87,8 +87,6 @@
                 </div>
                 <span class="{{ $badgeCls }}">Paket semester</span>
             </div>
-
-        
 
             <dl class="grid grid-cols-1 divide-y divide-[#E5E7EB] overflow-hidden rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <div class="px-5 py-4">
@@ -165,18 +163,16 @@
 
         {{-- Tabel desktop --}}
         <div class="hidden overflow-x-auto rounded-lg border border-[#E5E7EB] md:block">
-            <table class="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
+            <table class="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
                 <colgroup>
-                    <col class="w-[30%]">
-                    <col class="w-[26%]">
-                    <col class="w-[14%]">
-                    <col class="w-[14%]">
-                    <col class="w-[16%]">
+                    <col class="w-[46%]">
+                    <col class="w-[18%]">
+                    <col class="w-[18%]">
+                    <col class="w-[18%]">
                 </colgroup>
                 <thead class="bg-[#F3F4F6]">
                     <tr class="text-[#111827]">
                         <th scope="col" class="px-4 py-2.5 font-semibold">Mata Kuliah</th>
-                        <th scope="col" class="px-4 py-2.5 font-semibold">Dosen Pengampu</th>
                         <th scope="col" class="px-4 py-2.5 font-semibold">Tingkat</th>
                         <th scope="col" class="px-4 py-2.5 font-semibold">Semester</th>
                         <th scope="col" class="px-4 py-2.5 font-semibold">{{ $kolomAkhir }}</th>
@@ -186,14 +182,13 @@
                     @forelse ($barisTampil as $r)
                         <tr class="hover:bg-[#F9FAFB]">
                             <td class="truncate px-4 py-2.5" title="{{ $r['mk'] }}">{{ $r['mk'] }}</td>
-                            <td class="truncate px-4 py-2.5" title="{{ $r['dosen'] }}">{{ $r['dosen'] }}</td>
                             <td class="px-4 py-2.5">Tingkat {{ $r['tingkat'] }}</td>
                             <td class="px-4 py-2.5">{{ $r['periode'] }}</td>
                             <td class="px-4 py-2.5">{{ $pakaiSks ? ($r['sks'] ?? '—') : ($r['tahun'] ?? '—') }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-10 text-center text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</td>
+                            <td colspan="4" class="px-4 py-10 text-center text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -205,7 +200,6 @@
                 <article class="flex min-w-0 flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3.5">
                     <div class="min-w-0">
                         <h3 class="break-words text-sm font-semibold text-[#111827]">{{ $r['mk'] }}</h3>
-                        <p class="mt-1 break-words text-xs text-[#6B7280]">{{ $r['dosen'] }}</p>
                     </div>
                     <dl class="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#EEF0F3] pt-3 text-xs">
                         <div>
