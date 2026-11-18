@@ -10,12 +10,16 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {
-        Schema::create('dokumen_terlampirs', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
-        });
-    }
+{
+    Schema::create('dokumen_terlampirs', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('dokumen_surat_id')->constrained('dokumen_surats')->onDelete('cascade');
+        $table->string('nama_file');
+        $table->string('jenis_dokumen')->nullable();
+        $table->string('file_path');
+        $table->timestamps();
+    });
+}
 
     /**
      * Reverse the migrations.
