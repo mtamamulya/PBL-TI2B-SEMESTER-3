@@ -1,7 +1,7 @@
 <?php
 
-use App\BackendKel3\PrestasiBerita\PrestasiController;
 use App\BackendKel3\PrestasiBerita\BeritaController;
+use App\BackendKel3\PrestasiBerita\PrestasiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('prestasi')->name('prestasi.')->group(function () {

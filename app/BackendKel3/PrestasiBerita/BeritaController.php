@@ -53,7 +53,7 @@ class BeritaController extends Controller
         $user = $request->user();
         $validated = $request->validated();
 
-        if (!empty($validated['id_kegiatan'])) {
+        if (! empty($validated['id_kegiatan'])) {
             Kegiatan::untukUser($user)->findOrFail($validated['id_kegiatan']);
         }
 
@@ -63,13 +63,13 @@ class BeritaController extends Controller
         }
 
         $berita = Berita::create([
-            'id_user'        => $user->id_user,
-            'id_kegiatan'    => $validated['id_kegiatan'] ?? null,
-            'judul_berita'   => $validated['judul_berita'],
-            'isi_berita'     => $validated['isi_berita'],
-            'sampul'         => $pathSampul ? Storage::url($pathSampul) : null,
-            'status'         => $validated['status'] ?? 'draft',
-            'tanggal_publish'=> ($validated['status'] ?? 'draft') === 'publish' ? now() : null,
+            'id_user' => $user->id_user,
+            'id_kegiatan' => $validated['id_kegiatan'] ?? null,
+            'judul_berita' => $validated['judul_berita'],
+            'isi_berita' => $validated['isi_berita'],
+            'sampul' => $pathSampul ? Storage::url($pathSampul) : null,
+            'status' => $validated['status'] ?? 'draft',
+            'tanggal_publish' => ($validated['status'] ?? 'draft') === 'publish' ? now() : null,
         ]);
 
         return response()->json([
@@ -93,10 +93,10 @@ class BeritaController extends Controller
     {
         $user = $request->user();
         $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
-        
+
         $validated = $request->validated();
 
-        if (!empty($validated['id_kegiatan'])) {
+        if (! empty($validated['id_kegiatan'])) {
             Kegiatan::untukUser($user)->findOrFail($validated['id_kegiatan']);
         }
 
@@ -110,7 +110,7 @@ class BeritaController extends Controller
             unset($validated['sampul']);
         }
 
-        if (($validated['status'] ?? $berita->status) === 'publish' && !$berita->tanggal_publish) {
+        if (($validated['status'] ?? $berita->status) === 'publish' && ! $berita->tanggal_publish) {
             $validated['tanggal_publish'] = now();
         }
 
