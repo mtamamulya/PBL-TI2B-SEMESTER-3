@@ -1,18 +1,7 @@
 <?php
 
-use App\BackendKel3\Autentikasi\PastikanDosenAktif;
-use Illuminate\Support\Facades\Route;
+// Memuat file rute dari sub-modul Penelitian di dalam BackendKel3
+require __DIR__.'/Penelitian/routes.php';
 
-Route::middleware(['auth:sanctum', PastikanDosenAktif::class])->group(function () {
-    require __DIR__.'/Pengajaran/routes.php';
-
-    Route::prefix('dosen')->name('api.dosen.')->group(function () {
-        require __DIR__.'/Profil/routes.php';
-        require __DIR__.'/Penelitian/routes.php';
-        require __DIR__.'/Pengabdian/routes.php';
-        require __DIR__.'/Pengajuan/routes.php';
-        require __DIR__.'/DokumenSurat/routes.php';
-        require __DIR__.'/PrestasiBerita/routes.php';
-        require __DIR__.'/Dashboard/routes.php';
-    });
-});
+// Jika nanti ada sub-modul lain (seperti Pengabdian/Pengajaran), bisa ditambahkan di bawah sini:
+// require __DIR__ . '/Pengabdian/routes.php';

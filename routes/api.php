@@ -18,12 +18,10 @@ Route::get('/ping', function () {
         'data' => [
             'status' => 'ok',
             'service' => 'sikap-kelompok3',
-            'time' => now()->toIso8601String(),
+            'time' => now()->toISOString(),
         ],
     ], 200);
 });
-
-// Autentikasi API (token Sanctum)
 
 /*
 |--------------------------------------------------------------------------
