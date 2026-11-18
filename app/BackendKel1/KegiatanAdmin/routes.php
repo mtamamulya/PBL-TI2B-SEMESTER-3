@@ -1,7 +1,7 @@
 <?php
 
+use App\BackendKel1\Autentikasi\PeranApi;
 use App\BackendKel1\KegiatanAdmin\KegiatanAdminController;
-use App\Http\Middleware\PeranApi;
 use Illuminate\Support\Facades\Route;
 
 // Admin (role 1) dan kaprodi (role 2). Hapus kegiatan hanya admin (dicek di controller).
