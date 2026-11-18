@@ -2,103 +2,77 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Kegiatan;
-use App\Repositories\KategoriKegiatanStore;
-use App\Repositories\PengajuanStore;
-use App\Repositories\SuratPersetujuanStore;
+use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 /**
- * Halaman detail Pengajuan Kegiatan (admin): lihat data + keputusan
- * (Setujui / Minta revisi / Tolak) + nomor surat.
- *
- * PERUBAHAN: data kini dari PengajuanStore (bukan dummy + JSON sendiri).
- * "Setujui" TIDAK lagi langsung berstatus Disetujui. Statusnya "Menunggu Tanda Tangan":
- * surat (snapshot) dibuat dan dikirim ke kaprodi. "Disetujui" baru terjadi setelah kaprodi menandatangani.
- *
- * TODO-DB: nama/NIP kaprodi diambil dari data Kaprodi aktif.
+ * Halaman detail Pengajuan Kegiatan (admin) terhubung ke Backend API.
  */
 class AdminTinjauPengajuanController extends Controller
 {
-    private const STATUS = [
-        'revisi' => 'Direvisi',
-        'tolak' => 'Ditolak',
-    ];
+    use PanggilApiWeb;
 
-    // TODO-DB: ambil dari data Kaprodi yang sedang aktif
     private const NAMA_KAPRODI = 'Nama Kaprodi';
 
     private const NIP_KAPRODI = '198001012010101001';
 
-    // Token sementara agar nomor surat bisa diperbarui live lewat JS
     private const TOKEN_NOMOR = '@@NOMOR_SURAT@@';
-
-    public function __construct(
-        private PengajuanStore $pengajuan,
-        private SuratPersetujuanStore $surat,
-    ) {}
 
     public function show(string $id)
     {
-        $p = $this->pengajuan->cari($id);
-        $k = $this->susun($p);
+        $hasil = $this->apiGet("/admin/pengajuan/{$id}");
+        $p = $hasil['data'] ?? [];
 
-        $status = $p->status;
-        $nomorSurat = $p->nomor_surat;
-        $catatan = $p->catatan;
-        $riwayat = $k['riwayat'];
+        $status = $this->labelStatus($p['status'] ?? 'diajukan');
+        $nomorSurat = $p['nomor_sk'] ?? null;
+        $catatan = $p['catatan_revisi'] ?? null;
 
-        // Surat yang sudah dikirim ke kaprodi / disetujui memakai snapshot, jadi edit template tidak mengubah surat lama
-        $dikunci = in_array($status, [PengajuanStore::MENUNGGU_TTD, 'Disetujui'], true);
-        $snapshot = $dikunci ? $this->surat->find((string) $p->id) : null;
+        $info = $this->susunInfo($p);
+        $anggota = $this->susunAnggota($p);
+        $dokumen = $this->susunDokumen($p);
+        $riwayat = $this->susunRiwayat($p);
 
-        if ($snapshot && ! empty($snapshot['isi_surat'])) {
-            $isiSurat = nl2br(e($snapshot['isi_surat']));
-            $tanggalSurat = $snapshot['tanggal_surat'] ?? null;
-            $namaKaprodi = $snapshot['kaprodi']['nama'] ?? self::NAMA_KAPRODI;
-            $nipKaprodi = $snapshot['kaprodi']['nip'] ?? self::NIP_KAPRODI;
-        } else {
-            $isiSurat = $this->buatIsiSurat($k, $nomorSurat);
-            $tanggalSurat = null;
-            $namaKaprodi = self::NAMA_KAPRODI;
-            $nipKaprodi = self::NIP_KAPRODI;
-        }
+        $k = [
+            'judul' => $p['nama_kegiatan'] ?? '-',
+            'info' => $info,
+        ];
 
-        $adaLampiran = $snapshot && array_key_exists('lampiran_peserta', $snapshot)
-            ? (bool) $snapshot['lampiran_peserta']
-            : $this->pakaiLampiran($k);
-        $peserta = $snapshot['peserta'] ?? $k['anggota'];
+        $isiSurat = $this->buatIsiSurat($p['template_surat'] ?? null, $k, $nomorSurat);
+        $tanggalSurat = ! empty($p['tanggal_sk'])
+            ? Carbon::parse($p['tanggal_sk'])->locale('id')->translatedFormat('j F Y')
+            : null;
 
-        // Berkas pengaju yang dicentang admin sebagai lampiran (dari input lama jika validasi gagal, atau dari snapshot)
-        $namaLampiran = array_column($snapshot['lampiran_dokumen'] ?? [], 'nama');
+        // Lampiran terpilih dari status is_lampiran di database atau old input saat validasi gagal
         $lampiranTerpilih = [];
-        foreach ($k['dokumen'] as $i => $d) {
+        foreach (($p['dokumen'] ?? []) as $i => $doc) {
             $dipilih = session()->hasOldInput()
                 ? in_array($i, array_map('intval', (array) old('lampiran', [])), true)
-                : in_array($d[0], $namaLampiran, true);
+                : (bool) ($doc['is_lampiran'] ?? false);
+
             if ($dipilih) {
                 $lampiranTerpilih[] = $i;
             }
         }
 
         return view('admin.tinjau-pengajuan', [
-            'id' => (string) $p->id,
-            'judul' => $k['judul'],
+            'id' => (string) ($p['id_kegiatan'] ?? $id),
+            'judul' => $p['nama_kegiatan'] ?? '-',
             'status' => $status,
-            'info' => $k['info'],
-            'anggota' => $k['anggota'],
-            'dokumen' => $k['dokumen'],
+            'info' => $info,
+            'anggota' => $anggota,
+            'dokumen' => $dokumen,
             'riwayat' => $riwayat,
             'nomorSurat' => $nomorSurat,
             'catatan' => $catatan,
             'isiSurat' => $isiSurat,
             'tanggalSurat' => $tanggalSurat,
-            'adaLampiran' => $adaLampiran,
-            'peserta' => $peserta,
+            'adaLampiran' => (bool) ($p['lampiran_peserta'] ?? false),
+            'peserta' => $anggota,
             'lampiranTerpilih' => $lampiranTerpilih,
-            'namaKaprodi' => $namaKaprodi,
-            'nipKaprodi' => $nipKaprodi,
+            'namaKaprodi' => self::NAMA_KAPRODI,
+            'nipKaprodi' => self::NIP_KAPRODI,
         ]);
     }
 
@@ -117,81 +91,143 @@ class AdminTinjauPengajuanController extends Controller
             'nomor_surat.max' => 'Nomor surat maksimal 100 karakter',
         ]);
 
-        $p = $this->pengajuan->cari($id);
+        // Konversi indeks checkbox [0, 1, ...] dari form Blade menjadi id_dokumen asli dari API
+        $lampiranIds = [];
+        if ($data['aksi'] === 'setujui' && ! empty($data['lampiran'])) {
+            $detail = $this->apiGet("/admin/pengajuan/{$id}")['data'] ?? [];
+            $daftarDokumen = $detail['dokumen'] ?? [];
 
-        if ($p->status === 'Disetujui') {
-            // View admin menampilkan error di bawah kolom catatan
-            return back()->withInput()->withErrors(['catatan' => 'Surat sudah ditandatangani Kaprodi, keputusan tidak dapat diubah.']);
+            foreach (array_unique(array_map('intval', $data['lampiran'])) as $idx) {
+                if (isset($daftarDokumen[$idx]['id_dokumen'])) {
+                    $lampiranIds[] = (int) $daftarDokumen[$idx]['id_dokumen'];
+                }
+            }
         }
 
-        $catatan = trim((string) ($data['catatan'] ?? ''));
-        $nomor = trim((string) ($data['nomor_surat'] ?? ''));
-        $tanggal = Carbon::now()->locale('id')->translatedFormat('d F Y');
+        $payload = [
+            'aksi' => $data['aksi'],
+            'nomor_sk' => $data['aksi'] === 'setujui' ? trim((string) $data['nomor_surat']) : null,
+            'tanggal_sk' => $data['aksi'] === 'setujui' ? now()->toDateString() : null,
+            'catatan_revisi' => $data['aksi'] !== 'setujui' ? trim((string) $data['catatan']) : null,
+            'lampiran' => $lampiranIds,
+        ];
 
-        if ($data['aksi'] === 'setujui') {
-            $this->simpanSnapshot($p, $nomor, $this->pilihLampiran($p, $data['lampiran'] ?? []));
-
-            $this->pengajuan->simpanKeputusan($p, [
-                'status' => PengajuanStore::MENUNGGU_TTD,
-                'nomor_surat' => $nomor,
-                'catatan' => null,
-                'catatan_kaprodi' => null,
-                'sampai_kaprodi' => true,
-            ], [
-                "Disetujui admin dan dikirim ke Kaprodi, {$tanggal} (No. surat: {$nomor})",
-                'Menunggu tanda tangan Kaprodi',
-            ]);
-
-            return redirect()
-                ->route('admin.pengajuan.show', $id)
-                ->with('success', 'Pengajuan disetujui dan suratnya dikirim ke Kaprodi untuk ditandatangani.');
-        }
-
-        $status = self::STATUS[$data['aksi']];
-        $baris = "{$status} oleh Admin, {$tanggal}".($catatan !== '' ? ": {$catatan}" : '');
-
-        $this->pengajuan->simpanKeputusan($p, [
-            'status' => $status,
-            'nomor_surat' => null,
-            'catatan' => $catatan !== '' ? $catatan : null,
-        ], $baris);
-
-        $this->surat->delete((string) $p->id);
+        $respons = $this->apiPost("/admin/pengajuan/{$id}/keputusan", $payload);
 
         return redirect()
             ->route('admin.pengajuan.show', $id)
-            ->with('success', "Pengajuan berhasil diubah menjadi: {$status}.");
+            ->with('success', $respons['message'] ?? 'Keputusan pengajuan berhasil disimpan.');
     }
 
-    /** Bentuk data lama ($k) dari satu pengajuan store, supaya method-method di bawah tidak perlu diubah. */
-    private function susun(object $p): array
+    private function susunInfo(array $p): array
     {
-        return [
-            'judul' => $p->nama,
-            'status' => $p->status,
-            'info' => $this->pengajuan->info($p),
-            'anggota' => $this->pengajuan->anggota($p),
-            'dokumen' => $this->pengajuan->dokumen($p),
-            'riwayat' => $p->riwayat,
+        $mulai = ! empty($p['tanggal_mulai'])
+            ? Carbon::parse($p['tanggal_mulai'])->locale('id')->translatedFormat('j F Y')
+            : '-';
+        $selesai = ! empty($p['tanggal_selesai'])
+            ? Carbon::parse($p['tanggal_selesai'])->locale('id')->translatedFormat('j F Y')
+            : null;
+        $tanggal = ($selesai && $selesai !== $mulai) ? "{$mulai} s.d. {$selesai}" : $mulai;
+
+        $isianMap = [];
+        foreach (($p['isian'] ?? []) as $item) {
+            if (! empty($item['input'])) {
+                $isianMap[strtolower($item['input'])] = $item['isian'] ?? '-';
+            }
+        }
+
+        $rows = [
+            ['Pengaju', $p['pengaju']['nama'] ?? '-'],
+            ['NIM/NIP', $p['pengaju']['identitas'] ?? '-'],
+            ['Kategori', $p['kategori'] ?? '-'],
+            ['Jenis', $p['jenis'] ?? '-'],
+            ['Penyelenggara', $isianMap['penyelenggara'] ?? '-'],
+            ['Lokasi', $isianMap['lokasi'] ?? ($isianMap['penyelenggara'] ?? '-')],
+            ['Tanggal', $tanggal],
         ];
+
+        // Tambahkan isian dinamis lainnya jika ada
+        $sudahAda = ['penyelenggara', 'lokasi', 'tanggal_mulai', 'tanggal_selesai'];
+        foreach (($p['isian'] ?? []) as $item) {
+            $key = strtolower((string) ($item['input'] ?? ''));
+            if ($key !== '' && ! in_array($key, $sudahAda, true)) {
+                $label = ucwords(str_replace('_', ' ', $key));
+                $rows[] = [$label, $item['isian'] ?? '-'];
+            }
+        }
+
+        return $rows;
     }
 
-    /**
-     * Render template surat balasan sesuai kategori kegiatan (HTML aman, untuk tampilan live).
-     * Variabel: [NAMA_PENGAJU] [IDENTITAS] [NAMA_KEGIATAN] [TANGGAL] [LOKASI]
-     *           [NOMOR_SURAT] [TANGGAL_SURAT]
-     */
-    private function buatIsiSurat(array $k, ?string $nomorSurat): string
+    private function susunAnggota(array $p): array
     {
-        $template = $this->cariTemplate($k);
+        return array_map(
+            fn (array $a) => [$a['nama'] ?? '-', ucfirst((string) ($a['peran'] ?? 'Anggota'))],
+            $p['anggota'] ?? []
+        );
+    }
 
-        if ($template === null) {
+    private function susunDokumen(array $p): array
+    {
+        return array_map(function (array $d) {
+            $link = $d['link_dokumen'] ?? '';
+            if ($link === '') {
+                $url = '#';
+            } elseif (str_starts_with($link, 'http://') || str_starts_with($link, 'https://')) {
+                $url = $link;
+            } else {
+                $url = Storage::disk('public')->url($link);
+            }
+
+            return [
+                $d['nama_file'] ?? '-',
+                ucfirst((string) ($d['tipe_dokumen'] ?? 'Dokumen')),
+                $url,
+            ];
+        }, $p['dokumen'] ?? []);
+    }
+
+    private function susunRiwayat(array $p): array
+    {
+        $namaPengaju = $p['pengaju']['nama'] ?? 'Pengaju';
+
+        return array_map(function (array $t) use ($namaPengaju) {
+            $tgl = ! empty($t['tanggal_status'])
+                ? Carbon::parse($t['tanggal_status'])->locale('id')->translatedFormat('j F Y')
+                : '';
+            $catatan = ! empty($t['catatan_revisi']) ? ": {$t['catatan_revisi']}" : '';
+
+            return match ($t['status'] ?? '') {
+                'diajukan' => "Diajukan oleh {$namaPengaju}, {$tgl}",
+                'direvisi' => "Direvisi oleh Admin, {$tgl}{$catatan}",
+                'ditolak' => "Ditolak oleh Admin, {$tgl}{$catatan}",
+                'direview' => "Disetujui admin dan dikirim ke Kaprodi, {$tgl}",
+                'diterima' => "Disetujui Kaprodi, {$tgl}",
+                'selesai' => "Selesai, {$tgl}",
+                default => ucfirst((string) ($t['status'] ?? ''))." ({$tgl}){$catatan}",
+            };
+        }, $p['riwayat'] ?? []);
+    }
+
+    private function labelStatus(string $status): string
+    {
+        return match ($status) {
+            'diajukan' => 'Diajukan',
+            'direvisi' => 'Direvisi',
+            'ditolak' => 'Ditolak',
+            'direview' => 'Menunggu Tanda Tangan',
+            'diterima', 'selesai' => 'Disetujui',
+            default => ucfirst($status),
+        };
+    }
+
+    private function buatIsiSurat(?string $template, array $k, ?string $nomorSurat): string
+    {
+        if (! $template) {
             return e('Kategori ini tidak memiliki template surat balasan.');
         }
 
-        // Escape dulu (aman XSS), lalu ganti token nomor dengan <span> yang bisa diupdate JS
         $isi = nl2br(e($this->isiTeks($template, $k, self::TOKEN_NOMOR)));
-
         $nomor = trim((string) $nomorSurat);
         $tampil = $nomor !== '' ? e($nomor) : '[nomor surat belum diisi]';
 
@@ -202,43 +238,6 @@ class AdminTinjauPengajuanController extends Controller
         );
     }
 
-    /** Cari kategori berdasarkan nama, prioritaskan yang jenisnya juga cocok. */
-    private function cariKategori(array $k, bool $perluTemplate = false): ?array
-    {
-        $infoMap = collect($k['info'])->mapWithKeys(fn ($r) => [$r[0] => $r[1]]);
-        $kategori = (string) ($infoMap['Kategori'] ?? '');
-        $jenis = (string) ($infoMap['Jenis'] ?? '');
-
-        $kandidat = null;
-
-        foreach ((new KategoriKegiatanStore)->all() as $kat) {
-            if (strcasecmp($kat['name'], $kategori) !== 0) {
-                continue;
-            }
-            if ($perluTemplate && empty($kat['isi_surat'])) {
-                continue;
-            }
-            if ($jenis !== '' && strcasecmp($kat['jenis'] ?? '', $jenis) === 0) {
-                return $kat;
-            }
-            $kandidat ??= $kat;
-        }
-
-        return $kandidat;
-    }
-
-    private function cariTemplate(array $k): ?string
-    {
-        return $this->cariKategori($k, true)['isi_surat'] ?? null;
-    }
-
-    /** Apakah kategori ini menyertakan lampiran daftar peserta. */
-    private function pakaiLampiran(array $k): bool
-    {
-        return (bool) ($this->cariKategori($k)['lampiran_peserta'] ?? false);
-    }
-
-    /** Ganti semua variabel pada template menjadi teks biasa (belum di-escape). */
     private function isiTeks(string $template, array $k, string $nomor, ?string $tanggalSurat = null): string
     {
         $infoMap = collect($k['info'])->mapWithKeys(fn ($r) => [$r[0] => $r[1]]);
@@ -254,52 +253,5 @@ class AdminTinjauPengajuanController extends Controller
         ];
 
         return str_replace(array_keys($pemetaan), array_values($pemetaan), $template);
-    }
-
-    /** Simpan hasil render final surat ke JSON saat admin menyetujui (belum bertanda tangan). */
-    private function simpanSnapshot(object $p, string $nomor, array $lampiranDokumen = []): void
-    {
-        $k = $this->susun($p);
-        $infoMap = collect($k['info'])->mapWithKeys(fn ($r) => [$r[0] => $r[1]]);
-        $template = $this->cariTemplate($k);
-        $tanggalSurat = Carbon::now()->locale('id')->translatedFormat('j F Y');
-
-        $this->surat->save((string) $p->id, [
-            'pengajuan_id' => (string) $p->id,
-            'judul' => $k['judul'],
-            'kategori' => $infoMap['Kategori'] ?? null,
-            'pengaju' => $infoMap['Pengaju'] ?? null,
-            'nomor_surat' => $nomor,
-            'tanggal_surat' => $tanggalSurat,
-            'template_surat' => $template,
-            'isi_surat' => $template !== null ? $this->isiTeks($template, $k, $nomor, $tanggalSurat) : null,
-            'lampiran_peserta' => $this->pakaiLampiran($k),
-            'lampiran_dokumen' => $lampiranDokumen,
-            'peserta' => $k['anggota'],
-            'kaprodi' => ['nama' => self::NAMA_KAPRODI, 'nip' => self::NIP_KAPRODI],
-            // Diisi KaprodiPengajuanController saat kaprodi menandatangani:
-            'tanda_tangan_path' => null,
-            'ditandatangani_pada' => null,
-            'disetujui_pada' => Carbon::now()->toIso8601String(), // = dikirim ke kaprodi
-        ]);
-    }
-
-    /**
-     * Ambil berkas pengaju yang dicentang admin sebagai lampiran (indeks di luar daftar diabaikan).
-     * TODO-DB: ganti indeks dengan id_dokumen, lalu simpan ke tabel bukti_history
-     *          (dokumen <-> baris timeline berstatus "diterima").
-     */
-    private function pilihLampiran(object $p, array $indeks): array
-    {
-        $dokumen = $this->pengajuan->dokumen($p);
-        $hasil = [];
-
-        foreach (array_unique(array_map('intval', $indeks)) as $i) {
-            if (isset($dokumen[$i])) {
-                $hasil[] = ['nama' => $dokumen[$i][0], 'kategori' => $dokumen[$i][1]];
-            }
-        }
-
-        return $hasil;
     }
 }
