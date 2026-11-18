@@ -163,5 +163,3 @@ class MataKuliahAkreditasiWebApiTest extends TestCase
         $this->get(action([AkreditasiController::class, 'index']))->assertStatus(503);
     }
 }
-
-
