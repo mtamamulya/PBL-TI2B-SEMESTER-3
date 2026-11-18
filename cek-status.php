@@ -1,9 +1,11 @@
 <?php
+
 require getcwd().'/vendor/autoload.php';
 $app = require getcwd().'/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
