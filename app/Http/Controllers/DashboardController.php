@@ -40,8 +40,8 @@ class DashboardController extends Controller
         }
 
         $query = Kegiatan::untukUser($user);
-        // Pengajuan adalah kegiatan yang dibuat oleh akun ini, bukan yang hanya diikuti.
-        $pengajuan = Kegiatan::where('id_user', $user->getKey());
+        $pengajuan = Kegiatan::where('id_user', $user->getKey())
+            ->whereHas('timeline');
         $semesterStart = now()->startOfYear()->month(now()->month >= 8 ? 8 : (now()->month >= 2 ? 2 : 8));
         if (now()->month === 1) {
             $semesterStart->subYear();

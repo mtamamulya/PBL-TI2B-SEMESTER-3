@@ -11,7 +11,7 @@
     $summaryCards = [
         [
             'label' => 'LOMBA',
-            'value' => 12,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#2277FF',
             'bg_icon' => '#EFF6FF',
@@ -20,7 +20,7 @@
         ],
         [
             'label' => 'VOLUNTEER',
-            'value' => 2,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#F59E0B',
             'bg_icon' => '#FFFBEB',
@@ -29,7 +29,7 @@
         ],
         [
             'label' => 'KKL',
-            'value' => 1,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#10B981',
             'bg_icon' => '#ECFDF5',
@@ -38,7 +38,7 @@
         ],
         [
             'label' => 'MAGANG',
-            'value' => 9,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#8B5CF6',
             'bg_icon' => '#F5F3FF',
@@ -47,7 +47,7 @@
         ],
         [
             'label' => 'PENGABDIAN',
-            'value' => 12,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#EC4899',
             'bg_icon' => '#FDF2F8',
@@ -56,7 +56,7 @@
         ],
         [
             'label' => 'PENELITIAN',
-            'value' => 1,
+            'value' => 0,
             'unit' => 'Kegiatan',
             'border_accent' => '#06B6D4',
             'bg_icon' => '#ECFEFF',
@@ -65,50 +65,11 @@
         ],
     ];
 
-    $semesters = [
-        ['label' => 'Sem 1', 'value' => 12],
-        ['label' => 'Sem 2', 'value' => 8],
-        ['label' => 'Sem 3', 'value' => 15],
-        ['label' => 'Sem 4', 'value' => 6],
-        ['label' => 'Sem 5', 'value' => 9],
-        ['label' => 'Sem 6', 'value' => 4],
-    ];
-
-    $page1 = [
-        ['id' => 1, 'name' => 'FKBSE 2025', 'type' => 'Pengabdian', 'date' => '12 Nov 2025', 'raw_date' => '2025-11-12', 'status' => 'done', 'note' => 'Terima kasih atas kontribusi anda.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Nasional', 'penyelenggara' => 'Himpunan Mahasiswa TRK', 'file_name' => 'sertifikat-fkbse-2025.pdf', 'file_size' => '1.4 MB'],
-        ['id' => 2, 'name' => 'KMIPN VIII 2026', 'type' => 'Lomba', 'date' => '10 Sept 2026', 'raw_date' => '2026-09-10', 'status' => 'done', 'note' => 'Selamat atas pencapaiannya.', 'action' => 'Lihat detail', 'capaian' => 'Finalis', 'tingkat' => 'Nasional', 'penyelenggara' => 'Politeknik Negeri', 'file_name' => 'sertifikat-kmipn-viii-2026.pdf', 'file_size' => '2.1 MB'],
-        ['id' => 3, 'name' => 'IMAKEN Progress In Action 2026', 'type' => 'Volunteer', 'date' => '30 Nov 2026', 'raw_date' => '2026-11-30', 'status' => 'done', 'note' => 'Kegiatan telah selesai dilaksanakan.', 'action' => 'Lihat detail', 'capaian' => 'Panitia', 'tingkat' => 'Wilayah', 'penyelenggara' => 'IMAKEN', 'file_name' => 'sertifikat-imaken-2026.pdf', 'file_size' => '1.1 MB'],
-        ['id' => 4, 'name' => 'Google Singapura', 'type' => 'Kunjungan Industri', 'date' => '06 Mar 2027', 'raw_date' => '2027-03-06', 'status' => 'done', 'note' => 'Kunjungan industri telah diselesaikan.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Internasional', 'penyelenggara' => 'Google Asia Pacific', 'file_name' => 'sertifikat-google-singapura.pdf', 'file_size' => '3.0 MB'],
-        ['id' => 5, 'name' => 'KKL Schneider Electric', 'type' => 'Kuliah Kerja Lapangan', 'date' => '04 Agu 2027', 'raw_date' => '2027-08-04', 'status' => 'done', 'note' => 'Laporan KKL disetujui.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Nasional', 'penyelenggara' => 'Schneider Electric Indonesia', 'file_name' => 'sertifikat-kkl-schneider.pdf', 'file_size' => '1.8 MB'],
-        ['id' => 6, 'name' => 'Amazon Web Service', 'type' => 'Magang', 'date' => '01 Sept 2027', 'raw_date' => '2027-09-01', 'status' => 'done', 'note' => 'Program magang selesai.', 'action' => 'Lihat detail', 'capaian' => 'Intern', 'tingkat' => 'Internasional', 'penyelenggara' => 'Amazon Web Services', 'file_name' => 'sertifikat-aws-internship.pdf', 'file_size' => '2.5 MB'],
-    ];
-
-    $page2 = [
-        ['id' => 7, 'name' => 'Hackathon Nasional 2025', 'type' => 'Lomba', 'date' => '15 Jan 2025', 'raw_date' => '2025-01-15', 'status' => 'done', 'note' => 'Juara 2 Kategori Software.', 'action' => 'Lihat detail', 'capaian' => 'Juara 2', 'tingkat' => 'Nasional', 'penyelenggara' => 'Kementerian Kominfo', 'file_name' => 'sertifikat-hackathon-2025.pdf', 'file_size' => '1.9 MB'],
-        ['id' => 8, 'name' => 'Workshop IoT & Embedded System', 'type' => 'Pelatihan', 'date' => '22 Feb 2025', 'raw_date' => '2025-02-22', 'status' => 'done', 'note' => 'Sertifikat kompetensi terbit.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Nasional', 'penyelenggara' => 'Lab Embedded TRK', 'file_name' => 'sertifikat-workshop-iot.pdf', 'file_size' => '1.2 MB'],
-        ['id' => 9, 'name' => 'Studi Independen AI Micro-Credential', 'type' => 'Magang', 'date' => '10 Jun 2025', 'raw_date' => '2025-06-10', 'status' => 'done', 'note' => 'Selesai dengan nilai A.', 'action' => 'Lihat detail', 'capaian' => 'Lulus', 'tingkat' => 'Nasional', 'penyelenggara' => 'Kampus Merdeka x AI Center', 'file_name' => 'sertifikat-studi-independen-ai.pdf', 'file_size' => '2.8 MB'],
-        ['id' => 10, 'name' => 'Pengabdian Desa Digital Banyumanik', 'type' => 'Pengabdian', 'date' => '18 Agu 2025', 'raw_date' => '2025-08-18', 'status' => 'done', 'note' => 'Selesai dilaksanakan.', 'action' => 'Lihat detail', 'capaian' => 'Tim Pelaksana', 'tingkat' => 'Kabupaten/Kota', 'penyelenggara' => 'Jurusan Elektro Polines', 'file_name' => 'sertifikat-pengabdian-banyumanik.pdf', 'file_size' => '1.5 MB'],
-        ['id' => 11, 'name' => 'Seminar International TRK Tech', 'type' => 'Seminar', 'date' => '05 Okt 2025', 'raw_date' => '2025-10-05', 'status' => 'done', 'note' => 'Peserta Aktif.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Internasional', 'penyelenggara' => 'TRK Polines', 'file_name' => 'sertifikat-seminar-international.pdf', 'file_size' => '1.3 MB'],
-        ['id' => 12, 'name' => 'Lomba Karya Tulis Ilmiah 2025', 'type' => 'Penelitian', 'date' => '12 Des 2025', 'raw_date' => '2025-12-12', 'status' => 'done', 'note' => 'Finalis 10 Besar.', 'action' => 'Lihat detail', 'capaian' => 'Finalis', 'tingkat' => 'Nasional', 'penyelenggara' => 'Universitas Indonesia', 'file_name' => 'sertifikat-lkti-2025.pdf', 'file_size' => '1.7 MB'],
-    ];
-
-    $page3 = [
-        ['id' => 13, 'name' => 'Lomba CTF Cyber Security 2024', 'type' => 'Lomba', 'date' => '10 Mar 2024', 'raw_date' => '2024-03-10', 'status' => 'done', 'note' => 'Peringkat 5 Nasional.', 'action' => 'Lihat detail', 'capaian' => 'Peringkat 5', 'tingkat' => 'Nasional', 'penyelenggara' => 'BSSN', 'file_name' => 'sertifikat-ctf-2024.pdf', 'file_size' => '2.0 MB'],
-        ['id' => 14, 'name' => 'Pelatihan Cloud Architecture AWS', 'type' => 'Pelatihan', 'date' => '14 Mei 2024', 'raw_date' => '2024-05-14', 'status' => 'done', 'note' => 'Sertifikat AWS re:Start.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Internasional', 'penyelenggara' => 'AWS Educate', 'file_name' => 'sertifikat-aws-restart.pdf', 'file_size' => '1.6 MB'],
-        ['id' => 15, 'name' => 'Volunteer Mengajar AI Sekolah Dasar', 'type' => 'Volunteer', 'date' => '20 Jul 2024', 'raw_date' => '2024-07-20', 'status' => 'done', 'note' => 'Piagam Penghargaan.', 'action' => 'Lihat detail', 'capaian' => 'Relawan', 'tingkat' => 'Kabupaten/Kota', 'penyelenggara' => 'Komunitas AI Semarang', 'file_name' => 'sertifikat-volunteer-ai.pdf', 'file_size' => '1.1 MB'],
-        ['id' => 16, 'name' => 'Bootcamp Fullstack Web Developer', 'type' => 'Pelatihan', 'date' => '11 Sep 2024', 'raw_date' => '2024-09-11', 'status' => 'done', 'note' => 'Lulus Capstone Project.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Nasional', 'penyelenggara' => 'Dicoding Indonesia', 'file_name' => 'sertifikat-fullstack-dev.pdf', 'file_size' => '2.2 MB'],
-        ['id' => 17, 'name' => 'Kunjungan Industri Telkomsel Digital', 'type' => 'Kunjungan Industri', 'date' => '02 Nov 2024', 'raw_date' => '2024-11-02', 'status' => 'done', 'note' => 'Selesai diikuti.', 'action' => 'Lihat detail', 'capaian' => 'Peserta', 'tingkat' => 'Nasional', 'penyelenggara' => 'Telkomsel Smart Office', 'file_name' => 'sertifikat-telkomsel-visit.pdf', 'file_size' => '1.4 MB'],
-        ['id' => 18, 'name' => 'Kompetisi Robotics & Automation', 'type' => 'Lomba', 'date' => '18 Des 2024', 'raw_date' => '2024-12-18', 'status' => 'done', 'note' => 'Juara Harapan 1.', 'action' => 'Lihat detail', 'capaian' => 'Juara Harapan 1', 'tingkat' => 'Nasional', 'penyelenggara' => 'ITB Robotics Club', 'file_name' => 'sertifikat-robotics-2024.pdf', 'file_size' => '1.8 MB'],
-    ];
-
-    $allActivities = array_merge($page1, $page2, $page3, $liveActivities->all());
-    $categories = collect($allActivities)->pluck('type')->filter()->unique()->sort()->values();
-    if ($liveSemesters->isNotEmpty()) {
-        $semesters = $liveSemesters;
-    }
+    $allActivities = $liveActivities->all();
+    $categories = collect($categories)->filter()->unique()->sort()->values();
+    $semesters = $liveSemesters->all();
     foreach ($summaryCards as &$card) {
-        $card['value'] = count(array_filter($allActivities, fn ($activity) => mb_strtoupper($activity['type']) === $card['label']
-            || ($card['label'] === 'KKL' && in_array(mb_strtolower($activity['type']), ['kkl', 'kuliah kerja lapangan'], true))));
+        $card['value'] = $categoryCounts[$card['label']] ?? 0;
     }
     unset($card);
 @endphp

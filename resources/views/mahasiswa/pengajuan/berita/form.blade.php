@@ -16,7 +16,17 @@
         </div>
     </div>
 
-    <form method="POST" enctype="multipart/form-data" x-data="{ sourceType: @js($value('source_type', 'previous')) }"
+    <form method="POST" enctype="multipart/form-data" x-data="{
+        sourceType: @js($value('source_type', 'previous')),
+        coverName: '',
+        coverPreview: null,
+        selectCover(event) {
+            const file = event.target.files[0] || null;
+            if (this.coverPreview) URL.revokeObjectURL(this.coverPreview);
+            this.coverName = file ? file.name : '';
+            this.coverPreview = file ? URL.createObjectURL(file) : null;
+        }
+    }"
           action="{{ $item ? route('pengajuan.berita.update', $item['id']) : route('pengajuan.berita.store') }}"
           class="flex flex-col gap-5 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_12px_rgba(0,0,0,0.05)] sm:p-7">
         @csrf
@@ -111,8 +121,15 @@
                 <i class="ti ti-cloud-upload text-2xl text-[#2277FF]"></i>
                 <span class="text-[13px] text-[#6B7280]"><span class="font-semibold text-[#2277FF]">Pilih foto</span> dari perangkat</span>
                 <span class="text-xs text-[#9CA3AF]">JPG, JPEG, PNG, WEBP · Maksimal 5 MB</span>
-                <input type="file" name="cover" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" class="sr-only">
+                <input type="file" name="cover" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" class="sr-only" @change="selectCover($event)">
             </label>
+            <div x-show="coverPreview" x-cloak class="flex items-center gap-3 rounded-lg border border-[#BFDBFE] bg-[#F8FBFF] p-3">
+                <img :src="coverPreview" alt="Pratinjau foto sampul" class="size-16 rounded-md object-cover">
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-[#1D4ED8]">Foto siap diunggah</p>
+                    <p class="truncate text-xs text-[#6B7280]" x-text="coverName"></p>
+                </div>
+            </div>
             @error('cover')<p class="text-xs text-[#DC2626]">{{ $message }}</p>@enderror
         </section>
 

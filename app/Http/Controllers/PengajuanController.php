@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\IsianKategori;
+use App\Models\JenisDokumen;
+use App\Models\JenisKegiatan;
+use App\Models\Kategori;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
@@ -10,6 +14,8 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
@@ -748,25 +754,133 @@ class PengajuanController extends Controller
     public function storeActivity(Request $request)
     {
         $data = $this->validated($request);
-        $documents = $data['documents'] ?? [];
-        unset($data['documents']);
-
-        $history = collect(session('kegiatan.history', []));
-        $id = max(1000, (int) $history->max('id') + 1);
-        $history->push([
-            'id' => $id,
-            'title' => $data['title'],
-            'category' => $data['category'],
-            'type' => $data['category'],
-            'status' => 'Tercatat',
-            'submitted_at' => now()->toIso8601String(),
-            'data' => $data,
-            'documents' => $documents,
-        ]);
-        session(['kegiatan.history' => $history->all()]);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $this->persistActivity($data, $user);
 
         return redirect()->route('kegiatan.index')
-            ->with('success', 'Kegiatan berhasil ditambahkan ke riwayat.');
+            ->with('success', 'Kegiatan berhasil disimpan.');
+    }
+
+    private function persistActivity(array $data, User $user, bool $submitted = false): int
+    {
+        return DB::transaction(function () use ($data, $user, $submitted) {
+            $jenis = JenisKegiatan::query()->firstOrCreate([
+                'nama_jenis_kegiatan' => 'Kegiatan Mahasiswa',
+            ]);
+            $kategori = Kategori::query()
+                ->where('nama_kategori', $data['category'])
+                ->where('kebutuhan', 'kegiatan')
+                ->first();
+
+            if (! $kategori) {
+                $kategori = Kategori::query()->create([
+                    'id_jenis_kegiatan' => $jenis->getKey(),
+                    'nama_kategori' => $data['category'],
+                    'kebutuhan' => 'kegiatan',
+                ]);
+            }
+
+            $columns = Schema::getColumnListing('kegiatan');
+            $attributes = array_intersect_key([
+                'id_kategori' => $kategori->getKey(),
+                'id_user' => $user->getKey(),
+                'nama_kegiatan' => $data['title'],
+                'lokasi' => $data['location'],
+                'tanggal_mulai' => $data['start_date'],
+                'tanggal_selesai' => $data['end_date'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], array_flip($columns));
+            $usesDynamicDetails = Schema::hasTable('detail_kegiatan')
+                && Schema::hasTable('isian_kategori')
+                && Schema::hasColumn('detail_kegiatan', 'id_isian_kategori');
+
+            if (! $usesDynamicDetails
+                && (! in_array('tanggal_mulai', $columns, true) || ! in_array('tanggal_selesai', $columns, true))) {
+                throw new \RuntimeException('Skema database belum siap menyimpan tanggal kegiatan.');
+            }
+
+            $activityId = DB::table('kegiatan')->insertGetId($attributes, 'id_kegiatan');
+
+            if ($usesDynamicDetails) {
+                $answers = $data;
+                unset($answers['category'], $answers['title'], $answers['location'], $answers['start_date'], $answers['end_date']);
+                $answers['lokasi'] = $data['location'];
+                $answers['tanggal_mulai'] = $data['start_date'];
+                $answers['tanggal_selesai'] = $data['end_date'];
+                $answers['penyelenggara'] = $data['organizer'] ?? null;
+
+                $detailColumns = Schema::getColumnListing('detail_kegiatan');
+                foreach ($answers as $input => $value) {
+                    if ($value === null || $value === '' || $value === []) {
+                        continue;
+                    }
+
+                    $isian = IsianKategori::query()->firstOrCreate(
+                        ['id_kategori' => $kategori->getKey(), 'input' => $input],
+                        [
+                            'jenis_input' => in_array($input, ['tanggal_mulai', 'tanggal_selesai'], true)
+                                ? 'tanggal'
+                                : (is_numeric($value) ? 'angka' : 'teks'),
+                            'aturan' => 'NULL',
+                            'jumlah_isian' => 1,
+                        ],
+                    );
+                    $detail = [
+                        'id_kegiatan' => $activityId,
+                        'id_isian_kategori' => $isian->getKey(),
+                        'isian' => is_array($value)
+                            ? json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)
+                            : (string) $value,
+                    ];
+                    if (in_array('created_at', $detailColumns, true)) {
+                        $detail['created_at'] = now();
+                    }
+                    if (in_array('updated_at', $detailColumns, true)) {
+                        $detail['updated_at'] = now();
+                    }
+                    DB::table('detail_kegiatan')->insert($detail);
+                }
+            }
+
+            if ($submitted) {
+                Timeline::query()->create([
+                    'id_kegiatan' => $activityId,
+                    'status' => 'diajukan',
+                    'tanggal_status' => now(),
+                ]);
+            }
+
+            if (! empty($data['documents'])) {
+                if (! Schema::hasTable('dokumen') || ! Schema::hasTable('jenis_dokumen')) {
+                    throw new \RuntimeException('Tabel dokumen dan jenis dokumen harus tersedia untuk menyimpan dokumen kegiatan.');
+                }
+                $documentColumns = Schema::getColumnListing('dokumen');
+                foreach ($data['documents'] as $document) {
+                    $documentType = match ($document['type']) {
+                        'Dokumentasi' => 'Foto Kegiatan',
+                        'Surat Mitra', 'Surat Mahasiswa', 'Surat Pengabdian' => 'Surat Keterangan',
+                        default => throw new \RuntimeException('Jenis dokumen kegiatan tidak dikenali.'),
+                    };
+                    $jenisDokumen = JenisDokumen::query()->firstOrCreate([
+                        'nama_jenis_dokumen' => $documentType,
+                    ]);
+                    $attributes = array_intersect_key([
+                        'id_jenis_dokumen' => $jenisDokumen->getKey(),
+                        'id_kegiatan' => $activityId,
+                        'nama_file' => $document['name'],
+                        'tipe_dokumen' => $document['type'],
+                        'link_dokumen' => $document['url'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ], array_flip($documentColumns));
+                    DB::table('dokumen')->insert($attributes);
+                }
+            }
+
+            return $activityId;
+        });
     }
 
     public function storeDosen(Request $request)
@@ -777,6 +891,10 @@ class PengajuanController extends Controller
     private function saveSubmission(Request $request, string $showRoute)
     {
         $data = $this->validated($request);
+        $user = $request->user();
+        if ($showRoute === 'pengajuan.show' && $user instanceof User && (int) $user->id_role === 4) {
+            $this->persistActivity($data, $user, true);
+        }
         $documents = $data['documents'] ?? [];
         unset($data['documents']);
 

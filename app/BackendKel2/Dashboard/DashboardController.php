@@ -8,6 +8,7 @@ use App\Models\Kegiatan;
 use App\Models\User;
 use App\Support\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class DashboardController extends Controller
@@ -19,7 +20,7 @@ class DashboardController extends Controller
         $activities = Kegiatan::query()->untukUser($user)
             ->with(['kategori', 'statusTerkini', 'detail.isianKategori'])
             ->get();
-        $yearJoined = (int) ($user->mahasiswa?->tahun_masuk ?? now()->year);
+        $yearJoined = (int) ($user->mahasiswa?->tahun_masuk ?? config('mahasiswa.angkatan', now()->year));
         $completed = $activities->filter(fn (Kegiatan $activity) => $activity->statusTerkini?->status === 'selesai');
 
         return ApiResponse::ok([
@@ -60,14 +61,19 @@ class DashboardController extends Controller
 
     private function semesterCounts(Collection $activities, int $yearJoined): array
     {
-        $counts = array_fill(1, 14, 0);
+        $counts = array_fill(1, 8, 0);
         foreach ($activities as $activity) {
-            $start = $activity->tanggal_mulai;
-            if (! $start) {
+            $date = $activity->tanggal_mulai;
+            if (! $date) {
                 continue;
             }
 
-            $semester = (((int) $start->format('Y') - $yearJoined) * 2) + ((int) $start->format('n') >= 8 ? 1 : 2);
+            $date = Carbon::parse($date);
+            $monthsFromEnrollment = (($date->year - $yearJoined) * 12) + $date->month - 8;
+            if ($monthsFromEnrollment < 0) {
+                continue;
+            }
+            $semester = intdiv($monthsFromEnrollment, 6) + 1;
             if (isset($counts[$semester])) {
                 $counts[$semester]++;
             }

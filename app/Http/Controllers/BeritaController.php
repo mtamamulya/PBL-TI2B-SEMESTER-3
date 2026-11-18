@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BeritaController extends Controller
 {
@@ -116,6 +117,11 @@ class BeritaController extends Controller
 
         if ($request->hasFile('cover')) {
             $newPath = $request->file('cover')->store('berita', 'public');
+            if ($newPath === false) {
+                throw ValidationException::withMessages([
+                    'cover' => 'Foto sampul gagal disimpan. Silakan pilih foto kembali.',
+                ]);
+            }
             if ($coverPath) {
                 Storage::disk('public')->delete($coverPath);
             }
