@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\BackendKel1\Autentikasi;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;

@@ -14,18 +14,51 @@
         'sumber'   => $b ? 'mandiri' : '',
         'kategori' => $b['kategori'] ?? '',
         'judul'    => $b['judul'] ?? '',
-        'isi'      => $b ? preg_replace("/\s+/", ' ', $b['isi']) : '',
+        'isi'      => $b ? ($b['isi'] ?? '') : '',
     ];
 
-    $inputClass  = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
-    $selectClass = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
-    $labelClass  = 'text-[15px] font-medium';
-    $hintClass   = 'text-[13px] text-gray-500';
-    $radioKartu  = 'flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-[15px] has-[:checked]:border-brand has-[:checked]:bg-blue-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40';
+    $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
+    $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
+    $labelClass   = 'text-[15px] font-medium';
+    $hintClass    = 'text-[13px] text-gray-500';
+    $radioKartu   = 'flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-[15px] has-[:checked]:border-brand has-[:checked]:bg-blue-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40';
     $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-white p-4.5';
     $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
     $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
+
+{{-- Styling CKEditor 5 agar menyatu dengan Tailwind & mengembalikan format heading/list --}}
+<style>
+    .ck-editor__top .ck-sticky-panel .ck-toolbar {
+        border-color: #e5e7eb !important;
+        border-radius: 0.5rem 0.5rem 0 0 !important;
+        background-color: #f9fafb !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable {
+        min-height: 180px;
+        border-color: #e5e7eb !important;
+        border-radius: 0 0 0.5rem 0.5rem !important;
+        padding: 0.5rem 0.875rem !important;
+        font-size: 15px;
+        color: #111827;
+        box-shadow: none !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable.ck-focused {
+        border-color: #1f66e5 !important;
+    }
+    .ck-editor__editable .ck-placeholder::before {
+        color: #9ca3af !important;
+        font-style: normal !important;
+    }
+    /* Mengembalikan style HTML bawaan yang di-reset oleh Tailwind Preflight */
+    .ck-content h2 { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0; }
+    .ck-content h3 { font-size: 1.15rem; font-weight: 600; margin: 0.4rem 0; }
+    .ck-content h4 { font-size: 1rem; font-weight: 600; margin: 0.3rem 0; }
+    .ck-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.4rem 0; }
+    .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.4rem 0; }
+    .ck-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.875rem; color: #4b5563; margin: 0.5rem 0; }
+    .ck-content a { color: #1f66e5; text-decoration: underline; }
+</style>
 
 <form x-data="formBerita(@js($awal))" x-on:submit.prevent="ajukan()"
       method="POST" action="{{ $aksi }}" enctype="multipart/form-data"
@@ -101,10 +134,14 @@
 
             <div class="flex flex-col gap-2">
                 <label for="isi" class="{{ $labelClass }}">Isi Berita</label>
-                <textarea id="isi" name="isi" rows="5" required maxlength="1000" x-model="isi"
-                          placeholder="Tuliskan isi berita di sini"
-                          class="w-full resize-y rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-[15px] text-gray-900 placeholder:text-gray-400"></textarea>
-                <p class="{{ $hintClass }}">Maksimal 1.000 karakter &bull; <span x-text="isi.length.toLocaleString('id-ID')"></span>/1.000</p>
+                <div wire:ignore>
+                    <textarea id="isi" name="isi" x-ref="editorIsi" x-model="isi"
+                              placeholder="Tuliskan isi berita di sini"
+                              class="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-[15px] text-gray-900"></textarea>
+                </div>
+                <p class="{{ $hintClass }}" :class="panjangTeks > 1000 ? 'text-red-600 font-medium' : ''">
+                    Maksimal 1.000 karakter &bull; <span x-text="panjangTeks.toLocaleString('id-ID')"></span>/1.000
+                </p>
             </div>
         </div>
     </section>
@@ -152,11 +189,48 @@
 </form>
 
 @push('scripts')
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('formBerita', (awal) => ({
-            sumber: awal.sumber, kategori: awal.kategori, judul: awal.judul, isi: awal.isi,
-            namaFile: '', galatFile: '',
+            sumber: awal.sumber,
+            kategori: awal.kategori,
+            judul: awal.judul,
+            isi: awal.isi,
+            namaFile: '',
+            galatFile: '',
+
+            init() {
+                this.$nextTick(() => {
+                    if (!this.$refs.editorIsi || typeof ClassicEditor === 'undefined') return;
+
+                    ClassicEditor.create(this.$refs.editorIsi, {
+                        placeholder: 'Tuliskan isi berita di sini',
+                        toolbar: [
+                            'heading', '|',
+                            'bold', 'italic', 'link',
+                            'bulletedList', 'numberedList', 'blockQuote', '|',
+                            'undo', 'redo'
+                        ],
+                    }).then((editor) => {
+                        if (this.isi) {
+                            editor.setData(this.isi);
+                        }
+                        editor.model.document.on('change:data', () => {
+                            this.isi = editor.getData();
+                        });
+                    }).catch((error) => {
+                        console.error('Gagal memuat CKEditor:', error);
+                    });
+                });
+            },
+
+            // Menghitung jumlah karakter teks murni (tanpa tag HTML)
+            get panjangTeks() {
+                const div = document.createElement('div');
+                div.innerHTML = this.isi || '';
+                return (div.textContent || div.innerText || '').trim().length;
+            },
 
             // Pilih foto. Maksimal 5 MB.
             pilihFile(e) {
@@ -181,7 +255,16 @@
                 }
                 this.$dispatch('tampil-alert', { tipe: 'info', judul: 'Draf tersimpan', pesan: 'Simulasi: data belum masuk database.' });
             },
+
             ajukan() {
+                if (this.panjangTeks === 0) {
+                    this.$dispatch('tampil-alert', { tipe: 'peringatan', judul: 'Isi berita belum diisi', pesan: 'Tuliskan isi berita terlebih dahulu sebelum mengajukan.' });
+                    return;
+                }
+                if (this.panjangTeks > 1000) {
+                    this.$dispatch('tampil-alert', { tipe: 'peringatan', judul: 'Isi berita terlalu panjang', pesan: 'Isi berita maksimal 1.000 karakter.' });
+                    return;
+                }
                 this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Berita berhasil diajukan', pesan: 'Simulasi: menunggu review admin. Data belum masuk database.' });
             },
         }));

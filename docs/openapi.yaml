@@ -1,0 +1,2128 @@
+# =============================================================================
+# KONTRAK API SIKAP / TRK  (format OpenAPI 3.0.3)
+#
+# Cara membaca file ini (untuk yang baru mengenal OpenAPI/Swagger):
+#   - Ini file YAML. Struktur ditentukan oleh SPASI di awal baris (bukan tab!).
+#   - Satu "kunci" (key) diikuti titik dua, anaknya menjorok 2 spasi ke dalam.
+#   - Bagian "paths:" berisi semua endpoint. Setiap endpoint punya metode (get/post/...).
+#   - Bagian "components:" berisi potongan yang dipakai berulang (skema data, respons galat).
+#     Dipanggil dengan  $ref: '#/components/....'
+#   - Panduan lengkap: PANDUAN-SWAGGER.md
+#
+# ATURAN LAYOUT (dibaca oleh tes dan perintah  php artisan api:dokumentasi-cek ):
+#   - Path ditulis 2 spasi dari kiri:      "  /kurikulum:"
+#   - Metode ditulis 4 spasi dari kiri:    "    get:"
+#   - Endpoint yang BELUM ada route-nya diberi penanda 6 spasi di dalam metodenya:
+#         "      x-belum-aktif: true"
+#     (hapus baris itu setelah route-nya benar-benar dipasang)
+# =============================================================================
+openapi: 3.0.3
+
+info:
+  title: API SIKAP / TRK
+  version: 1.0.0
+  description: |
+    Dokumentasi API aplikasi SIKAP Prodi TRK (Kelompok 1: landing page, admin, kaprodi).
+
+    ## Format respons
+    Sukses: `{ "success": true, "message": "...", "data": ..., "meta": ... }`
+    (`meta` hanya ada pada daftar berhalaman).
+    Gagal: `{ "success": false, "message": "...", "errors": { ... } }`.
+    Galat validasi (422) memakai bentuk standar Laravel: `{ "message": "...", "errors": { "field": ["pesan"] } }`.
+
+    ## Cara mencoba dari halaman ini
+    1. Buka endpoint **POST /login**, klik **Try it out**, isi email dan sandi, klik **Execute**.
+    2. Salin nilai `token` dari respons.
+    3. Klik tombol **Authorize** (gembok, kanan atas), tempel token (tanpa kata "Bearer"), klik **Authorize**.
+    4. Sekarang endpoint bergembok bisa dicoba. Endpoint tanpa gembok bersifat publik.
+
+    ## Peran
+    `admin`, `kaprodi`, `dosen`, `mahasiswa`. Endpoint tulis memeriksa peran dari token.
+
+    ## Catatan
+    - Nama field mengikuti nama kolom database (mis. `nama_kurikulum`, `sks_praktik`, tetapi `jam_praktek`).
+    - Bila mengirim berkas PDF/foto pada pembaruan (PUT), kirim sebagai `POST` dengan field tambahan `_method=PUT`
+      (PHP tidak membaca multipart pada PUT).
+
+servers:
+  - url: /api/v1
+    description: Server yang sedang dibuka (buka halaman ini di port API, mis. http://127.0.0.1:8001/api/docs)
+
+tags:
+  - name: Kesehatan
+    description: Pemeriksaan layanan hidup.
+  - name: Autentikasi
+    description: Login dan logout dengan token Bearer (Laravel Sanctum).
+  - name: Kurikulum
+    description: Kurikulum prodi (baca publik, tulis admin dan kaprodi).
+  - name: Mata Kuliah
+    description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
+  - name: Akreditasi
+    description: Akreditasi prodi (baca publik, tulis khusus admin).
+  - name: Kategori Kegiatan
+    description: Kategori kegiatan beserta isian form pengajuan (baca semua pengguna login, tulis admin).
+  - name: Pengajuan Admin
+    description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
+  - name: Dosen
+    description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
+  - name: Jenis Dokumen
+    description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
+
+paths:
+
+  /ping:
+    get:
+      tags: [Kesehatan]
+      summary: Cek layanan aktif
+      description: Dipakai untuk memastikan server API menyala. Tidak butuh token.
+      responses:
+        '200':
+          description: Layanan aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PingResponse'
+
+  /login:
+    post:
+      tags: [Autentikasi]
+      summary: Login dan dapatkan token
+      description: |
+        Mengirim email dan sandi, menerima token Bearer yang berlaku 7 hari.
+        Dibatasi 5 percobaan per menit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login berhasil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Email atau sandi salah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+        '403':
+          description: Akun nonaktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+        '429':
+          $ref: '#/components/responses/TerlaluBanyak'
+
+  /logout:
+    post:
+      tags: [Autentikasi]
+      summary: Logout (cabut token yang dipakai)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token dicabut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /me:
+    get:
+      tags: [Autentikasi]
+      summary: Profil pengguna yang sedang login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Data profil pengguna pemilik token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /kurikulum:
+    get:
+      tags: [Kurikulum]
+      summary: Daftar kurikulum (berhalaman)
+      description: Urut dari yang terbaru. Tanpa token.
+      parameters:
+        - name: status
+          in: query
+          description: Saring berdasarkan status.
+          schema:
+            type: string
+            enum: [aktif, nonaktif]
+        - name: q
+          in: query
+          description: Cari pada nama kurikulum.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/Angkatan'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar kurikulum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KurikulumListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Kurikulum]
+      summary: Tambah kurikulum
+      description: Peran **admin** atau **kaprodi**. Dikirim sebagai multipart/form-data karena dapat memuat PDF.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/KurikulumInput'
+      responses:
+        '201':
+          description: Kurikulum dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KurikulumResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /kurikulum/{id}:
+    get:
+      tags: [Kurikulum]
+      summary: Detail satu kurikulum
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail kurikulum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KurikulumResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Kurikulum]
+      summary: Ubah kurikulum
+      description: Peran **admin** atau **kaprodi**. Field diganti seluruhnya. Untuk mengirim PDF, pakai POST dengan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/KurikulumInput'
+      responses:
+        '200':
+          description: Kurikulum diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KurikulumResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Kurikulum]
+      summary: Hapus kurikulum
+      description: Peran **admin** atau **kaprodi**. Mata kuliah milik kurikulum ini ikut terhapus.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Kurikulum dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Kurikulum masih dipakai data lain sehingga tidak bisa dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
+  /kurikulum/{id}/status:
+    patch:
+      tags: [Kurikulum]
+      summary: Balik status aktif/nonaktif kurikulum
+      description: Peran **admin** atau **kaprodi**. Tidak butuh body; status dibalik dari nilai sekarang.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Status dibalik.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KurikulumResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /kurikulum/{id}/mata-kuliah:
+    get:
+      tags: [Kurikulum]
+      summary: Mata kuliah milik satu kurikulum
+      description: Urut semester lalu kode. Tidak berhalaman. Tanpa token.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: semester
+          in: query
+          description: Saring satu semester (1-8).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8
+      responses:
+        '200':
+          description: Daftar mata kuliah kurikulum itu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MataKuliahArrayResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Mata Kuliah]
+      summary: Tambah mata kuliah ke kurikulum
+      description: Peran **admin** atau **kaprodi**. `kode_mk` harus unik di dalam kurikulum yang sama.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MataKuliahInput'
+      responses:
+        '201':
+          description: Mata kuliah dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MataKuliahResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /mata-kuliah:
+    get:
+      tags: [Mata Kuliah]
+      summary: Daftar mata kuliah (berhalaman)
+      description: Tanpa token.
+      parameters:
+        - name: id_kurikulum
+          in: query
+          description: Saring berdasarkan kurikulum. Tidak boleh dikirim bersama `angkatan`.
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/Angkatan'
+        - name: semester
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8
+        - name: q
+          in: query
+          description: Cari pada kode atau nama mata kuliah.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar mata kuliah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MataKuliahListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /mata-kuliah/{id}:
+    get:
+      tags: [Mata Kuliah]
+      summary: Detail satu mata kuliah
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail mata kuliah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MataKuliahResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Mata Kuliah]
+      summary: Ubah mata kuliah
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MataKuliahInput'
+      responses:
+        '200':
+          description: Mata kuliah diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MataKuliahResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Mata Kuliah]
+      summary: Hapus mata kuliah
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Mata kuliah dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /akreditasi:
+    get:
+      tags: [Akreditasi]
+      summary: Daftar akreditasi (berhalaman)
+      description: Urut dari yang terbaru. Tanpa token.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar akreditasi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Akreditasi]
+      summary: Tambah akreditasi
+      description: Khusus peran **admin**. Dikirim sebagai multipart/form-data karena dapat memuat PDF.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AkreditasiInput'
+      responses:
+        '201':
+          description: Akreditasi dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /akreditasi/aktif:
+    get:
+      tags: [Akreditasi]
+      summary: Akreditasi yang sedang berlaku
+      description: Hanya satu akreditasi yang berstatus aktif. Tanpa token.
+      responses:
+        '200':
+          description: Akreditasi aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiResponse'
+        '404':
+          description: Belum ada akreditasi yang aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
+  /akreditasi/{id}:
+    get:
+      tags: [Akreditasi]
+      summary: Detail satu akreditasi
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail akreditasi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Akreditasi]
+      summary: Ubah akreditasi
+      description: Khusus peran **admin**. Untuk mengirim PDF, pakai POST dengan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AkreditasiInput'
+      responses:
+        '200':
+          description: Akreditasi diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Akreditasi]
+      summary: Hapus akreditasi
+      description: Khusus peran **admin**. Akreditasi yang sedang aktif tidak bisa dihapus (409).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Akreditasi dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Akreditasi aktif tidak boleh dihapus. Aktifkan akreditasi lain dulu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
+  /akreditasi/{id}/aktifkan:
+    post:
+      tags: [Akreditasi]
+      summary: Jadikan akreditasi ini yang aktif
+      description: Khusus peran **admin**. Akreditasi lain otomatis nonaktif, sehingga selalu hanya satu yang aktif.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Akreditasi diaktifkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AkreditasiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /jenis-kegiatan:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Daftar jenis kegiatan
+      description: Pilihan jenis untuk form kategori. Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar jenis kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisKegiatanListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /tipe-isian:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Tipe isian yang bisa dipilih admin
+      description: Tipe biasa (teks, angka, tanggal, berkas) ditambah tipe pilihan baku (daftar pilihannya ditentukan sistem). Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar tipe isian.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TipeIsianListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /kategori-kegiatan:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Daftar kategori kegiatan (berhalaman)
+      description: Urut jenis lalu nama. Butuh token (peran apa saja). Daftar ini hanya memuat jumlah isian (`total_isian`); isian lengkap ada di detail.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id_jenis_kegiatan
+          in: query
+          description: Saring berdasarkan id jenis kegiatan.
+          schema:
+            type: integer
+        - name: jenis
+          in: query
+          description: Saring berdasarkan nama jenis kegiatan (mis. Kegiatan Mahasiswa).
+          schema:
+            type: string
+            maxLength: 100
+        - name: kebutuhan
+          in: query
+          schema:
+            type: string
+            enum: [kegiatan, surat]
+        - name: q
+          in: query
+          description: Cari pada nama kategori.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar kategori.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Kategori Kegiatan]
+      summary: Tambah kategori kegiatan
+      description: |
+        Khusus peran **admin**. Jenis boleh dikirim sebagai `id_jenis_kegiatan` atau `jenis` (nama).
+        `template_surat` diterima sebagai nama lain dari `isi_surat`.
+        Nama kategori harus unik di dalam satu jenis kegiatan.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KategoriInput'
+      responses:
+        '201':
+          description: Kategori dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /kategori-kegiatan/{id}:
+    get:
+      tags: [Kategori Kegiatan]
+      summary: Detail satu kategori beserta isian form
+      description: Isian urut sesuai urutan dibuat. Tipe pilihan baku membawa daftar `pilihan`. Butuh token (peran apa saja).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail kategori.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Kategori Kegiatan]
+      summary: Ubah kategori kegiatan
+      description: |
+        Khusus peran **admin**. Field kategori diganti seluruhnya.
+        `isian` dicocokkan lewat `id_isian_kategori`: yang membawa id diperbarui, yang tanpa id ditambah, yang tidak dikirim lagi dihapus.
+        Isian tampil di form pengaju sesuai urutan dibuat.
+        Bila `isian` tidak dikirim, daftar isian dibiarkan; bila dikirim `[]`, semua isian dihapus.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KategoriInput'
+      responses:
+        '200':
+          description: Kategori diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KategoriResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Isian yang dihapus sudah dipakai oleh kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Kategori Kegiatan]
+      summary: Hapus kategori kegiatan
+      description: Khusus peran **admin**. Isian form ikut terhapus. Kategori yang sudah dipakai kegiatan tidak bisa dihapus (409).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Kategori dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Kategori sudah dipakai oleh kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
+  /dosen:
+    get:
+      tags: [Dosen]
+      summary: Daftar dosen
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mendukung pencarian nama/NIP serta filter pangkat dan status.
+      parameters:
+        - name: q
+          in: query
+          description: Cari berdasarkan nama atau NIP dosen.
+          schema:
+            type: string
+            maxLength: 100
+        - name: jabatan
+          in: query
+          description: Saring berdasarkan pangkat/jabatan akademik (atau `all` untuk semua).
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Saring berdasarkan status keaktifan dosen (`aktif`, `nonaktif`, atau `all`).
+          schema:
+            type: string
+            enum: [aktif, nonaktif, all]
+      responses:
+        '200':
+          description: Daftar dosen berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenListResponse'
+    post:
+      tags: [Dosen]
+      summary: Tambah dosen baru
+      description: Khusus peran **admin**. Membuat data profil dosen, akun login, serta riwayat pangkat pertama.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DosenCreateInput'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DosenCreateInput'
+      responses:
+        '201':
+          description: Dosen baru berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/DosenValidasiGagal'
+
+  /dosen/{id}:
+    get:
+      tags: [Dosen]
+      summary: Detail satu dosen
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mengembalikan profil lengkap, riwayat pangkat/golongan, dan aktivitas dosen.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail dosen berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenDetailResponse'
+        '404':
+          $ref: '#/components/responses/DosenTidakDitemukan'
+    put:
+      tags: [Dosen]
+      summary: Ubah data dosen
+      description: |
+        Dapat diakses oleh peran **admin** atau **dosen** pemilik profil yang bersangkutan.
+        Pengguna non-admin tidak dapat mengubah `role`, `status_dosen`, maupun `status_akun`.
+        Untuk mengirim berkas foto profil, gunakan `POST` dengan field tambahan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DosenUpdateInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DosenUpdateInput'
+      responses:
+        '200':
+          description: Perubahan data dosen berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DosenMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DosenDilarang'
+        '404':
+          $ref: '#/components/responses/DosenTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/DosenValidasiGagal'
+
+  /jenis-dokumen:
+    get:
+      tags: [Jenis Dokumen]
+      summary: Daftar jenis dokumen (berhalaman)
+      description: Urut dari yang terbaru. Tanpa token.
+      parameters:
+        - name: q
+          in: query
+          description: Cari pada nama jenis dokumen.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar jenis dokumen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisDokumenListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Jenis Dokumen]
+      summary: Tambah jenis dokumen
+      description: Peran **admin** atau **kaprodi**. `nama_jenis_dokumen` harus unik.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JenisDokumenInput'
+      responses:
+        '200':
+          description: Jenis dokumen berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisDokumenResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /jenis-dokumen/{id}:
+    get:
+      tags: [Jenis Dokumen]
+      summary: Detail satu jenis dokumen
+      description: Tanpa token.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail jenis dokumen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisDokumenResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Jenis Dokumen]
+      summary: Ubah jenis dokumen
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JenisDokumenInput'
+      responses:
+        '200':
+          description: Jenis dokumen diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JenisDokumenResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Jenis Dokumen]
+      summary: Hapus jenis dokumen
+      description: Peran **admin** atau **kaprodi**. Gagal jika jenis dokumen masih digunakan pada dokumen kegiatan atau bukti prestasi.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Jenis dokumen dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '400':
+          description: Jenis dokumen masih digunakan dan tidak dapat dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token dari POST /login. Tempel tokennya saja, tanpa kata "Bearer".
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: ID data (angka).
+      schema:
+        type: integer
+        minimum: 1
+    PerPage:
+      name: per_page
+      in: query
+      description: Jumlah data per halaman (bawaan 15).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 15
+    Angkatan:
+      name: angkatan
+      in: query
+      description: |
+        Angkatan (tahun masuk mahasiswa, 4 digit). Memilih kurikulum yang berlaku bagi angkatan itu:
+        kurikulum dengan tahun mulai terbesar yang masih kurang dari atau sama dengan angkatan.
+        Angkatan yang belum punya kurikulum menghasilkan daftar kosong (200, bukan galat).
+        Pada `/mata-kuliah` tidak boleh dikirim bersama `id_kurikulum` (422).
+      schema:
+        type: integer
+        minimum: 2000
+        maximum: 2100
+        example: 2024
+    Page:
+      name: page
+      in: query
+      description: Nomor halaman.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+  responses:
+    TidakLogin:
+      description: Belum login atau token tidak valid/kedaluwarsa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Belum login atau token tidak valid.
+    DilarangPeran:
+      description: Peran akun tidak diizinkan untuk aksi ini.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengakses fitur ini.
+    TidakDitemukan:
+      description: Data tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data tidak ditemukan.
+    ValidasiGagal:
+      description: Input tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatValidasi'
+    TerlaluBanyak:
+      description: Terlalu banyak permintaan. Coba lagi beberapa saat lagi.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+    DosenTidakDitemukan:
+      description: Data dosen tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data dosen tidak ditemukan.
+    DosenDilarang:
+      description: Peran akun tidak diizinkan atau bukan pemilik profil dosen.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengubah data dosen ini.
+    DosenValidasiGagal:
+      description: Input data dosen tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatValidasi'
+          example:
+            success: false
+            message: Data yang dikirim tidak valid. Periksa kembali isian Anda.
+            errors:
+              nip:
+                - NIP sudah dipakai dosen lain.
+              email:
+                - Email sudah dipakai akun lain.
+
+  schemas:
+
+    GalatUmum:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Data tidak ditemukan
+        errors:
+          type: object
+          additionalProperties: true
+
+    GalatValidasi:
+      type: object
+      properties:
+        message:
+          type: string
+          example: The nama kurikulum field is required.
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            nama_kurikulum: [The nama kurikulum field is required.]
+
+    Meta:
+      type: object
+      description: Informasi halaman untuk daftar berhalaman.
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 15
+        total:
+          type: integer
+          example: 42
+        last_page:
+          type: integer
+          example: 3
+
+    PesanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Berhasil
+        data:
+          nullable: true
+          example: null
+
+    PingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Service Kelompok 3 Aktif
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              example: ok
+            service:
+              type: string
+              example: sikap-kelompok3
+            time:
+              type: string
+              format: date-time
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: kaprodi@trk.ac.id
+        password:
+          type: string
+          format: password
+          example: password
+        device_name:
+          type: string
+          maxLength: 100
+          description: Nama perangkat (opsional), hanya sebagai label token.
+          example: postman
+
+    Pengguna:
+      type: object
+      properties:
+        id_user:
+          type: integer
+          example: 2
+        email:
+          type: string
+          example: kaprodi@trk.ac.id
+        id_role:
+          type: integer
+          description: 1 admin, 2 kaprodi, 3 dosen, 4 mahasiswa.
+          example: 2
+        role:
+          type: string
+          example: kaprodi
+        status:
+          type: boolean
+          example: true
+        foto_profil:
+          type: string
+          nullable: true
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Login berhasil.
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+              example: 1|abcdefghijklmnopqrstuvwxyz0123456789
+            token_type:
+              type: string
+              example: Bearer
+            expires_at:
+              type: string
+              format: date-time
+            user:
+              $ref: '#/components/schemas/Pengguna'
+
+    ProfilResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data profil user berhasil diambil
+        data:
+          type: object
+          description: Data akun pemilik token (kolom pada tabel users, tanpa sandi).
+          additionalProperties: true
+
+    Kurikulum:
+      type: object
+      properties:
+        id_kurikulum:
+          type: integer
+          example: 3
+        id_prodi:
+          type: integer
+          example: 1
+        nama_kurikulum:
+          type: string
+          example: Kurikulum KBK 2026
+        tahun_terbit:
+          type: integer
+          nullable: true
+          example: 2026
+        deskripsi:
+          type: string
+          nullable: true
+        status:
+          type: boolean
+          description: true = aktif.
+          example: true
+        link:
+          type: string
+          nullable: true
+          description: URL berkas PDF kurikulum.
+          example: http://127.0.0.1:8001/storage/kurikulum/kbk-2026.pdf
+
+    KurikulumInput:
+      type: object
+      required: [nama_kurikulum, tahun_terbit]
+      properties:
+        nama_kurikulum:
+          type: string
+          example: Kurikulum KBK 2026
+        deskripsi:
+          type: string
+        tahun_terbit:
+          type: integer
+          minimum: 1990
+          maximum: 2100
+          example: 2026
+        pdf:
+          type: string
+          format: binary
+          description: Berkas PDF, maksimal 20 MB.
+
+    KurikulumResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Kurikulum'
+
+    KurikulumListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kurikulum'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MataKuliah:
+      type: object
+      properties:
+        id_mk:
+          type: integer
+          example: 15
+        id_kurikulum:
+          type: integer
+          example: 3
+        semester:
+          type: integer
+          minimum: 1
+          maximum: 8
+          example: 1
+        kode_mk:
+          type: string
+          example: TRK101
+        nama_mk:
+          type: string
+          example: Pemrograman Dasar
+        sks_teori:
+          type: integer
+          example: 2
+        sks_praktik:
+          type: integer
+          example: 1
+        jam_teori:
+          type: integer
+          example: 2
+        jam_praktek:
+          type: integer
+          example: 3
+
+    MataKuliahInput:
+      type: object
+      required: [semester, kode_mk, nama_mk, sks_teori, sks_praktik, jam_teori, jam_praktek]
+      properties:
+        semester:
+          type: integer
+          minimum: 1
+          maximum: 8
+          example: 1
+        kode_mk:
+          type: string
+          example: TRK101
+        nama_mk:
+          type: string
+          example: Pemrograman Dasar
+        sks_teori:
+          type: integer
+          example: 2
+        sks_praktik:
+          type: integer
+          example: 1
+        jam_teori:
+          type: integer
+          example: 2
+        jam_praktek:
+          type: integer
+          example: 3
+
+    MataKuliahResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/MataKuliah'
+
+    MataKuliahArrayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MataKuliah'
+
+    MataKuliahListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MataKuliah'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    Akreditasi:
+      type: object
+      properties:
+        id_akreditasi:
+          type: integer
+          example: 2
+        lembaga:
+          type: string
+          description: Lembaga pemberi akreditasi (disimpan pada kolom keterangan).
+          example: BAN-PT
+        nomor_sk:
+          type: string
+          nullable: true
+        tahun_terbit:
+          type: integer
+          nullable: true
+          example: 2024
+        berlaku_sampai:
+          type: string
+          format: date
+          nullable: true
+          example: '2029-12-31'
+        status:
+          type: boolean
+          description: true = akreditasi yang sedang berlaku.
+          example: true
+        link:
+          type: string
+          nullable: true
+          description: URL berkas PDF akreditasi.
+
+    AkreditasiInput:
+      type: object
+      required: [lembaga, tahun_terbit]
+      properties:
+        lembaga:
+          type: string
+          example: BAN-PT
+        nomor_sk:
+          type: string
+        tahun_terbit:
+          type: integer
+          example: 2024
+        berlaku_sampai:
+          type: string
+          format: date
+          example: '2029-12-31'
+        aktifkan:
+          type: boolean
+          description: Jadikan akreditasi aktif saat disimpan.
+        pdf:
+          type: string
+          format: binary
+          description: Berkas PDF, maksimal 20 MB.
+
+    AkreditasiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Akreditasi'
+
+    AkreditasiListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Akreditasi'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    JenisKegiatan:
+      type: object
+      properties:
+        id_jenis_kegiatan:
+          type: integer
+          example: 2
+        nama_jenis_kegiatan:
+          type: string
+          example: Kegiatan Mahasiswa
+
+    JenisKegiatanListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JenisKegiatan'
+
+    TipeIsian:
+      type: object
+      properties:
+        nilai:
+          type: string
+          example: tingkat_kejuaraan
+        label:
+          type: string
+          example: 'Pilihan: Tingkat kejuaraan'
+        baku:
+          type: boolean
+          description: true = pilihan baku (daftar pilihan ditentukan sistem).
+
+    TipeIsianListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TipeIsian'
+
+    Pilihan:
+      type: object
+      properties:
+        nilai:
+          description: Nilai yang disimpan (mis. provinsi, atau id dosen).
+          example: provinsi
+        label:
+          type: string
+          example: Provinsi
+
+    IsianKategori:
+      type: object
+      properties:
+        id_isian_kategori:
+          type: integer
+          example: 7
+        input:
+          type: string
+          description: Nama isian yang tampil di form.
+          example: Nama tim
+        jenis_input:
+          type: string
+          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+          example: teks
+        wajib:
+          type: boolean
+          description: Disimpan pada kolom aturan (NOT NULL = true).
+          example: true
+        jumlah_isian:
+          type: integer
+          enum: [0, 1]
+          description: 0 = satu isian, 1 = lebih dari satu.
+          example: 0
+        pilihan:
+          type: array
+          nullable: true
+          description: Hanya pada detail kategori, untuk tipe pilihan baku (tingkat_kejuaraan, jenis_prestasi, dosen). Selain itu null.
+          items:
+            $ref: '#/components/schemas/Pilihan'
+
+    IsianKategoriInput:
+      type: object
+      required: [input, jenis_input]
+      properties:
+        id_isian_kategori:
+          type: integer
+          description: Isi untuk memperbarui isian yang sudah ada; kosongkan untuk isian baru.
+        input:
+          type: string
+          maxLength: 100
+          description: Tidak boleh sama dengan isian lain di kategori yang sama.
+          example: Nama tim
+        jenis_input:
+          type: string
+          enum: [teks, paragraf, angka, tanggal, berkas, tingkat_kejuaraan, jenis_prestasi, dosen]
+        wajib:
+          type: boolean
+        jumlah_isian:
+          type: integer
+          enum: [0, 1]
+
+    Kategori:
+      type: object
+      properties:
+        id_kategori:
+          type: integer
+          example: 6
+        id_jenis_kegiatan:
+          type: integer
+          example: 2
+        jenis:
+          type: string
+          nullable: true
+          example: Kegiatan Mahasiswa
+        nama_kategori:
+          type: string
+          example: Lomba
+        deskripsi:
+          type: string
+          nullable: true
+        kebutuhan:
+          type: string
+          enum: [kegiatan, surat]
+          description: kegiatan = langsung jadi kegiatan; surat = lewat review admin dan menghasilkan surat persetujuan.
+        isi_surat:
+          type: string
+          nullable: true
+          description: Template surat balasan (dengan variabel seperti [NAMA_PENGAJU]).
+        total_isian:
+          type: integer
+          description: Hanya pada daftar.
+          example: 2
+        isian:
+          type: array
+          description: Hanya pada detail, simpan, dan ubah.
+          items:
+            $ref: '#/components/schemas/IsianKategori'
+
+    KategoriInput:
+      type: object
+      required: [nama_kategori]
+      properties:
+        id_jenis_kegiatan:
+          type: integer
+          description: Wajib kalau `jenis` tidak dikirim.
+          example: 2
+        jenis:
+          type: string
+          description: Nama jenis kegiatan, alternatif dari id_jenis_kegiatan.
+          example: Kegiatan Mahasiswa
+        nama_kategori:
+          type: string
+          maxLength: 100
+          example: Lomba
+        deskripsi:
+          type: string
+          maxLength: 255
+        kebutuhan:
+          type: string
+          enum: [kegiatan, surat]
+        isi_surat:
+          type: string
+        isian:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/IsianKategoriInput'
+
+    KategoriResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Kategori'
+
+    KategoriListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kategori'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    DosenItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nip:
+          type: string
+          example: '198407192019031008'
+        nama:
+          type: string
+          example: Kuwat Santoso, S.T., M.Kom.
+        jabatan:
+          type: string
+          example: Asisten Ahli
+        golongan:
+          type: string
+          example: III/c
+        status:
+          type: string
+          enum: [aktif, nonaktif]
+          example: aktif
+
+    DosenListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data dosen berhasil diambil.
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 12
+            opsi_pangkat:
+              type: array
+              items:
+                type: string
+              example: [Tenaga Pengajar, Asisten Ahli, Lektor, Lektor Kepala, Guru Besar]
+            opsi_golongan:
+              type: array
+              items:
+                type: string
+              example: [III/a, III/b, III/c, III/d, IV/a, IV/b, IV/c, IV/d, IV/e]
+            roles:
+              type: object
+              additionalProperties:
+                type: string
+              example:
+                dosen: Dosen
+                admin: Admin
+                kaprodi: Kaprodi
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DosenItem'
+
+    DosenRiwayatPangkat:
+      type: object
+      properties:
+        pangkat:
+          type: string
+          example: Lektor
+        golongan:
+          type: string
+          example: III/c
+        sk:
+          type: string
+          example: 0891/PL4.7.2/KP/2026
+        tanggal:
+          type: string
+          format: date
+          example: '2026-11-14'
+        tanggal_formatted:
+          type: string
+          example: 14 November 2026
+        now:
+          type: boolean
+          example: true
+
+    DosenDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Detail dosen berhasil diambil.
+        data:
+          type: object
+          properties:
+            profil:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 1
+                nama:
+                  type: string
+                  example: Kuwat Santoso, S.T., M.Kom.
+                nip:
+                  type: string
+                  example: '198407192019031008'
+                email:
+                  type: string
+                  format: email
+                  example: kuwatsantoso@polines.ac.id
+                role:
+                  type: string
+                  example: Dosen
+                role_key:
+                  type: string
+                  example: dosen
+                jabatan:
+                  type: string
+                  example: Asisten Ahli
+                golongan:
+                  type: string
+                  example: III/c
+                status:
+                  type: string
+                  enum: [aktif, nonaktif]
+                  example: aktif
+                status_akun:
+                  type: string
+                  enum: [aktif, nonaktif]
+                  example: aktif
+                foto:
+                  type: string
+                  nullable: true
+                  example: http://127.0.0.1:8001/storage/foto-dosen/profil.jpg
+            riwayat:
+              type: array
+              items:
+                $ref: '#/components/schemas/DosenRiwayatPangkat'
+            aktivitas:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  label:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+    DosenCreateInput:
+      type: object
+      required: [nama_lengkap, nip, status_dosen, email, role, password, pangkat, golongan, nomor_sk, tanggal_sk]
+      properties:
+        nama_lengkap:
+          type: string
+          maxLength: 100
+          example: Budi Santoso, S.Kom., M.Cs.
+        nip:
+          type: string
+          pattern: '^\d{8,20}$'
+          example: '199005122022031004'
+        status_dosen:
+          type: string
+          enum: [aktif, nonaktif]
+          example: aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: budi.santoso@polines.ac.id
+        role:
+          type: string
+          enum: [dosen, admin, kaprodi]
+          example: dosen
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: password123
+        foto:
+          type: string
+          format: binary
+          description: Foto profil JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        pangkat:
+          type: string
+          example: Asisten Ahli
+        golongan:
+          type: string
+          example: III/b
+        nomor_sk:
+          type: string
+          maxLength: 100
+          example: 0123/PL4.7.2/KP/2026
+        tanggal_sk:
+          type: string
+          format: date
+          example: '2026-11-16'
+
+    DosenUpdateInput:
+      type: object
+      required: [nama_lengkap, nip, email]
+      properties:
+        nama_lengkap:
+          type: string
+          maxLength: 100
+          example: Kuwat Santoso, S.T., M.Kom.
+        nip:
+          type: string
+          pattern: '^\d{8,20}$'
+          example: '198407192019031008'
+        status_dosen:
+          type: string
+          enum: [aktif, nonaktif]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: kuwatsantoso@polines.ac.id
+        role:
+          type: string
+          enum: [dosen, admin, kaprodi]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: dosen
+        status_akun:
+          type: string
+          enum: [aktif, nonaktif]
+          description: Wajib untuk admin; diabaikan bila diubah oleh dosen pemilik profil.
+          example: aktif
+        password:
+          type: string
+          format: password
+          minLength: 8
+          nullable: true
+          description: Kosongkan jika tidak ingin mengubah password.
+        foto:
+          type: string
+          format: binary
+          description: Foto profil baru JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        pangkat:
+          type: string
+          nullable: true
+          description: Wajib diisi bersama `golongan`, `nomor_sk`, dan `tanggal_sk` jika menambah riwayat pangkat baru.
+          example: Lektor
+        golongan:
+          type: string
+          nullable: true
+          example: III/c
+        nomor_sk:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: 0891/PL4.7.2/KP/2026
+        tanggal_sk:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-14'
+
+    DosenMutationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Perubahan data dosen berhasil disimpan.
+        data:
+          type: object
+          additionalProperties: true
+
+    JenisDokumen:
+      type: object
+      properties:
+        id_jenis_dokumen:
+          type: integer
+          example: 1
+        nama_jenis_dokumen:
+          type: string
+          example: Surat Keterangan
+        keterangan:
+          type: string
+          nullable: true
+          example: Surat keterangan pendukung kegiatan
+
+    JenisDokumenInput:
+      type: object
+      required: [nama_jenis_dokumen]
+      properties:
+        nama_jenis_dokumen:
+          type: string
+          maxLength: 100
+          example: Surat Keterangan
+        keterangan:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: Surat keterangan pendukung kegiatan
+
+    JenisDokumenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/JenisDokumen'
+
+    JenisDokumenListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JenisDokumen'
+        meta:
+          $ref: '#/components/schemas/Meta'

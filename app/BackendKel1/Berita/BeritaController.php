@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\BackendKel1\Berita;
 
 use App\Http\Controllers\Controller;
 use App\Models\Berita;

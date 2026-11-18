@@ -103,6 +103,27 @@ class PengajaranTest extends TestCase
 
     // ---------- API: login ----------
 
+    public function test_form_pengajaran_memakai_sesi_login_web_tanpa_bearer(): void
+    {
+        $dosen = $this->dosen();
+        $login = $this->post('/login', ['email' => $dosen->user->email, 'password' => 'password']);
+        $login->assertRedirect();
+        $this->assertAuthenticatedAs($dosen->user, 'web');
+
+        $cookieName = config('session.cookie');
+        $this->withCredentials()->withCookie($cookieName, $login->getCookie($cookieName)->getValue())
+            ->withHeader('Origin', 'http://localhost:8000');
+        config(['sanctum.stateful' => ['localhost:8000']]);
+        $this->app['auth']->forgetGuards();
+        $this->getJson(self::API.'/opsi')->assertOk()->assertJsonPath('data.dosen', $dosen->nama);
+
+        $this->app['auth']->forgetGuards();
+        $this->postJson(self::API, [
+            'id_enrollment_tingkat_kelas' => $this->rombel()->getKey(),
+            'id_enrollment_mk' => $this->matkul()->getKey(),
+        ])->assertCreated();
+    }
+
     public function test_api_requires_login(): void
     {
         $this->getJson(self::API)->assertUnauthorized();
