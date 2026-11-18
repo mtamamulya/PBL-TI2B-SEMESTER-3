@@ -14,6 +14,6 @@ Route::middleware(['auth:sanctum', PastikanDosenAktif::class])->group(function (
         require __DIR__.'/DokumenSurat/routes.php';
         require __DIR__.'/PrestasiBerita/routes.php';
         require __DIR__.'/Dashboard/routes.php';
-        require __DIR__ .'/PrestasiBerita/routes.php';
+        require __DIR__.'/PrestasiBerita/routes.php';
     });
 });
