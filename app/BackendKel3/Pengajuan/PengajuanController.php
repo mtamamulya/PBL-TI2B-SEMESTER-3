@@ -19,24 +19,22 @@ class PengajuanController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $idDosen = (int) $request->user()->id;
-        $filterStatus = $request->query('status'); // diajukan, direview, direvisi, ditolak, diterima, selesai
+        $idUser = (int) $request->user()->getKey();
+        $filterStatus = $request->query('status');
         $search = $request->query('search');
 
-        $query = Kegiatan::with(['statusTerkini', 'timeline'])
-            ->where('id_dosen', $idDosen)
-            ->whereHas('timeline'); // Hanya tampilkan kegiatan yang sudah masuk alur pengajuan
+        $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline'])
+            ->where('id_user', $idUser)
+            ->whereHas('timeline');
 
-        // Filter berdasarkan status terkini
         if (! empty($filterStatus) && $filterStatus !== 'semua') {
             $query->whereHas('statusTerkini', function ($q) use ($filterStatus) {
                 $q->where('status', strtolower($filterStatus));
             });
         }
 
-        // Filter pencarian judul kegiatan (sesuai UI search bar)
         if (! empty($search)) {
-            $query->where('judul', 'like', "%{$search}%");
+            $query->where('nama_kegiatan', 'like', "%{$search}%");
         }
 
         $daftarPengajuan = $query->latest('updated_at')->get();
@@ -53,28 +51,26 @@ class PengajuanController extends Controller
      */
     public function timeline(Request $request, int $id): JsonResponse
     {
-        $idDosen = (int) $request->user()->id;
+        $idUser = (int) $request->user()->getKey();
 
-        $kegiatan = Kegiatan::with(['timeline' => function ($query) {
-            $query->orderBy('created_at', 'asc')->orderBy('id', 'asc');
-        }, 'statusTerkini'])
+        $kegiatan = Kegiatan::with(['kategori', 'timeline', 'statusTerkini'])
             ->where('id_kegiatan', $id)
-            ->where('id_dosen', $idDosen)
+            ->where('id_user', $idUser)
             ->firstOrFail();
 
         return response()->json([
             'status' => 'success',
             'data' => [
                 'id_kegiatan' => $kegiatan->id_kegiatan,
-                'judul' => $kegiatan->judul,
+                'nama_kegiatan' => $kegiatan->nama_kegiatan,
                 'kategori' => $kegiatan->kategori,
                 'status_terkini' => $kegiatan->statusTerkini?->status,
                 'riwayat_tahapan' => $kegiatan->timeline->map(function ($item) {
                     return [
-                        'id' => $item->id,
+                        'id_timeline' => $item->id_timeline,
                         'status' => $item->status,
-                        'catatan' => $item->catatan,
-                        'tanggal' => $item->created_at?->toIso8601String(),
+                        'catatan_revisi' => $item->catatan_revisi,
+                        'tanggal_status' => $item->tanggal_status?->toIso8601String(),
                     ];
                 }),
             ],
@@ -87,9 +83,9 @@ class PengajuanController extends Controller
      */
     public function ajukan(Request $request, int $id): JsonResponse
     {
-        $idDosen = (int) $request->user()->id;
+        $idUser = (int) $request->user()->getKey();
 
-        $timeline = $this->alurPengajuan->ajukanBaru($id, $idDosen);
+        $timeline = $this->alurPengajuan->ajukanBaru($id, $idUser);
 
         return response()->json([
             'status' => 'success',
@@ -108,11 +104,11 @@ class PengajuanController extends Controller
             'catatan' => 'nullable|string|max:1000',
         ]);
 
-        $idDosen = (int) $request->user()->id;
+        $idUser = (int) $request->user()->getKey();
 
         $timeline = $this->alurPengajuan->ajukanUlang(
             $id,
-            $idDosen,
+            $idUser,
             $request->input('catatan')
         );
 

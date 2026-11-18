@@ -1266,6 +1266,105 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '422':
           $ref: '#/components/responses/ValidasiGagal'
+  /pengajuan-mahasiswa:
+    get:
+      tags:
+        - Pengajuan Mahasiswa
+      summary: Ambil daftar seluruh pengajuan kegiatan mahasiswa
+      responses:
+        '200':
+          description: Daftar pengajuan berhasil diambil
+    post:
+      tags:
+        - Pengajuan Mahasiswa
+      summary: Buat pengajuan kegiatan mahasiswa baru
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id_kategori
+                - nama_kegiatan
+              properties:
+                id_kategori:
+                  type: integer
+                  example: 1
+                id_user:
+                  type: integer
+                  example: 4
+                nama_kegiatan:
+                  type: string
+                  example: Kompetisi Keamanan Siber Nasional
+                detail:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  example:
+                    "1": "Semarang"
+                    "2": "Kemendiktisaintek"
+      responses:
+        '201':
+          description: Pengajuan kegiatan berhasil disimpan
+
+  /pengajuan-mahasiswa/{id}:
+    get:
+      tags:
+        - Pengajuan Mahasiswa
+      summary: Ambil detail pengajuan kegiatan berdasarkan ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail pengajuan berhasil diambil
+    put:
+      tags:
+        - Pengajuan Mahasiswa
+      summary: Perbarui data pengajuan kegiatan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_kategori:
+                  type: integer
+                nama_kegiatan:
+                  type: string
+                detail:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '200':
+          description: Pengajuan kegiatan berhasil diperbarui
+    delete:
+      tags:
+        - Pengajuan Mahasiswa
+      summary: Hapus pengajuan kegiatan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pengajuan kegiatan berhasil dihapus
+
+components:
 
   /berita/opsi:
     get:
