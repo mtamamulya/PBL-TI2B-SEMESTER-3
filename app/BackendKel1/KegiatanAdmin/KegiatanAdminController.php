@@ -3,8 +3,8 @@
 namespace App\BackendKel1\KegiatanAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Kegiatan;
 use App\Models\Kategori;
+use App\Models\Kegiatan;
 use App\Support\ApiResponse;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
