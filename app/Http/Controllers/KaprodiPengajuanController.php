@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Repositories\SuratPersetujuanStore;
 use App\Repositories\TandaTanganStore;
-use App\Support\ApiClient;
+use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class KaprodiPengajuanController extends Controller
 {
+    use PanggilApiWeb;
+
     public function __construct(
         private SuratPersetujuanStore $surat,
         private TandaTanganStore $ttd,
@@ -22,7 +24,7 @@ class KaprodiPengajuanController extends Controller
     /** Daftar: semua pengajuan yang pernah dikirim admin ke kaprodi */
     public function index()
     {
-        $hasil = ApiClient::pengguna()->get('/kaprodi/pengajuan', ['per_page' => 100]);
+        $hasil = $this->apiGet('/kaprodi/pengajuan', ['per_page' => 100]);
         $rows = array_map(fn (array $r) => $this->bentukBaris($r), $hasil['data'] ?? []);
 
         return view('kaprodi.pengajuan', ['rows' => $rows]);
@@ -31,7 +33,7 @@ class KaprodiPengajuanController extends Controller
     /** Detail + pratinjau surat + tombol tanda tangan */
     public function show(string $id)
     {
-        $p = ApiClient::pengguna()->get("/kaprodi/pengajuan/{$id}")['data'] ?? [];
+        $p = $this->apiGet("/kaprodi/pengajuan/{$id}")['data'] ?? [];
         $snap = $this->surat->find($id);
 
         $status = $this->labelStatus($p['status'] ?? 'direview');
@@ -111,7 +113,7 @@ class KaprodiPengajuanController extends Controller
                 return back()->withErrors(['tanda_tangan' => 'Unggah tanda tangan terlebih dahulu.']);
             }
 
-            $respons = ApiClient::pengguna()->post("/kaprodi/pengajuan/{$id}/keputusan", [
+            $respons = $this->apiPost("/kaprodi/pengajuan/{$id}/keputusan", [
                 'aksi' => 'setujui',
             ]);
 
@@ -127,7 +129,7 @@ class KaprodiPengajuanController extends Controller
                 ->with('success', $respons['message'] ?? 'Surat berhasil ditandatangani dan pengajuan disetujui.');
         }
 
-        $respons = ApiClient::pengguna()->post("/kaprodi/pengajuan/{$id}/keputusan", [
+        $respons = $this->apiPost("/kaprodi/pengajuan/{$id}/keputusan", [
             'aksi' => $data['aksi'],
             'catatan_revisi' => trim((string) ($data['catatan'] ?? '')),
         ]);
@@ -142,7 +144,7 @@ class KaprodiPengajuanController extends Controller
     /** Gambar tanda tangan pada surat yang SUDAH ditandatangani */
     public function ttdSurat(string $id)
     {
-        ApiClient::pengguna()->get("/kaprodi/pengajuan/{$id}");
+        $this->apiGet("/kaprodi/pengajuan/{$id}");
 
         $snap = $this->surat->find($id);
         $path = $snap['tanda_tangan_path'] ?? null;

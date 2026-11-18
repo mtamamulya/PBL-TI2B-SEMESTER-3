@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\ApiClient;
+use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class AdminTinjauPengajuanController extends Controller
 {
+    use PanggilApiWeb;
+
     private const NAMA_KAPRODI = 'Nama Kaprodi';
 
     private const NIP_KAPRODI = '198001012010101001';
@@ -20,7 +22,7 @@ class AdminTinjauPengajuanController extends Controller
 
     public function show(string $id)
     {
-        $hasil = ApiClient::pengguna()->get("/admin/pengajuan/{$id}");
+        $hasil = $this->apiGet("/admin/pengajuan/{$id}");
         $p = $hasil['data'] ?? [];
 
         $status = $this->labelStatus($p['status'] ?? 'diajukan');
@@ -92,7 +94,7 @@ class AdminTinjauPengajuanController extends Controller
         // Konversi indeks checkbox [0, 1, ...] dari form Blade menjadi id_dokumen asli dari API
         $lampiranIds = [];
         if ($data['aksi'] === 'setujui' && ! empty($data['lampiran'])) {
-            $detail = ApiClient::pengguna()->get("/admin/pengajuan/{$id}")['data'] ?? [];
+            $detail = $this->apiGet("/admin/pengajuan/{$id}")['data'] ?? [];
             $daftarDokumen = $detail['dokumen'] ?? [];
 
             foreach (array_unique(array_map('intval', $data['lampiran'])) as $idx) {
@@ -110,7 +112,7 @@ class AdminTinjauPengajuanController extends Controller
             'lampiran' => $lampiranIds,
         ];
 
-        $respons = ApiClient::pengguna()->post("/admin/pengajuan/{$id}/keputusan", $payload);
+        $respons = $this->apiPost("/admin/pengajuan/{$id}/keputusan", $payload);
 
         return redirect()
             ->route('admin.pengajuan.show', $id)
