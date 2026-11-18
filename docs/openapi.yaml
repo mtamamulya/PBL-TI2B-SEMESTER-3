@@ -63,13 +63,24 @@ tags:
     description: Kategori kegiatan beserta isian form pengajuan (baca semua pengguna login, tulis admin).
   - name: Pengajuan Admin
     description: Tinjauan dan keputusan admin terhadap pengajuan kegiatan
+  - name: Pengajuan Kaprodi
+    description: Tinjauan dan penandatanganan pengajuan kegiatan oleh Kaprodi
   - name: Dosen
     description: Data dosen dan riwayat pangkat (baca publik/lintas kelompok, tambah khusus admin, ubah oleh admin atau dosen pemilik).
+  - name: Mahasiswa
+    description: Data mahasiswa, status akademik, dan sinkronisasi kelas semester (baca publik/lintas kelompok, kelola khusus admin, ubah profil oleh admin atau mahasiswa pemilik).
   - name: Jenis Dokumen
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
+  - name: Berita
+    description: Pengelolaan berita prodi (baca publik, tulis admin dan kaprodi, tinjau khusus admin).
+
+  - name: Prestasi
+    description: Baca daftar dan detail prestasi untuk kebutuhan tampilan Admin dan Kaprodi.
+
+  - name: Admin Prestasi
+    description: Pengelolaan seluruh prestasi oleh pengguna dengan role admin.
 
 paths:
-
   /ping:
     get:
       tags: [Kesehatan]
@@ -921,6 +932,157 @@ paths:
         '422':
           $ref: '#/components/responses/DosenValidasiGagal'
 
+  /mahasiswa:
+    get:
+      tags: [Mahasiswa]
+      summary: Daftar mahasiswa
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mendukung pencarian nama/NIM serta filter tingkat dan status akademik.
+      parameters:
+        - name: q
+          in: query
+          description: Cari berdasarkan nama atau NIM mahasiswa.
+          schema:
+            type: string
+            maxLength: 100
+        - name: level
+          in: query
+          description: Saring berdasarkan tingkat semester (mis. `Tingkat 1`, `Tingkat 2`, `Tingkat 3`, `Tingkat 4`, atau `all`).
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Lulus`, `Non-aktif`, atau `all`).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar mahasiswa berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaListResponse'
+    post:
+      tags: [Mahasiswa]
+      summary: Tambah mahasiswa baru
+      description: |
+        Khusus peran **admin**. Membuat data profil mahasiswa dan akun login baru.
+        Format NIM harus mengikuti pola `jenjang.prodi.tahun.kelas.absen` (contoh: `4.33.25.1.09`) dan digit tahun pada NIM harus sama dengan nilai `angkatan`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MahasiswaCreateInput'
+      responses:
+        '201':
+          description: Mahasiswa baru berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
+
+  /mahasiswa/{id}:
+    get:
+      tags: [Mahasiswa]
+      summary: Detail satu mahasiswa
+      description: Dapat diakses secara publik dan lintas kelompok tanpa token. Mengembalikan profil mahasiswa, ringkasan akademik, riwayat kelas, dan daftar kegiatan.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail mahasiswa berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaDetailResponse'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+    put:
+      tags: [Mahasiswa]
+      summary: Ubah data mahasiswa
+      description: |
+        Dapat diakses oleh peran **admin** atau **mahasiswa** pemilik profil yang bersangkutan.
+        Pengguna non-admin hanya dapat mengubah nama, email, kata sandi, dan foto profil (field `nim`, `angkatan`, dan `status` diabaikan).
+        Untuk mengirim berkas foto profil, gunakan `POST` dengan field tambahan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MahasiswaUpdateInput'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MahasiswaUpdateInput'
+      responses:
+        '200':
+          description: Perubahan data mahasiswa berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/MahasiswaDilarang'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
+
+  /mahasiswa/{id}/status:
+    patch:
+      tags: [Mahasiswa]
+      summary: Toggle status aktif/nonaktif mahasiswa
+      description: Khusus peran **admin**. Membalik status keaktifan akun dan status akademik mahasiswa (`Aktif` <-> `Non-aktif`) tanpa body request.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Status mahasiswa berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MahasiswaMutationResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/MahasiswaTidakDitemukan'
+
+  /mahasiswa/sinkronisasi-kelas:
+    post:
+      tags: [Mahasiswa]
+      summary: Sinkronisasi kelas semester mahasiswa
+      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan serta menempatkannya ke kelas yang sesuai.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sinkronisasi kelas semester selesai dijalankan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+
   /jenis-dokumen:
     get:
       tags: [Jenis Dokumen]
@@ -1043,6 +1205,67 @@ paths:
         '404':
           $ref: '#/components/responses/TidakDitemukan'
 
+  /berita:
+    get:
+      tags: [Berita]
+      summary: Daftar berita (berhalaman)
+      description: Tanpa token hanya menampilkan berita berstatus `publish`. Pengguna login dapat menyaring semua status.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, diajukan, revisi, ditolak, publish]
+        - name: id_kategori
+          in: query
+          schema:
+            type: integer
+        - name: id_kegiatan
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          description: Cari pada judul berita.
+          schema:
+            type: string
+            maxLength: 150
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar berita berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Berita]
+      summary: Tambah berita baru
+      description: Peran **admin** atau **kaprodi**. Dikirim sebagai `multipart/form-data` bila menyertakan berkas sampul.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BeritaInput'
+      responses:
+        '201':
+          description: Berita berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
   /pengajuan-mahasiswa:
     get:
       tags:
@@ -1143,6 +1366,427 @@ paths:
 
 components:
 
+  /berita/opsi:
+    get:
+      tags: [Berita]
+      summary: Opsi kategori dan daftar kegiatan untuk form berita
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar opsi form berita.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      kategori:
+                        type: array
+                        items:
+                          type: string
+                      kegiatanList:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+
+  /berita/{id}:
+    get:
+      tags: [Berita]
+      summary: Detail satu berita beserta berita terkait
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail berita berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Berita]
+      summary: Ubah data berita
+      description: Peran **admin** atau **kaprodi**. Untuk mengirim berkas sampul baru, gunakan `POST` dengan `_method=PUT`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BeritaInput'
+      responses:
+        '200':
+          description: Berita berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Berita]
+      summary: Hapus berita
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Berita berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /berita/{id}/tinjau:
+    patch:
+      tags: [Berita]
+      summary: Tinjau pengajuan berita (terima, revisi, atau tolak)
+      description: Khusus peran **admin**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aksi]
+              properties:
+                aksi:
+                  type: string
+                  enum: [terima, revisi, tolak]
+                catatan_revisi:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Keputusan tinjauan disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeritaResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /kaprodi/pengajuan:
+    get:
+      tags: [Pengajuan Kaprodi]
+      summary: Daftar pengajuan kegiatan untuk Kaprodi
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [semua, menunggu, direview, diterima, selesai, direvisi, ditolak]
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar pengajuan kegiatan
+        '403':
+          description: Bukan Kaprodi
+
+  /kaprodi/pengajuan/{id}:
+    get:
+      tags: [Pengajuan Kaprodi]
+      summary: Detail pengajuan kegiatan untuk Kaprodi
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detail pengajuan kegiatan
+        '403':
+          description: Bukan Kaprodi
+        '404':
+          description: Pengajuan tidak ditemukan
+
+  /kaprodi/pengajuan/{id}/keputusan:
+    post:
+      tags: [Pengajuan Kaprodi]
+      summary: Simpan keputusan Kaprodi (setujui/tanda tangan, revisi, atau tolak)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [aksi]
+              properties:
+                aksi:
+                  type: string
+                  enum: [setujui, revisi, tolak]
+                catatan_revisi:
+                  type: string
+      responses:
+        '200':
+          description: Keputusan berhasil disimpan
+        '403':
+          description: Bukan Kaprodi
+        '409':
+          description: Pengajuan tidak sedang menunggu tanda tangan
+        '422':
+          description: Validasi gagal
+
+  /prestasi:
+    get:
+      tags: [Prestasi]
+      summary: Daftar prestasi (berhalaman)
+      description: |
+        Membaca daftar prestasi dari tabel prestasi, diurutkan dari id_prestasi terbaru.
+        Field kegiatan dapat bernilai null untuk prestasi tanpa kegiatan terkait.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar prestasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrestasiKel1ListResponse'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+  /prestasi/{id}:
+    get:
+      tags: [Prestasi]
+      summary: Detail satu prestasi dan daftar bukti
+      description: Membaca prestasi berdasarkan id_prestasi, termasuk relasi kegiatan dan bukti prestasi bila tersedia.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail prestasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrestasiKel1DetailResponse'
+        default:
+          description: Prestasi tidak ditemukan atau galat lain; kode HTTP bergantung pada implementasi ApiResponse.gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
+  /admin/prestasi:
+    get:
+      tags: [Admin Prestasi]
+      summary: Daftar seluruh prestasi untuk Admin
+      description: |
+        Membaca seluruh prestasi (bukan hanya milik pengguna login), urut id_prestasi menurun.
+        Data tiap item mencakup atribut dan relasi Eloquent serta objek tampilan untuk halaman web.
+        Hanya role admin yang diizinkan. Membutuhkan Bearer token Sanctum.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar prestasi berhalaman.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Admin Prestasi]
+      summary: Tambah prestasi sebagai Admin
+      description: |
+        Menambahkan prestasi mandiri atau dari kegiatan yang status terkininya diterima.
+        Jika sumber sebelumnya, pemilik harus pengaju atau anggota kegiatan tersebut.
+        Data yang tersedia pada kegiatan asal diterapkan ulang di sisi server.
+        Prestasi mandiri berbentuk Tim wajib memiliki minimal dua anggota, tepat satu Ketua,
+        dan pemilik prestasi harus tercantum sebagai anggota.
+        Wajib ada setidaknya satu tautan bukti yang valid; maksimal lima.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPrestasiRequest'
+      responses:
+        '201':
+          description: Prestasi berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiActionResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /admin/prestasi/opsi:
+    get:
+      tags: [Admin Prestasi]
+      summary: Pilihan untuk formulir Admin Prestasi
+      description: |
+        Daftar kegiatan berstatus diterima, pemilik yang berperan dosen/mahasiswa,
+        kandidat anggota tim, pilihan tingkat, capaian, jenis, dan jenis dokumen.
+        Dapat dipanggil sebelum menampilkan form tambah atau edit.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Opsi formulir berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiOpsiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+
+  /admin/prestasi/{id}:
+    get:
+      tags: [Admin Prestasi]
+      summary: Detail prestasi untuk Admin
+      description: |
+        Mengambil atribut, relasi, dan objek tampilan untuk halaman detail dan edit Admin.
+        Objek tampilan menggunakan kunci yang digunakan Blade Admin Prestasi.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail prestasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiDetailResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Admin Prestasi]
+      summary: Perbarui prestasi sebagai Admin
+      description: |
+        Memvalidasi ulang seluruh data prestasi. Gunakan dokumen_pertahankan berisi ID bukti
+        lama yang masih dipakai. Bukti lama yang tidak termasuk daftar tersebut dihapus.
+        Bukti baru dikirim melalui dokumen. Sumber kegiatan dan aturan anggota tim diperiksa
+        lagi di server. Kegiatan asalnya tidak diubah.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPrestasiRequest'
+      responses:
+        '200':
+          description: Prestasi berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiActionResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          description: ID prestasi tidak ditemukan (respons ditangani handler Laravel).
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Admin Prestasi]
+      summary: Hapus prestasi sebagai Admin
+      description: |
+        Menghapus prestasi dan bukti yang terkait. Kegiatan asal tidak dihapus.
+        Berkas lokal dengan prefix bukti-prestasi/ juga dibersihkan bila ada.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Prestasi berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPrestasiActionResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          description: ID prestasi tidak ditemukan (respons ditangani handler Laravel).
+
+components:
   securitySchemes:
     bearerAuth:
       type: http
@@ -1261,8 +1905,562 @@ components:
                 - NIP sudah dipakai dosen lain.
               email:
                 - Email sudah dipakai akun lain.
+    MahasiswaTidakDitemukan:
+      description: Data mahasiswa tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Data mahasiswa tidak ditemukan.
+    MahasiswaDilarang:
+      description: Peran akun tidak diizinkan atau bukan pemilik profil mahasiswa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatUmum'
+          example:
+            success: false
+            message: Anda tidak memiliki izin untuk mengubah data mahasiswa ini.
+    MahasiswaValidasiGagal:
+      description: Input data mahasiswa tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GalatValidasi'
+          example:
+            success: false
+            message: Data yang dikirim tidak valid. Periksa kembali isian Anda.
+            errors:
+              nim:
+                - Tahun pada NIM (2025) tidak sama dengan angkatan (2024).
+              email:
+                - Email sudah dipakai akun lain.
 
   schemas:
+
+    AdminPrestasiTampilan:
+      type: object
+      description: Objek siap tampil untuk Blade Admin; kunci sama dengan formatRow controller sebelumnya.
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        id_user:
+          type: integer
+        id_kegiatan:
+          type: integer
+          nullable: true
+        sumber:
+          type: string
+          enum: [mandiri, sebelumnya]
+        kegiatan:
+          type: string
+        nama_lomba:
+          type: string
+        penyelenggara:
+          type: string
+        lokasi:
+          type: string
+        dosen:
+          type: string
+        tingkat:
+          type: string
+        capaian:
+          type: string
+        jenis:
+          type: string
+        kategori_form:
+          type: string
+        tanggal_mulai:
+          type: string
+        tanggal_selesai:
+          type: string
+        bentuk:
+          type: string
+          enum: [Individu, Tim]
+        anggota_form:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        deskripsi:
+          type: string
+        dokumen:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              jenis:
+                type: string
+              nama:
+                type: string
+              url:
+                type: string
+        pemilik_prestasi:
+          type: string
+        anggota:
+          type: array
+          items:
+            type: string
+
+    AdminPrestasiRaw:
+      type: object
+      description: |
+        Atribut Prestasi dan relasi yang diserialisasi dari model. Selain kunci di bawah,
+        API dapat mengirim atribut/relasi tambahan dari model Eloquent.
+      additionalProperties: true
+      properties:
+        id_prestasi:
+          type: integer
+          example: 9
+        id_user:
+          type: integer
+        created_by:
+          type: integer
+          nullable: true
+        id_kegiatan:
+          type: integer
+          nullable: true
+        nama_lomba:
+          type: string
+        jenis_prestasi:
+          type: string
+        bidang_lomba:
+          type: string
+          nullable: true
+        penyelenggara:
+          type: string
+        lokasi:
+          type: string
+        tingkat_kejuaraan:
+          type: string
+        capaian:
+          type: string
+        bentuk_partisipasi:
+          type: string
+        kegiatan:
+          type: object
+          nullable: true
+          additionalProperties: true
+        bukti_prestasi:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        tampilan:
+          $ref: '#/components/schemas/AdminPrestasiTampilan'
+
+    AdminPrestasiListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Daftar prestasi berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminPrestasiRaw'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AdminPrestasiDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdminPrestasiRaw'
+
+    AdminPrestasiKegiatanOpsi:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        nama:
+          type: string
+        penyelenggara:
+          type: string
+        lokasi:
+          type: string
+        dosenPembimbing:
+          type: string
+        tingkat:
+          type: string
+        tanggalMulai:
+          type: string
+          description: Tanggal YYYY-MM-DD atau string kosong.
+        tanggalSelesai:
+          type: string
+          description: Tanggal YYYY-MM-DD atau string kosong.
+        jenisPrestasi:
+          type: string
+        bidangPrestasi:
+          type: string
+        idPemilik:
+          type: integer
+        namaPemilik:
+          type: string
+        anggota:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    AdminPrestasiOpsiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            kegiatanOptions:
+              type: array
+              description: Objek kegiatan terserialisasi dengan relasi; diperlukan untuk kompatibilitas form.
+              items:
+                type: object
+                additionalProperties: true
+            kegiatanList:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminPrestasiKegiatanOpsi'
+            pemilikList:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  nama:
+                    type: string
+                  email:
+                    type: string
+            tingkatList:
+              type: array
+              items:
+                type: string
+            capaianList:
+              type: array
+              items:
+                type: string
+            jenisList:
+              type: array
+              items:
+                type: string
+            jenisDokList:
+              type: array
+              items:
+                type: string
+            daftarMahasiswa:
+              type: array
+              items:
+                type: string
+            anggotaOptions:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            peranList:
+              type: array
+              items:
+                type: string
+            jenisDokumenOptions:
+              type: array
+              items:
+                type: object
+                properties:
+                  id_jenis_dokumen:
+                    type: integer
+                  nama_jenis_dokumen:
+                    type: string
+
+    AdminPrestasiAnggotaInput:
+      type: object
+      required: [id_user, nama, peran]
+      properties:
+        id_user:
+          type: integer
+        nama:
+          type: string
+          maxLength: 150
+        peran:
+          type: string
+          enum: [Ketua, Anggota]
+
+    AdminPrestasiDokumenInput:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: |
+            HTTPS berbagi Google Drive/Docs, OneDrive, atau subdomain SharePoint.
+            Jika url terisi, jenis juga harus terisi.
+          example: https://drive.google.com/file/d/123456789/view
+        jenis:
+          type: string
+          enum: [Sertifikat, Dokumentasi kegiatan]
+
+    AdminPrestasiRequest:
+      type: object
+      description: |
+        Untuk sumber sebelumnya, kegiatan dan id_kegiatan wajib diisi;
+        nilai kegiatan yang tersedia di server akan diterapkan ulang.
+        Untuk sumber mandiri berbentuk Tim, anggota wajib minimal dua orang,
+        termasuk pemilik prestasi dan tepat satu Ketua.
+        Setelah menggabungkan dokumen baru dan dokumen_pertahankan, wajib ada
+        setidaknya satu bukti dan maksimal lima; tautan tidak boleh duplikat.
+        Pada pembaruan, hanya ID bukti milik prestasi tersebut yang boleh dipertahankan.
+      required: [sumber, id_user, nama_lomba, penyelenggara, lokasi, tingkat, capaian, jenis, tanggal_mulai, tanggal_selesai, bentuk]
+      properties:
+        sumber:
+          type: string
+          enum: [mandiri, sebelumnya]
+        id_user:
+          type: integer
+          description: Pengguna pemilik prestasi dengan role dosen atau mahasiswa.
+        id_kegiatan:
+          type: integer
+          nullable: true
+          description: Wajib jika sumber sebelumnya.
+        kegiatan:
+          type: string
+          maxLength: 150
+          description: Nama kegiatan dari pilihan; wajib jika sumber sebelumnya.
+        nama_lomba:
+          type: string
+          maxLength: 150
+          example: Kompetisi Robotika Nasional
+        penyelenggara:
+          type: string
+          maxLength: 150
+        lokasi:
+          type: string
+          maxLength: 150
+        dosen:
+          type: string
+          nullable: true
+          maxLength: 100
+        tingkat:
+          type: string
+          enum: [Kabupaten/Kota, Provinsi, Nasional, Internasional]
+        capaian:
+          type: string
+          enum: [Juara 1, Juara 2, Juara 3, Harapan 1, Harapan 2, Harapan 3, Finalis, Peserta]
+        jenis:
+          type: string
+          enum: [Akademik, Nonakademik]
+        kategori:
+          type: string
+          nullable: true
+          maxLength: 100
+        tanggal_mulai:
+          type: string
+          format: date
+        tanggal_selesai:
+          type: string
+          format: date
+          description: Tidak boleh sebelum tanggal_mulai.
+        bentuk:
+          type: string
+          enum: [Individu, Tim]
+        anggota:
+          type: array
+          minItems: 2
+          description: Wajib hanya untuk prestasi mandiri berbentuk Tim.
+          items:
+            $ref: '#/components/schemas/AdminPrestasiAnggotaInput'
+        deskripsi:
+          type: string
+          nullable: true
+          maxLength: 1000
+        dokumen:
+          type: array
+          maxItems: 5
+          description: Tautan bukti baru, bukan unggahan file langsung.
+          items:
+            $ref: '#/components/schemas/AdminPrestasiDokumenInput'
+        dokumen_pertahankan:
+          type: array
+          maxItems: 5
+          description: ID bukti lama yang tetap dipakai saat PUT.
+          items:
+            type: integer
+
+    AdminPrestasiActionResponse:
+      type: object
+      description: Respons POST (201), PUT (200), atau DELETE (200). Properti data bisa tidak ada, berupa objek, atau null.
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Prestasi berhasil diperbarui.
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Pada PUT berisi id_prestasi; POST tanpa data, DELETE biasanya null.
+
+
+    PrestasiKel1Data:
+      type: object
+      description: Data prestasi sesuai respons PrestasiController Kelompok 1.
+      properties:
+        id_prestasi:
+          type: integer
+          example: 9
+        id_kegiatan:
+          type: integer
+          nullable: true
+          example: 2
+        id_prodi:
+          type: integer
+          nullable: true
+        jenis_prestasi:
+          type: string
+          enum: [akademik, non-akademik]
+        bidang_lomba:
+          type: string
+          nullable: true
+          example: Keamanan Siber (CTF)
+        capaian:
+          type: string
+          nullable: true
+          example: Juara 1
+        catatan:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          nullable: true
+          format: date-time
+        updated_at:
+          type: string
+          nullable: true
+          format: date-time
+        kegiatan:
+          type: object
+          nullable: true
+          description: Relasi kegiatan jika tersedia.
+          properties:
+            id_kegiatan:
+              type: integer
+            nama_kegiatan:
+              type: string
+            tanggal_mulai:
+              type: string
+              nullable: true
+              format: date
+            tanggal_selesai:
+              type: string
+              nullable: true
+              format: date
+            tempat:
+              type: string
+              nullable: true
+            deskripsi:
+              type: string
+              nullable: true
+            user:
+              type: object
+              nullable: true
+              description: Pemilik kegiatan terkait.
+              properties:
+                id_user:
+                  type: integer
+                nama:
+                  type: string
+                  nullable: true
+                role:
+                  description: Nilai mengikuti model User; dapat bervariasi antarimplementasi.
+                is_dosen:
+                  description: Nilai mengikuti model User.
+
+    PrestasiKel1Bukti:
+      type: object
+      properties:
+        id_bukti_prestasi:
+          type: integer
+        nama_file:
+          type: string
+          nullable: true
+        file_path:
+          type: string
+          nullable: true
+        link:
+          type: string
+          nullable: true
+          description: Tautan ke berkas bukti prestasi.
+        keterangan:
+          type: string
+          nullable: true
+        jenis_dokumen:
+          type: object
+          nullable: true
+          properties:
+            id_jenis_dokumen:
+              type: integer
+            nama_jenis:
+              type: string
+              nullable: true
+            nama_jenis_dokumen:
+              type: string
+              nullable: true
+
+    PrestasiKel1DetailData:
+      allOf:
+        - $ref: '#/components/schemas/PrestasiKel1Data'
+        - type: object
+          properties:
+            bukti_prestasi:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrestasiKel1Bukti'
+
+    PrestasiKel1ListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Daftar prestasi berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrestasiKel1Data'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PrestasiKel1DetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PrestasiKel1DetailData'
 
     GalatUmum:
       type: object
@@ -2169,6 +3367,196 @@ components:
           type: object
           additionalProperties: true
 
+    MahasiswaItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nim:
+          type: string
+          example: '4.33.24.0.01'
+        nama:
+          type: string
+          example: Rizky Pratama
+        angkatan:
+          type: string
+          example: '2024'
+        kelas:
+          type: string
+          nullable: true
+          example: TI-2A
+        tingkat:
+          type: string
+          nullable: true
+          example: Tingkat 2
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          example: Aktif
+        email:
+          type: string
+          format: email
+          example: rizkypratama@mhs.polines.ac.id
+
+    MahasiswaListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data mahasiswa berhasil diambil.
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 24
+            levels:
+              type: array
+              items:
+                type: string
+              example: [Tingkat 1, Tingkat 2, Tingkat 3, Tingkat 4]
+            tahun:
+              type: array
+              items:
+                type: integer
+              example: [2026, 2025, 2024, 2023]
+            status:
+              type: array
+              items:
+                type: string
+              example: [Aktif, Cuti, Lulus, Non-aktif]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MahasiswaItem'
+
+    MahasiswaDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Detail mahasiswa berhasil diambil.
+        fotoUrl:
+          type: string
+          nullable: true
+          example: http://127.0.0.1:8001/storage/mahasiswa-foto/profil.jpg
+        data:
+          type: object
+          additionalProperties: true
+        academic:
+          type: object
+          additionalProperties: true
+        history:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        kegiatan:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    MahasiswaCreateInput:
+      type: object
+      required: [nama, nim, angkatan, status, email, password]
+      properties:
+        nama:
+          type: string
+          maxLength: 100
+          example: Galih Virgi Pramudya
+        nim:
+          type: string
+          pattern: '^4\.33\.\d{2}\.\d\.\d{2}$'
+          description: Format jenjang.prodi.tahun.kelas.absen (contoh 4.33.25.1.09). Tahun pada NIM harus sesuai dengan angkatan.
+          example: '4.33.25.1.09'
+        angkatan:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          example: 2025
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          example: Aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: galih.virgi@mhs.polines.ac.id
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: password123
+
+    MahasiswaUpdateInput:
+      type: object
+      required: [nama, email]
+      properties:
+        nama:
+          type: string
+          maxLength: 100
+          example: Galih Virgi Pramudya, S.Tr.Kom.
+        nim:
+          type: string
+          pattern: '^4\.33\.\d{2}\.\d\.\d{2}$'
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: '4.33.25.1.09'
+        angkatan:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: 2025
+        status:
+          type: string
+          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          nullable: true
+          description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
+          example: Aktif
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: galih.virgi@mhs.polines.ac.id
+        password:
+          type: string
+          format: password
+          minLength: 8
+          nullable: true
+          description: Kosongkan jika tidak ingin mengubah password.
+        foto:
+          type: string
+          format: binary
+          description: Foto profil baru JPG, PNG, atau WebP maksimal 2 MB (opsional).
+        hapus_foto:
+          type: boolean
+          nullable: true
+          description: Kirim `true` atau `1` untuk menghapus foto profil yang sudah ada.
+
+    MahasiswaMutationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Perubahan data mahasiswa berhasil disimpan.
+        data:
+          type: object
+          additionalProperties: true
+
     JenisDokumen:
       type: object
       properties:
@@ -2222,5 +3610,106 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JenisDokumen'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    Berita:
+      type: object
+      properties:
+        id_berita:
+          type: integer
+          example: 1
+        id_kegiatan:
+          type: integer
+          nullable: true
+          example: 2
+        id_kategori:
+          type: integer
+          nullable: true
+          example: 1
+        id_user:
+          type: integer
+          nullable: true
+          example: 1
+        judul_berita:
+          type: string
+          example: Mahasiswa TRK Juara Lomba Nasional
+        isi_berita:
+          type: string
+        status:
+          type: string
+          enum: [draft, diajukan, revisi, ditolak, publish]
+          example: publish
+        tanggal_publish:
+          type: string
+          format: date-time
+          nullable: true
+        sampul:
+          type: string
+          nullable: true
+        sampul_url:
+          type: string
+          nullable: true
+        is_gambar:
+          type: boolean
+        catatan_revisi:
+          type: string
+          nullable: true
+        nama_kegiatan:
+          type: string
+          nullable: true
+        nama_kategori:
+          type: string
+          nullable: true
+
+    BeritaInput:
+      type: object
+      required: [judul, isi, status]
+      properties:
+        judul:
+          type: string
+          maxLength: 255
+        isi:
+          type: string
+        status:
+          type: string
+          enum: [Draft, Publish, draft, publish, diajukan]
+        sumber:
+          type: string
+          enum: [prev, none]
+        kegiatan_id:
+          type: integer
+          nullable: true
+        kategori:
+          type: string
+          nullable: true
+        foto:
+          type: string
+          format: binary
+          description: Berkas JPG, PNG, atau PDF maksimal 5 MB.
+
+    BeritaResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Berita'
+
+    BeritaListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Berita'
         meta:
           $ref: '#/components/schemas/Meta'
