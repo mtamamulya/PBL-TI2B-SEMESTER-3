@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('pengajuan-mahasiswa')->group(function () {
     Route::get('/', [PengajuanMahasiswaController::class, 'apiIndex']);
