@@ -13,7 +13,7 @@ class NimMahasiswa
 {
     private const JENJANG = ['3' => 'D3', '4' => 'D4'];
 
-    private const HURUF_KELAS = ['A', 'B', 'C', 'D'];
+    private const HURUF_KELAS = ['A', 'B', 'C', 'D', 'E'];
 
     /** Pecah NIM menurut format saja (tanpa memeriksa isinya). Null bila formatnya salah. */
     public static function uraikan(string $nim): ?array

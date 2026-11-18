@@ -7,12 +7,20 @@ use App\Repositories\MahasiswaStore;
 use App\Support\NimMahasiswa;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class MahasiswaController extends Controller
 {
     public function __construct(private MahasiswaStore $store) {}
+
+    private function dataMahasiswa(?array $row): ?array
+    {
+        return $row === null ? null : Arr::only($row, [
+            'id', 'nim', 'nama', 'level', 'kelas', 'status', 'angkatan', 'email', 'foto',
+        ]);
+    }
 
     /**
      * GET /api/v1/mahasiswa (Publik / lintas kelompok)
@@ -79,23 +87,13 @@ class MahasiswaController extends Controller
             ['Email akun', $row['email'] ?? '-'],
         ];
 
-        $history = $this->store->riwayatKelas($id) ?? [
-            [
-                'year' => ((int) date('Y') - 1).'/'.date('Y'),
-                'sem' => 'Ganjil',
-                'prodi' => 'D4 Teknik Rekayasa Komputer',
-                'level' => $row['level'] ?? 'Tingkat 1',
-                'cls' => $row['kelas'] ?? 'TI-1A',
-                'current' => true,
-            ],
-        ];
-
+        $history = $this->store->riwayatKelas($id) ?? [];
         $kegiatan = $this->store->kegiatan($id) ?? [];
 
         return response()->json([
             'success' => true,
             'message' => 'Detail mahasiswa berhasil diambil.',
-            'data' => $row,
+            'data' => $this->dataMahasiswa($row),
             'fotoUrl' => $fotoUrl,
             'academic' => $academic,
             'history' => $history,
@@ -146,7 +144,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Mahasiswa baru berhasil ditambahkan.',
-            'data' => $row,
+            'data' => $this->dataMahasiswa($row),
         ], 201);
     }
 
@@ -246,7 +244,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Perubahan data mahasiswa berhasil disimpan.',
-            'data' => $updated ?? $this->store->find($id),
+            'data' => $this->dataMahasiswa($updated ?? $this->store->find($id)),
         ], 200);
     }
 
@@ -279,7 +277,7 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Status mahasiswa berhasil diubah menjadi {$statusBaru}.",
-            'data' => $updated ?? $this->store->find($id),
+            'data' => $this->dataMahasiswa($updated ?? $this->store->find($id)),
         ], 200);
     }
 

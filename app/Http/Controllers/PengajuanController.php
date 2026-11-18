@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
@@ -10,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
@@ -512,6 +514,50 @@ class PengajuanController extends Controller
 
     public function edit(int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $detail = $backend->showDetailData($id);
+
+            $row = $detail['row'];
+            $status = $row['status'] ?? 'Diajukan';
+
+            abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
+
+            $kategoriNama = $row['category'] ?? 'Lomba';
+            $mappedCategory = match (true) {
+                str_contains(strtolower($kategoriNama), 'volunteer') => 'Volunteer',
+                str_contains(strtolower($kategoriNama), 'magang') => 'Magang',
+                str_contains(strtolower($kategoriNama), 'pengabdian') => 'Pengabdian',
+                default => 'Lomba',
+            };
+
+            $item = [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'category' => $mappedCategory,
+                'type' => $row['type'],
+                'status' => $status,
+                'submitted_at' => Carbon::parse($row['submitted_at'])->toIso8601String(),
+                'data' => [
+                    'title' => $row['title'],
+                    'category' => $mappedCategory,
+                    'location' => $detail['item']->lokasi ?? '',
+                    'start_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
+                    'end_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
+                    'description' => $detail['item']->deskripsi ?? '',
+                    'participation' => 'Individu',
+                    'level' => 'Nasional',
+                    'organizer' => '-',
+                ],
+                'documents' => [],
+            ];
+
+            return view('mahasiswa.pengajuan.create', [
+                'item' => $item,
+                'advisors' => $this->advisorOptions(),
+            ]);
+        }
+
         return view('mahasiswa.pengajuan.create', [
             'item' => $this->findEditable($id),
             'advisors' => $this->advisorOptions(),
@@ -643,6 +689,14 @@ class PengajuanController extends Controller
 
     public function destroy(int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $backend->apiDestroy($id);
+
+            return redirect()->route('pengajuan.index')
+                ->with('success', 'Pengajuan berhasil dihapus.');
+        }
+
         $this->find($id);
 
         $items = collect($this->items())
@@ -777,6 +831,42 @@ class PengajuanController extends Controller
     private function saveSubmission(Request $request, string $showRoute)
     {
         $data = $this->validated($request);
+
+        $kategori = DB::table('kategori')
+            ->where('nama_kategori', 'like', '%'.$data['category'].'%')
+            ->first()
+            ?? DB::table('kategori')->first();
+
+        if ($kategori) {
+            $idUser = auth()->id()
+                ?? DB::table('users')->value('id_user');
+
+            $apiRequest = Request::create('/api/v1/pengajuan-mahasiswa', 'POST', [
+                'id_kategori' => $kategori->id_kategori,
+                'id_user' => $idUser,
+                'nama_kegiatan' => $data['title'],
+                'lokasi' => $data['location'] ?? null,
+                'deskripsi' => $data['description'] ?? null,
+                'tanggal_mulai' => $data['start_date'] ?? null,
+            ]);
+
+            if ($request->hasFile('lampiran')) {
+                $apiRequest->files->set('lampiran', $request->file('lampiran'));
+            }
+
+            $backend = new PengajuanMahasiswaController;
+            $response = $backend->apiStore($apiRequest);
+            $result = $response->getData(true);
+
+            $newId = $result['data']['id_kegiatan'] ?? null;
+
+            if ($newId) {
+                return redirect()->route($showRoute, $newId)
+                    ->with('success', 'Pengajuan berhasil dikirim ke database.');
+            }
+        }
+
+        // Fallback ke session saat tabel kategori masih kosong (misalnya di environment testing)
         $documents = $data['documents'] ?? [];
         unset($data['documents']);
 
@@ -795,14 +885,34 @@ class PengajuanController extends Controller
         ];
         session([self::KEY => $items]);
 
-        // TODO: ganti penyimpanan session dengan Eloquent (Submission::create) saat database siap.
-
         return redirect()->route($showRoute, $id)
             ->with('success', 'Pengajuan berhasil dikirim.');
     }
 
     public function update(Request $request, int $id)
     {
+        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+            $backend = new PengajuanMahasiswaController;
+            $detail = $backend->showDetailData($id);
+            $status = $detail['row']['status'] ?? 'Diajukan';
+
+            abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
+
+            $kategori = DB::table('kategori')
+                ->where('nama_kategori', 'like', '%'.$request->input('category').'%')
+                ->first();
+
+            $request->merge([
+                'id_kategori' => $kategori?->id_kategori,
+                'nama_kegiatan' => $request->input('title') ?? $request->input('nama_kegiatan'),
+            ]);
+
+            $backend->apiUpdate($request, $id);
+
+            return redirect()->route('pengajuan.show', $id)
+                ->with('success', 'Perubahan pengajuan berhasil disimpan.');
+        }
+
         $item = $this->findEditable($id);
         $data = $this->validated($request);
         $documents = $data['documents'] ?? [];

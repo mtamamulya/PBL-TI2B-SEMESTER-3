@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             JenisDokumenSeeder::class,
-
+            TingkatKelasSeeder::class,
         ]);
 
         // 1. Buat 4 Role Utama
