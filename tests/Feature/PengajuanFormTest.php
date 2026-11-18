@@ -459,6 +459,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Dari kegiatan sebelumnya')
             ->assertSee('Tanpa kegiatan sebelumnya')
             ->assertSee('Kategori berita')
+            ->assertSee('data-rich-text-editor', false)
             ->assertSee('Foto sampul berita')
             ->assertSee('Simpan Draft');
 
@@ -468,6 +469,33 @@ class PengajuanFormTest extends TestCase
             ->assertOk()
             ->assertViewIs('mahasiswa.pengajuan.berita.show')
             ->assertSee('Draft');
+    }
+
+    public function test_berita_rich_text_is_preserved_and_unsafe_markup_is_removed(): void
+    {
+        $this->post(route('pengajuan.berita.store'), [
+            'intent' => 'draft',
+            'content' => '<h2 onclick="alert(1)" style="color: rgb(200, 1, 2)">Judul</h2><p><strong>Rapi</strong><script>alert(1)</script><a href="javascript:alert(1)">tautan</a></p>',
+        ])->assertRedirect(route('pengajuan.berita.show', 1));
+
+        $this->get(route('pengajuan.berita.show', 1))
+            ->assertOk()
+            ->assertSee('<strong>Rapi</strong>', false)
+            ->assertSee('Judul')
+            ->assertSee('tautan')
+            ->assertDontSee('onclick', false)
+            ->assertDontSee('javascript:', false)
+            ->assertDontSee('alert(1)');
+    }
+
+    public function test_berita_rich_text_character_limit_counts_text_content(): void
+    {
+        $this->from(route('pengajuan.berita.create'))
+            ->post(route('pengajuan.berita.store'), [
+                'intent' => 'draft',
+                'content' => '<p>'.str_repeat('a', 5001).'</p>',
+            ])
+            ->assertSessionHasErrors('content');
     }
 
     public function test_berita_form_lists_existing_and_new_pengajuan_activities(): void
