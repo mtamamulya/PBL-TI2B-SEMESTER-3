@@ -28,15 +28,15 @@ class ProfilController extends Controller
             ->first();
 
         $data = [
-            'id_dosen'         => $dosen->id_dosen,
-            'nama'             => $dosen->nama,
-            'nip'              => $dosen->nip,
-            'email'            => $user->email,
-            'foto_profil'      => $user->foto_profil,
+            'id_dosen' => $dosen->id_dosen,
+            'nama' => $dosen->nama,
+            'nip' => $dosen->nip,
+            'email' => $user->email,
+            'foto_profil' => $user->foto_profil,
             'pangkat_terakhir' => $pangkatTerakhir ? [
-                'pangkat'    => $pangkatTerakhir->pangkat,
-                'golongan'   => $pangkatTerakhir->golongan,
-                'nomor_sk'   => $pangkatTerakhir->nomor_sk,
+                'pangkat' => $pangkatTerakhir->pangkat,
+                'golongan' => $pangkatTerakhir->golongan,
+                'nomor_sk' => $pangkatTerakhir->nomor_sk,
                 'tanggal_sk' => $pangkatTerakhir->tanggal_sk?->format('Y-m-d'),
             ] : null,
         ];
@@ -65,15 +65,15 @@ class ProfilController extends Controller
             ->first();
 
         $data = [
-            'id_dosen'         => $dosen->id_dosen,
-            'nama'             => $dosen->nama,
-            'nip'              => $dosen->nip,
-            'email'            => $user->email,
-            'foto_profil'      => $user->foto_profil,
+            'id_dosen' => $dosen->id_dosen,
+            'nama' => $dosen->nama,
+            'nip' => $dosen->nip,
+            'email' => $user->email,
+            'foto_profil' => $user->foto_profil,
             'pangkat_terakhir' => $pangkatTerakhir ? [
-                'pangkat'    => $pangkatTerakhir->pangkat,
-                'golongan'   => $pangkatTerakhir->golongan,
-                'nomor_sk'   => $pangkatTerakhir->nomor_sk,
+                'pangkat' => $pangkatTerakhir->pangkat,
+                'golongan' => $pangkatTerakhir->golongan,
+                'nomor_sk' => $pangkatTerakhir->nomor_sk,
                 'tanggal_sk' => $pangkatTerakhir->tanggal_sk?->format('Y-m-d'),
             ] : null,
         ];
@@ -99,10 +99,10 @@ class ProfilController extends Controller
             ->get()
             ->map(fn ($item) => [
                 'id_histori_pangkat_golongan' => $item->id_histori_pangkat_golongan,
-                'pangkat'                     => $item->pangkat,
-                'golongan'                    => $item->golongan,
-                'nomor_sk'                    => $item->nomor_sk,
-                'tanggal_sk'                  => $item->tanggal_sk?->format('Y-m-d'),
+                'pangkat' => $item->pangkat,
+                'golongan' => $item->golongan,
+                'nomor_sk' => $item->nomor_sk,
+                'tanggal_sk' => $item->tanggal_sk?->format('Y-m-d'),
             ])
             ->values()
             ->all();
