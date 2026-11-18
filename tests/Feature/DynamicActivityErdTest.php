@@ -144,6 +144,16 @@ class DynamicActivityErdTest extends TestCase
         DB::table('roles')->insert(['id_role' => 1, 'nama_role' => 'admin']);
         $activity = $this->activity();
         $outsider = $this->activity()->user;
+
+        // Pastikan pemilik prestasi memiliki role mahasiswa.
+        DB::table('roles')->updateOrInsert(
+            ['id_role' => 4],
+            ['nama_role' => 'mahasiswa']
+        );
+
+        $outsider->forceFill([
+            'id_role' => 4,
+        ])->save();
         $activity->timeline()->create(['status' => 'diterima', 'tanggal_status' => now()]);
         $data = [
             'sumber' => 'sebelumnya', 'id_kegiatan' => $activity->getKey(), 'kegiatan' => $activity->nama_kegiatan,
@@ -154,13 +164,13 @@ class DynamicActivityErdTest extends TestCase
         ];
 
         $admin = User::create(['id_role' => 1, 'email' => 'admin-prestasi@test.local', 'password' => 'password', 'status' => true]);
-        $this->actingAs($admin);
 
         $this->actingAs($admin, 'sanctum');
 
         $this->postJson(route('api.admin.prestasi.store'), $data)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['kegiatan']);
+            ->assertJsonValidationErrors(['kegiatan'])
+            ->assertJsonMissingValidationErrors(['id_user']);
 
         $this->assertDatabaseCount('prestasi', 0);
 
