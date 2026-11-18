@@ -171,7 +171,7 @@ class PengajuanFormTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->post(route('pengajuan.store'), [
+        $response = $this->post(route('pengajuan.store'), [
             'category' => 'Magang',
             'organizer' => 'Perusahaan',
             'role' => 'Developer',
@@ -180,23 +180,29 @@ class PengajuanFormTest extends TestCase
             'location' => 'Semarang',
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
-        ])->assertRedirect(route('pengajuan.show', 1));
+        ]);
+        $activityId = DB::table('kegiatan')
+            ->where('dosen_pendamping', 'Kuwat Santoso')
+            ->orderByDesc('id_kegiatan')
+            ->value('id_kegiatan');
 
+        $this->assertNotNull($activityId);
+        $response->assertRedirect(route('pengajuan.show', $activityId));
         $this->assertDatabaseHas('kegiatan', [
-            'id_kegiatan' => 1,
+            'id_kegiatan' => $activityId,
             'dosen_pendamping' => 'Kuwat Santoso',
         ]);
 
-        $this->get(route('pengajuan.show', 1))
+        $this->get(route('pengajuan.show', $activityId))
             ->assertOk()
             ->assertSee('Dosen Pendamping')
             ->assertSee('Kuwat Santoso');
 
-        $this->get(route('pengajuan.edit', 1))
+        $this->get(route('pengajuan.edit', $activityId))
             ->assertOk()
             ->assertSee('value="Kuwat Santoso"', false);
 
-        $this->put(route('pengajuan.update', 1), [
+        $this->put(route('pengajuan.update', $activityId), [
             'category' => 'Magang',
             'organizer' => 'Perusahaan',
             'role' => 'Developer',
@@ -205,10 +211,10 @@ class PengajuanFormTest extends TestCase
             'location' => 'Semarang',
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
-        ])->assertRedirect(route('pengajuan.show', 1));
+        ])->assertRedirect(route('pengajuan.show', $activityId));
 
         $this->assertDatabaseHas('kegiatan', [
-            'id_kegiatan' => 1,
+            'id_kegiatan' => $activityId,
             'dosen_pendamping' => 'Tahan Prahara',
         ]);
     }
