@@ -26,15 +26,15 @@ class MahasiswaMatkulApiTest extends TestCase
                         'sks_teori' => 2,
                         'sks_praktik' => 1,
                         'semester' => 1,
-                    ]
+                    ],
                 ],
                 'meta' => [
                     'current_page' => 1,
                     'per_page' => 100,
                     'total' => 1,
-                    'last_page' => 1
-                ]
-            ], 200)
+                    'last_page' => 1,
+                ],
+            ], 200),
         ]);
     }
 
@@ -43,12 +43,12 @@ class MahasiswaMatkulApiTest extends TestCase
     {
         $response = $this->getJson('/api/v1/mahasiswa/katalog-mk');
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'status',
-                     'message',
-                     'data',
-                     'meta'
-                 ]);
+            ->assertJsonStructure([
+                'status',
+                'message',
+                'data',
+                'meta',
+            ]);
     }
 
     /** @test */
@@ -56,15 +56,15 @@ class MahasiswaMatkulApiTest extends TestCase
     {
         $response = $this->getJson('/api/v1/mahasiswa/semester-berjalan');
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'status',
-                     'message',
-                     'periode_akademik',
-                     'summary',
-                     'data_mata_kuliah',
-                     'meta',
-                     'dosen_pengampu'
-                 ]);
+            ->assertJsonStructure([
+                'status',
+                'message',
+                'periode_akademik',
+                'summary',
+                'data_mata_kuliah',
+                'meta',
+                'dosen_pengampu',
+            ]);
     }
 
     /** @test */
@@ -72,13 +72,13 @@ class MahasiswaMatkulApiTest extends TestCase
     {
         $response = $this->getJson('/api/v1/mahasiswa/riwayat');
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'status',
-                     'message',
-                     'periode_aktif',
-                     'data',
-                     'meta',
-                     'dosen_pengampu'
-                 ]);
+            ->assertJsonStructure([
+                'status',
+                'message',
+                'periode_aktif',
+                'data',
+                'meta',
+                'dosen_pengampu',
+            ]);
     }
 }

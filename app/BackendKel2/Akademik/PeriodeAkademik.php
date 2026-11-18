@@ -2,12 +2,13 @@
 
 namespace App\BackendKel2\Akademik;
 
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PeriodeAkademik
 {
     protected $tahunAkademik;
+
     protected $semester;
 
     public function __construct($tahunAkademik, $semester = 'Ganjil')
@@ -18,7 +19,7 @@ class PeriodeAkademik
 
     /**
      * Mendapatkan periode akademik yang sedang aktif saat ini.
-     * Mengambil dari tabel 'tahun_akademik' yang status-nya true, 
+     * Mengambil dari tabel 'tahun_akademik' yang status-nya true,
      * atau fallback otomatis berdasarkan tanggal sistem jika tabel kosong.
      */
     public static function sekarang()
@@ -40,6 +41,7 @@ class PeriodeAkademik
                 $semester = 'Ganjil';
                 $tahun = $teks;
             }
+
             return new static($tahun, $semester);
         }
 
@@ -50,10 +52,12 @@ class PeriodeAkademik
 
         // Asumsi: Ganjil mulai Agustus (8), Genap mulai Februari (2)
         if ($month >= 8 || $month <= 1) {
-            $tahunAkademik = ($month <= 1) ? ($year - 1) . '/' . $year : $year . '/' . ($year + 1);
+            $tahunAkademik = ($month <= 1) ? ($year - 1).'/'.$year : $year.'/'.($year + 1);
+
             return new static($tahunAkademik, 'Ganjil');
         } else {
-            $tahunAkademik = ($year - 1) . '/' . $year;
+            $tahunAkademik = ($year - 1).'/'.$year;
+
             return new static($tahunAkademik, 'Genap');
         }
     }
@@ -72,7 +76,7 @@ class PeriodeAkademik
      */
     public function semesterKe($angkatan)
     {
-        list($tahunMulai, ) = explode('/', $this->tahunAkademik);
+        [$tahunMulai] = explode('/', $this->tahunAkademik);
         $selisihTahun = intval($tahunMulai) - intval($angkatan);
 
         if ($this->semester === 'Ganjil') {
@@ -87,11 +91,12 @@ class PeriodeAkademik
      */
     public function mulai()
     {
-        list($tahunMulai, ) = explode('/', $this->tahunAkademik);
+        [$tahunMulai] = explode('/', $this->tahunAkademik);
         if ($this->semester === 'Ganjil') {
             return Carbon::createFromDate($tahunMulai, 8, 1)->startOfDay(); // 1 Agustus
         } else {
-            list(, $tahunSelesai) = explode('/', $this->tahunAkademik);
+            [, $tahunSelesai] = explode('/', $this->tahunAkademik);
+
             return Carbon::createFromDate($tahunSelesai, 2, 1)->startOfDay(); // 1 Februari
         }
     }
@@ -101,7 +106,7 @@ class PeriodeAkademik
      */
     public function selesai()
     {
-        list(, $tahunSelesai) = explode('/', $this->tahunAkademik);
+        [, $tahunSelesai] = explode('/', $this->tahunAkademik);
         if ($this->semester === 'Ganjil') {
             return Carbon::createFromDate($tahunSelesai, 1, 31)->endOfDay(); // 31 Januari
         } else {

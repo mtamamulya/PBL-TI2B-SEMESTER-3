@@ -2,11 +2,11 @@
 
 namespace App\BackendKel2\MataKuliah;
 
+use App\BackendKel2\Akademik\PeriodeAkademik;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
-use App\BackendKel2\Akademik\PeriodeAkademik; // <-- Import class helper
+use Illuminate\Support\Facades\Http; // <-- Import class helper
 
 class MataKuliahController extends Controller
 {
@@ -17,33 +17,33 @@ class MataKuliahController extends Controller
             // Mengirim parameter filter dan pagination ke API Kelompok 1
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
-                    'angkatan'       => $request->input('angkatan', '2024'),
-                    'semester'       => $request->input('semester'),
-                    'tingkat'        => $request->input('tingkat'),
+                    'angkatan' => $request->input('angkatan', '2024'),
+                    'semester' => $request->input('semester'),
+                    'tingkat' => $request->input('tingkat'),
                     'tahun_akademik' => $request->input('tahun_akademik'),
-                    'q'              => $request->input('q'),
-                    'per_page'       => $request->input('per_page', 100),
-                    'page'           => $request->input('page', 1),
+                    'q' => $request->input('q'),
+                    'per_page' => $request->input('per_page', 100),
+                    'page' => $request->input('page', 1),
                 ]);
 
             if ($response->successful()) {
                 return response()->json([
-                    'status'  => 'success',
+                    'status' => 'success',
                     'message' => 'Berhasil mengambil data katalog mata kuliah',
-                    'data'    => $response->json('data'),
-                    'meta'    => $response->json('meta')
+                    'data' => $response->json('data'),
+                    'meta' => $response->json('meta'),
                 ], 200);
             }
 
             return response()->json([
-                'status'  => 'error',
-                'message' => 'Gagal mengambil data dari API Kelompok 1'
+                'status' => 'error',
+                'message' => 'Gagal mengambil data dari API Kelompok 1',
             ], $response->status());
 
         } catch (\Exception $e) {
             return response()->json([
-                'status'  => 'error',
-                'message' => 'Gagal tersambung ke server Kelompok 1: ' . $e->getMessage()
+                'status' => 'error',
+                'message' => 'Gagal tersambung ke server Kelompok 1: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -54,7 +54,7 @@ class MataKuliahController extends Controller
         try {
             // Menggunakan PeriodeAkademik sebagai Single Source of Truth
             $periodeAktif = PeriodeAkademik::sekarang();
-            
+
             // Jika frontend tidak mengirim parameter, gunakan nilai otomatis dari helper
             $angkatan = $request->input('angkatan', '2024');
             $semester = $request->input('semester', $periodeAktif->semesterKe($angkatan));
@@ -62,17 +62,17 @@ class MataKuliahController extends Controller
 
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
-                    'angkatan'       => $angkatan,
-                    'semester'       => $semester,
+                    'angkatan' => $angkatan,
+                    'semester' => $semester,
                     'tahun_akademik' => $tahunAkademik,
-                    'per_page'       => $request->input('per_page', 100),
-                    'page'           => $request->input('page', 1),
+                    'per_page' => $request->input('per_page', 100),
+                    'page' => $request->input('page', 1),
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return response()->json([
-                    'status'  => 'error',
-                    'message' => 'Gagal mengambil data mata kuliah dari API Kelompok 1'
+                    'status' => 'error',
+                    'message' => 'Gagal mengambil data mata kuliah dari API Kelompok 1',
                 ], 500);
             }
 
@@ -84,9 +84,9 @@ class MataKuliahController extends Controller
             $totalSks = 0;
 
             foreach ($mataKuliahApi as $mk) {
-                $sksTeori   = $mk['sks_teori'] ?? 0;
+                $sksTeori = $mk['sks_teori'] ?? 0;
                 $sksPraktik = $mk['sks_praktik'] ?? 0;
-                $totalSks  += ($sksTeori + $sksPraktik);
+                $totalSks += ($sksTeori + $sksPraktik);
             }
 
             // Ambil data dosen lokal dengan join berjenjang yang benar sesuai migrasi
@@ -107,23 +107,23 @@ class MataKuliahController extends Controller
                 ->get();
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Data semester berjalan berhasil dimuat',
                 'periode_akademik' => $periodeAktif->label(),
                 'summary' => [
                     'jumlah_mata_kuliah' => $jumlahMataKuliah,
-                    'total_beban_studi'  => $totalSks . ' SKS',
-                    'status_paket'       => 'Sudah ditetapkan'
+                    'total_beban_studi' => $totalSks.' SKS',
+                    'status_paket' => 'Sudah ditetapkan',
                 ],
                 'data_mata_kuliah' => $mataKuliahApi,
-                'meta'             => $metaApi,
-                'dosen_pengampu'   => $dosenLokal
+                'meta' => $metaApi,
+                'dosen_pengampu' => $dosenLokal,
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
-                'status'  => 'error',
-                'message' => 'Terjadi kesalahan pada server: ' . $e->getMessage()
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan pada server: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -134,22 +134,22 @@ class MataKuliahController extends Controller
         try {
             $angkatan = $request->input('angkatan', '2024');
             $periodeAktif = PeriodeAkademik::sekarang();
-            
+
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
-                    'angkatan'       => $angkatan,
-                    'semester'       => $request->input('semester'),
-                    'tingkat'        => $request->input('tingkat'),
+                    'angkatan' => $angkatan,
+                    'semester' => $request->input('semester'),
+                    'tingkat' => $request->input('tingkat'),
                     'tahun_akademik' => $request->input('tahun_akademik'),
-                    'q'              => $request->input('q'),
-                    'per_page'       => $request->input('per_page', 100),
-                    'page'           => $request->input('page', 1),
+                    'q' => $request->input('q'),
+                    'per_page' => $request->input('per_page', 100),
+                    'page' => $request->input('page', 1),
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return response()->json([
-                    'status'  => 'error',
-                    'message' => 'Gagal mengambil data riwayat dari API Kelompok 1'
+                    'status' => 'error',
+                    'message' => 'Gagal mengambil data riwayat dari API Kelompok 1',
                 ], 500);
             }
 
@@ -171,18 +171,18 @@ class MataKuliahController extends Controller
                 ->get();
 
             return response()->json([
-                'status'         => 'success',
-                'message'        => 'Data riwayat akademik berhasil dimuat',
-                'periode_aktif'  => $periodeAktif->label(),
-                'data'           => $response->json('data'),
-                'meta'           => $response->json('meta'),
-                'dosen_pengampu' => $dosenLokal
+                'status' => 'success',
+                'message' => 'Data riwayat akademik berhasil dimuat',
+                'periode_aktif' => $periodeAktif->label(),
+                'data' => $response->json('data'),
+                'meta' => $response->json('meta'),
+                'dosen_pengampu' => $dosenLokal,
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
-                'status'  => 'error',
-                'message' => 'Terjadi kesalahan pada server: ' . $e->getMessage()
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan pada server: '.$e->getMessage(),
             ], 500);
         }
     }

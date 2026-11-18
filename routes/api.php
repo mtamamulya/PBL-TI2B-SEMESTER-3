@@ -19,5 +19,5 @@ Route::prefix('integrasi')
     ->group(function () {});
 
 require app_path('BackendKel3/routes.php');
-require app_path('BackendKel1/routes.php');
 require app_path('BackendKel2/routes.php');
+require app_path('BackendKel1/routes.php');

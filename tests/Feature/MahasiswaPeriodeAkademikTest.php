@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\DB;
 use App\BackendKel2\Akademik\PeriodeAkademik;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
 class MahasiswaPeriodeAkademikTest extends TestCase
 {
@@ -28,23 +28,23 @@ class MahasiswaPeriodeAkademikTest extends TestCase
                         'sks_teori' => 2,
                         'sks_praktik' => 1,
                         'semester' => 1,
-                    ]
+                    ],
                 ],
                 'meta' => [
                     'current_page' => 1,
                     'per_page' => 100,
                     'total' => 1,
-                    'last_page' => 1
-                ]
-            ], 200)
+                    'last_page' => 1,
+                ],
+            ], 200),
         ]);
 
         // 2. Memasukkan data dummy tahun akademik aktif agar helper PeriodeAkademik bisa membacanya
         DB::table('tahun_akademik')->insert([
             'tahun_akademik' => '2026/2027 Ganjil',
-            'status'         => true,
-            'created_at'     => now(),
-            'updated_at'     => now(),
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 
@@ -58,14 +58,14 @@ class MahasiswaPeriodeAkademikTest extends TestCase
         $response = $this->getJson('/api/v1/mahasiswa/semester-berjalan');
 
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'status',
-                     'message',
-                     'periode_akademik',
-                     'summary',
-                     'data_mata_kuliah',
-                     'dosen_pengampu'
-                 ]);
+            ->assertJsonStructure([
+                'status',
+                'message',
+                'periode_akademik',
+                'summary',
+                'data_mata_kuliah',
+                'dosen_pengampu',
+            ]);
     }
 
     /** @test */
@@ -75,12 +75,12 @@ class MahasiswaPeriodeAkademikTest extends TestCase
         $response = $this->getJson('/api/v1/mahasiswa/riwayat');
 
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'status',
-                     'message',
-                     'periode_aktif',
-                     'data',
-                     'dosen_pengampu'
-                 ]);
+            ->assertJsonStructure([
+                'status',
+                'message',
+                'periode_aktif',
+                'data',
+                'dosen_pengampu',
+            ]);
     }
 }
