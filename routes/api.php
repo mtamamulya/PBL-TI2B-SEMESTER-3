@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\PrestasiController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', function () {
@@ -19,8 +18,6 @@ Route::prefix('integrasi')
     ->middleware('auth:sanctum')
     ->group(function () {});
 
-Route::middleware('api')->group(function () {
-    require app_path('BackendKel3/routes.php');
-    require app_path('BackendKel1/routes.php');
-    require app_path('BackendKel2/routes.php');
-});
+require app_path('BackendKel3/routes.php');
+require app_path('BackendKel1/routes.php');
+require app_path('BackendKel2/routes.php');
