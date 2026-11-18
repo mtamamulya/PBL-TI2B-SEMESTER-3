@@ -28,6 +28,51 @@
     })->filter()->values();
 
     $gambarBukti = $tautanBukti->first(fn ($bukti) => $bukti['is_image']);
+
+    $pratinjau = null;
+
+    foreach ($tautanBukti as $bukti) {
+        $url = $bukti['url'];
+        $host = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
+        $path = parse_url($url, PHP_URL_PATH) ?: '';
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        if ($bukti['is_image']) {
+            $pratinjau = ['tipe' => 'gambar', 'url' => $url];
+        } elseif ($ext === 'pdf') {
+            $pratinjau = ['tipe' => 'frame', 'url' => $url];
+        } elseif ($host === 'drive.google.com') {
+            $id = null;
+
+            if (preg_match('~/file/d/([A-Za-z0-9_-]+)~', $path, $m)) {
+                $id = $m[1];
+            } else {
+                parse_str(parse_url($url, PHP_URL_QUERY) ?? '', $q);
+                $calonId = $q['id'] ?? null;
+
+                if (is_string($calonId) &&
+                    preg_match('/^[A-Za-z0-9_-]+$/', $calonId)) {
+                    $id = $calonId;
+                }
+            }
+
+            if ($id) {
+                $pratinjau = [
+                    'tipe' => 'frame',
+                    'url' => "https://drive.google.com/file/d/{$id}/preview"
+                ];
+            }
+        } elseif ($host === 'docs.google.com' &&
+            preg_match('~^/(document|spreadsheets)/d/([A-Za-z0-9_-]+)~', $path, $m)) {
+            $pratinjau = [
+                'tipe' => 'frame',
+                'url' => "https://docs.google.com/{$m[1]}/d/{$m[2]}/preview"
+            ];
+        }
+
+        if ($pratinjau) break;
+    }
+
     $pdfBukti = $tautanBukti->first(
         fn ($bukti) => strtolower(
             pathinfo(parse_url($bukti['url'], PHP_URL_PATH) ?: '', PATHINFO_EXTENSION)
@@ -69,7 +114,27 @@
                     ></iframe>
                 @else
                     <div class="flex h-full items-center justify-center p-6 text-center text-sm text-[#6B7280]">
-                        Belum ada pratinjau bukti yang tersedia.
+
+                        @if ($pratinjau && $pratinjau['tipe'] === 'gambar')
+                            <img src="{{ $pratinjau['url'] }}"
+                                alt="Bukti prestasi"
+                                class="h-full w-full object-contain">
+
+                        @elseif ($pratinjau && $pratinjau['tipe'] === 'frame')
+                            <iframe src="{{ $pratinjau['url'] }}"
+                                    title="Pratinjau bukti prestasi"
+                                    class="h-full w-full border-0"
+                                    loading="lazy"
+                                    allowfullscreen>
+                            </iframe>
+
+                        @else
+                            <div class="flex h-full items-center justify-center p-6 text-center text-sm text-[#6B7280]">
+                                Pratinjau otomatis tidak tersedia untuk tautan ini.
+                                Gunakan tombol Lihat Bukti.
+                            </div>
+                        @endif
+
                     </div>
                 @endif
             </div>
@@ -130,8 +195,8 @@
                         </p>
                     </div>
                     <div>
-                        <span class="text-xs font-semibold uppercase tracking-wider text-[#A8A8A8]">Pemilik/Pengaju Kegiatan</span>
-                        <p class="text-base font-medium text-[#1C2024]">{{ $prestasi['pengunggah'] }}</p>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-[#A8A8A8]">Pemilik Prestasi</span>
+                        <p class="text-base font-medium text-[#1C2024]">{{ $prestasi['pemilik_prestasi'] ?? '-' }}</p>
                     </div>
                     @if (($prestasi['semester'] ?? '-') !== '-')
                         <div>
