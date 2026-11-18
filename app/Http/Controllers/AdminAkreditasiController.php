@@ -3,37 +3,40 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\AkreditasiStore;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 
-/** Akreditasi (admin saja). Hanya SATU akreditasi yang boleh aktif. */
+/**
+ * Akreditasi (admin saja). Data lewat HTTP ke API (ApiClient): bila server API mati halaman menjawab 503.
+ * Hanya SATU akreditasi yang boleh aktif (aturan ada di API). Bentuk baris untuk view tetap seperti AkreditasiStore::forAdmin().
+ */
 class AdminAkreditasiController extends Controller
 {
-    public function __construct(private AkreditasiStore $store) {}
+    private const API = '/akreditasi';
 
     public function index()
     {
-        $akreditasi = array_map(fn ($r) => $this->store->forAdmin($r), $this->store->all());
-
         return view('admin.akreditasi', [
-            'akreditasi' => $akreditasi,
+            'akreditasi' => $this->semua(),
             'lembagaList' => AkreditasiStore::LEMBAGA,
-
         ]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $row = $this->store->create($this->validated($request), $request->boolean('aktifkan'), $request->file('pdf'));
+        $data = $this->payload($request) + ['aktifkan' => $request->boolean('aktifkan') ? 1 : 0];
+        $hasil = ApiClient::pengguna()->post(self::API, $data, $this->berkas($request));
 
         // Kirim ulang semua baris: status akreditasi lain mungkin ikut berubah.
-        return response()->json(['data' => $this->semua(), 'item' => $this->store->forAdmin($row)], 201);
+        return response()->json(['data' => $this->semua(), 'item' => self::untukView($hasil['data'])], 201);
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $row = $this->store->update($id, $this->validated($request), $request->file('pdf'));
-        abort_unless($row, 404);
+        ApiClient::pengguna()->put(self::API.'/'.$id, $this->payload($request), $this->berkas($request));
 
         return response()->json(['data' => $this->semua()]);
     }
@@ -41,46 +44,71 @@ class AdminAkreditasiController extends Controller
     /** Jadikan akreditasi ini yang aktif (yang lain otomatis nonaktif). */
     public function status(string $id): JsonResponse
     {
-        abort_unless($this->store->activate($id), 404);
+        ApiClient::pengguna()->post(self::API.'/'.$id.'/aktifkan');
 
         return response()->json(['data' => $this->semua()]);
     }
 
     public function destroy(string $id): JsonResponse
     {
-        $hasil = $this->store->delete($id);
-        abort_if($hasil === 'tidak-ada', 404);
-
-        if ($hasil === 'aktif') {
-            return response()->json(['message' => 'Akreditasi yang aktif tidak bisa dihapus. Aktifkan akreditasi lain terlebih dahulu.'], 422);
+        try {
+            ApiClient::pengguna()->delete(self::API.'/'.$id);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 409) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+            throw $e;
         }
 
         return response()->json(['data' => $this->semua()]);
     }
 
+    /** @return array<int, array<string, mixed>> */
     private function semua(): array
     {
-        return array_map(fn ($r) => $this->store->forAdmin($r), $this->store->all());
+        $rows = [];
+        $halaman = 1;
+        do {
+            $hasil = ApiClient::pengguna()->get(self::API, ['per_page' => 100, 'page' => $halaman]);
+            foreach ($hasil['data'] ?? [] as $item) {
+                $rows[] = self::untukView($item);
+            }
+            $terakhir = max(1, (int) ($hasil['meta']['last_page'] ?? 1));
+            $halaman++;
+        } while ($halaman <= $terakhir);
+
+        return $rows;
     }
 
-    private function validated(Request $request): array
+    /** Nama field form web -> nama field API. */
+    private function payload(Request $request): array
     {
-        return $request->validate([
-            'lembaga' => ['required', 'string', 'max:80'],
+        return [
+            'lembaga' => $request->input('lembaga'),
+            'nomor_sk' => $request->input('nomor_sk'),
+            'tahun_terbit' => $request->input('year'),
+            'berlaku_sampai' => $request->input('berlaku_sampai'),
+        ];
+    }
 
-            'nomor_sk' => ['nullable', 'string', 'max:120'],
-            'year' => ['required', 'digits:4', 'integer', 'between:1990,2100'],
-            'berlaku_sampai' => ['nullable', 'date'],
-            'pdf' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
-        ], [
-            'lembaga.required' => 'Lembaga akreditasi wajib diisi.',
+    /** @return array<string, UploadedFile> */
+    private function berkas(Request $request): array
+    {
+        return $request->hasFile('pdf') ? ['pdf' => $request->file('pdf')] : [];
+    }
 
-            'year.required' => 'Tahun terbit wajib diisi.',
-            'year.digits' => 'Tahun terbit harus 4 angka, mis. 2026.',
-            'year.between' => 'Tahun terbit tidak valid.',
-            'berlaku_sampai.date' => 'Tanggal berlaku tidak valid.',
-            'pdf.mimes' => 'Dokumen harus berformat PDF.',
-            'pdf.max' => 'Ukuran PDF maksimal 20 MB.',
-        ]);
+    /** Bentuk API -> bentuk lama untuk Blade dan JavaScript. */
+    public static function untukView(array $a): array
+    {
+        return [
+            'id' => (string) $a['id_akreditasi'],
+            'lembaga' => (string) $a['lembaga'],
+            'peringkat' => '',
+            'nomor_sk' => (string) ($a['nomor_sk'] ?? ''),
+            'year' => (string) ($a['tahun_terbit'] ?? ''),
+            'berlaku_sampai' => (string) ($a['berlaku_sampai'] ?? ''),
+            'status' => ! empty($a['status']) ? 'aktif' : 'nonaktif',
+            'pdf_url' => $a['link'] ?? null,
+        ];
     }
 }
