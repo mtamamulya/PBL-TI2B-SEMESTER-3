@@ -17,7 +17,7 @@ class KaprodiDashboardController extends Controller
         // 1. Hitung Dosen Aktif (Wajib punya profil fisik di tabel 'dosen')
         $dosenAktif = User::whereHas('dosen')->where('status', true)->count();
 
-        // 2. Hitung Mahasiswa Aktif (Wajib punya profil fisik di tabel 'mahasiwa')
+        // 2. Hitung Mahasiswa Aktif (Wajib punya profil fisik di tabel 'mahasiswa')
         $mahasiswaAktif = User::whereHas('mahasiswa')->where('status', true)->count();
 
         // 3. Hitung Jumlah Kegiatan (Resmi = Disetujui)
@@ -27,7 +27,7 @@ class KaprodiDashboardController extends Controller
 
         // 4. Hitung Pengajuan (Menunggu Validasi = Diajukan)
         $menungguValidasi = Kegiatan::whereHas('statusTerkini', function ($q) {
-            $q->where('status', 'Diajukan');
+            $q->where('status', 'diajukan');
         })->count();
 
         // Sesuaikan route link dengan awalan 'kaprodi.'
@@ -51,10 +51,10 @@ class KaprodiDashboardController extends Controller
 
         $kegiatanPerTahun = empty($kegiatanRaw) ? [date('Y') => 0] : $kegiatanRaw;
 
-        // 6. Data Tabel 5 Pengajuan Terbaru
-        $pengajuanTerbaru = Kegiatan::with(['dosen', 'mahasiswa', 'statusTerkini'])
+        // 6. Data Tabel 5 Pengajuan Terbaru (pengaju diambil lewat user -> dosen / mahasiswa)
+        $pengajuanTerbaru = Kegiatan::with(['user.dosen', 'user.mahasiswa', 'statusTerkini'])
             ->whereHas('statusTerkini', function ($q) {
-                $q->where('status', 'Diajukan');
+                $q->where('status', 'diajukan');
             })
             ->latest('created_at')
             ->limit(5)
@@ -62,12 +62,14 @@ class KaprodiDashboardController extends Controller
 
         Carbon::setLocale('id'); // Bahasa Indonesia untuk format waktu
         $rows = $pengajuanTerbaru->map(function ($item) {
-            $pengaju = $item->dosen->nama ?? $item->mahasiswa->nama ?? 'Tanpa Nama';
-            $namaKegiatan = $item->nama_kegiatan ?? $item->nama ?? 'Tanpa Judul';
+            $pengaju = $item->user?->dosen?->nama
+                ?? $item->user?->mahasiswa?->nama
+                ?? $item->user?->email
+                ?? 'Tanpa Nama';
 
             return [
-                'id' => $item->id_kegiatan ?? $item->id,
-                'kegiatan' => $namaKegiatan,
+                'id' => $item->id_kegiatan,
+                'kegiatan' => $item->nama_kegiatan ?? 'Tanpa Judul',
                 'dosen' => $pengaju,
                 'tanggal' => Carbon::parse($item->created_at)->diffForHumans(),
                 'raw_date' => $item->created_at,
