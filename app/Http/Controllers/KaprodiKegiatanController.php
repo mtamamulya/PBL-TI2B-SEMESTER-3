@@ -37,7 +37,7 @@ class KaprodiKegiatanController extends Controller
             if (in_array($e->getStatusCode(), [401, 403], true)) {
                 throw $e;
             }
-            \Log::error('Gagal memuat daftar kegiatan: '.$e->getMessage().' (Status: '.$e->getStatusCode().')');
+            \Log::error('Gagal memuat daftar kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
             $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
         }
 
