@@ -22,7 +22,7 @@ class AdminKegiatanDosenDetailShowController extends Controller
             }
             \Log::error('Gagal memuat detail kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
-            return redirect()->route('admin.kegiatan.dosen')->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
+            return redirect()->route('admin.kegiatan.index', ['tab' => 'dosen'])->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
         }
 
         $row = is_array($hasil['data'] ?? null) ? $hasil['data'] : [];
