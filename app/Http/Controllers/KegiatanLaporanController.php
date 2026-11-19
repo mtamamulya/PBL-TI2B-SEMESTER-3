@@ -104,10 +104,10 @@ class KegiatanLaporanController extends Controller
         try {
             $rows = $this->ambilBaris($jenis);
         } catch (ApiException $e) {
-            if (in_array($e->getCode(), [401, 403], true)) {
+            if (in_array($e->getStatusCode(), [401, 403], true)) {
                 throw $e;
             }
-            \Log::error('Gagal memuat data laporan kegiatan: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            \Log::error('Gagal memuat data laporan kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
             return redirect()
                 ->route($kaprodi ? 'kaprodi.kegiatan.index' : 'admin.kegiatan.index')

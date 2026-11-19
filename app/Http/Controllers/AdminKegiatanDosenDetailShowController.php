@@ -14,13 +14,13 @@ class AdminKegiatanDosenDetailShowController extends Controller
         try {
             $hasil = ApiClient::pengguna()->get('/admin/kegiatan/'.rawurlencode($id));
         } catch (ApiException $e) {
-            if ($e->getCode() === 404) {
+            if ($e->getStatusCode() === 404) {
                 abort(404, 'Kegiatan tidak ditemukan.');
             }
-            if (in_array($e->getCode(), [401, 403], true)) {
+            if (in_array($e->getStatusCode(), [401, 403], true)) {
                 throw $e;
             }
-            \Log::error('Gagal memuat detail kegiatan: '.$e->getMessage().' (Code: '.$e->getCode().')');
+            \Log::error('Gagal memuat detail kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
             return redirect()->route('admin.kegiatan.dosen')->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
         }
