@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel2\Akademik\PeriodeAkademik;
+use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
 use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -75,52 +77,6 @@ class MahasiswaController extends Controller
         abort_unless(in_array($tab, ['semua', 'berjalan', 'katalog', 'riwayat'], true), 404);
         $tab = $tab === 'riwayat' ? 'semua' : $tab;
 
-        $arsip = collect([
-            ['Kecerdasan Buatan',  'Angga Wahyu Wibowo', 2, 'Ganjil', '2026/2027'],
-            ['Jaringan Komputer',  'Kuwat Santoso',      2, 'Ganjil', '2026/2027'],
-            ['Sistem Basis Data',  'Wiktasari',          3, 'Genap',  '2025/2026'],
-            ['Internet of Things', 'Tahan Prahara',      1, 'Genap',  '2025/2026'],
-            ['Computer Vision',    'Prayitno',           2, 'Ganjil', '2026/2027'],
-            ['Sistem Operasi',     'Arif Setyawan',      2, 'Ganjil', '2026/2027'],
-            ['Jaringan Komputer',  'Kuwat Santoso',      2, 'Ganjil', '2025/2026'],
-            ['Sistem Basis Data',  'Wiktasari',          3, 'Genap',  '2025/2026'],
-            ['Sistem Operasi',     'Arif Setyawan',      1, 'Genap',  '2024/2025'],
-            ['Internet of Things', 'Tahan Prahara',      2, 'Ganjil', '2026/2027'],
-        ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => $r[1], 'tingkat' => $r[2], 'periode' => $r[3], 'tahun' => $r[4], 'sks' => null]);
-
-        $katalog = collect([
-            ['Algoritma dan Pemrograman', 'Arif Setyawan', 1, 'Ganjil', 4, '2024/2025'],
-            ['Matematika Dasar', 'Prayitno', 1, 'Ganjil', 3, '2024/2025'],
-            ['Dasar Elektronika', 'Kuwat Santoso', 1, 'Ganjil', 3, '2024/2025'],
-            ['Internet of Things', 'Tahan Prahara', 1, 'Genap', 4, '2024/2025'],
-            ['Sistem Operasi', 'Arif Setyawan', 1, 'Genap', 4, '2024/2025'],
-            ['Kecerdasan Buatan', 'Angga Wahyu Wibowo', 2, 'Ganjil', 2, '2026/2027'],
-            ['Jaringan Komputer', 'Kuwat Santoso', 2, 'Ganjil', 4, '2025/2026'],
-            ['Computer Vision', 'Prayitno', 2, 'Ganjil', 3, '2026/2027'],
-            ['Pemrograman Web', 'Wiktasari', 2, 'Genap', 4, '2025/2026'],
-            ['Mikrokontroler', 'Tahan Prahara', 2, 'Genap', 3, '2025/2026'],
-            ['Sistem Basis Data', 'Wiktasari', 3, 'Ganjil', 4, '2025/2026'],
-            ['Keamanan Jaringan', 'Kuwat Santoso', 3, 'Ganjil', 3, '2026/2027'],
-            ['Machine Learning', 'Angga Wahyu Wibowo', 3, 'Genap', 3, '2026/2027'],
-            ['Rekayasa Perangkat Lunak', 'Prayitno', 3, 'Genap', 3, '2025/2026'],
-            ['Proyek Akhir', 'Arif Setyawan', 4, 'Ganjil', 6, '2026/2027'],
-            ['Manajemen Proyek TI', 'Wiktasari', 4, 'Ganjil', 2, '2026/2027'],
-            ['Magang Industri', 'Tahan Prahara', 4, 'Genap', 6, '2026/2027'],
-            ['Tugas Akhir', 'Angga Wahyu Wibowo', 4, 'Genap', 6, '2026/2027'],
-        ])->map(fn ($r) => [
-            'mk' => $r[0], 'dosen' => $r[1], 'tingkat' => $r[2],
-            'periode' => $r[3], 'sks' => $r[4], 'tahun' => $r[5],
-        ]);
-
-        $berjalan = collect([
-            ['Kecerdasan Buatan',  'Angga Wahyu Wibowo', 2, 'Ganjil', 2],
-            ['Jaringan Komputer',  'Kuwat Santoso',      2, 'Ganjil', 4],
-            ['Computer Vision',    'Prayitno',           2, 'Ganjil', 3],
-            ['Sistem Operasi',     'Arif Setyawan',      2, 'Ganjil', 4],
-            ['Jaringan Komputer',  'Kuwat Santoso',      2, 'Ganjil', 4],
-            ['Internet of Things', 'Tahan Prahara',      2, 'Ganjil', 4],
-        ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => $r[1], 'tingkat' => $r[2], 'periode' => $r[3], 'tahun' => '2026/2027', 'sks' => $r[4]]);
-
         $filter = [
             'q' => trim((string) $request->query('q')),
             'semester' => (string) $request->query('semester'),
@@ -128,18 +84,150 @@ class MahasiswaController extends Controller
             'tahun' => (string) $request->query('tahun'),
         ];
 
-        $cocok = fn ($r) => ($filter['q'] === '' || mb_stripos($r['mk'].' '.$r['dosen'], $filter['q']) !== false)
+        $angkatan = (string) ($request->user()?->angkatan ?? config('mahasiswa.angkatan', '2024'));
+        $backend = app(BackendMataKuliahController::class);
+
+        $mapItem = function (array $item, string $defaultTahun = '2026/2027'): array {
+            $sks = isset($item['sks'])
+                ? (int) $item['sks']
+                : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
+
+            $semesterRaw = $item['periode'] ?? $item['jenis_semester'] ?? $item['semester'] ?? 'Ganjil';
+            $periode = is_numeric($semesterRaw)
+                ? (((int) $semesterRaw % 2 === 1) ? 'Ganjil' : 'Genap')
+                : ucfirst(strtolower((string) $semesterRaw));
+
+            $tingkat = (int) ($item['tingkat'] ?? (is_numeric($semesterRaw) ? ceil(((int) $semesterRaw) / 2) : 1));
+
+            return [
+                'mk' => (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-'),
+                'dosen' => '',
+                'tingkat' => max(1, min(4, $tingkat)),
+                'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
+                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahun),
+                'sks' => $sks > 0 ? $sks : null,
+            ];
+        };
+
+        $apiRequest = Request::create('/api/v1/mahasiswa', 'GET', array_filter([
+            'angkatan' => $angkatan,
+            'semester' => $filter['semester'] ?: null,
+            'tingkat' => $filter['tingkat'] ?: null,
+            'tahun_akademik' => $filter['tahun'] ?: null,
+            'q' => $filter['q'] ?: null,
+            'per_page' => 200,
+            'page' => 1,
+        ], fn ($v) => $v !== null));
+
+        $periodeAktif = class_exists(PeriodeAkademik::class)
+            ? PeriodeAkademik::sekarang()
+            : null;
+
+        $tahunAktifLabel = $periodeAktif ? $periodeAktif->label() : '2026/2027 Ganjil';
+        $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : config('mahasiswa.semester', 5);
+        $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? '2026/2027';
+
+        $rows = collect();
+        $berjalan = collect();
+        $arsip = collect();
+        $katalog = collect();
+
+        try {
+            if ($tab === 'berjalan') {
+                $res = $backend->semesterBerjalan($apiRequest)->getData(true);
+                if (($res['status'] ?? '') === 'success') {
+                    $tahunAktifLabel = $res['periode_akademik'] ?? $tahunAktifLabel;
+                    $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? $defaultTahun;
+                    $berjalan = collect($res['data_mata_kuliah'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
+                    $rows = $berjalan;
+                }
+            } elseif ($tab === 'katalog') {
+                $res = $backend->katalogMataKuliah($apiRequest)->getData(true);
+                if (($res['status'] ?? '') === 'success') {
+                    $katalog = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
+                    $rows = $katalog;
+                }
+            } else {
+                $res = $backend->riwayatAkademik($apiRequest)->getData(true);
+                if (($res['status'] ?? '') === 'success') {
+                    $arsip = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
+                    $rows = $arsip;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback ke data lokal jika server API Kelompok 1 (port 8001) belum aktif
+        }
+
+        // Fallback otomatis jika API Kelompok 1 sedang offline / belum ada data
+        if ($rows->isEmpty() && $filter['q'] === '' && $filter['semester'] === '' && $filter['tingkat'] === '' && $filter['tahun'] === '') {
+            $arsip = collect([
+                ['Kecerdasan Buatan',  2, 'Ganjil', '2026/2027'],
+                ['Jaringan Komputer',  2, 'Ganjil', '2026/2027'],
+                ['Sistem Basis Data',  3, 'Genap',  '2025/2026'],
+                ['Internet of Things', 1, 'Genap',  '2025/2026'],
+                ['Computer Vision',    2, 'Ganjil', '2026/2027'],
+                ['Sistem Operasi',     2, 'Ganjil', '2026/2027'],
+                ['Jaringan Komputer',  2, 'Ganjil', '2025/2026'],
+                ['Sistem Basis Data',  3, 'Genap',  '2025/2026'],
+                ['Sistem Operasi',     1, 'Genap',  '2024/2025'],
+                ['Internet of Things', 2, 'Ganjil', '2026/2027'],
+            ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1], 'periode' => $r[2], 'tahun' => $r[3], 'sks' => null]);
+
+            $katalog = collect([
+                ['Algoritma dan Pemrograman', 1, 'Ganjil', 4, '2024/2025'],
+                ['Matematika Dasar', 1, 'Ganjil', 3, '2024/2025'],
+                ['Dasar Elektronika', 1, 'Ganjil', 3, '2024/2025'],
+                ['Internet of Things', 1, 'Genap', 4, '2024/2025'],
+                ['Sistem Operasi', 1, 'Genap', 4, '2024/2025'],
+                ['Kecerdasan Buatan', 2, 'Ganjil', 2, '2026/2027'],
+                ['Jaringan Komputer', 2, 'Ganjil', 4, '2025/2026'],
+                ['Computer Vision', 2, 'Ganjil', 3, '2026/2027'],
+                ['Pemrograman Web', 2, 'Genap', 4, '2025/2026'],
+                ['Mikrokontroler', 2, 'Genap', 3, '2025/2026'],
+                ['Sistem Basis Data', 3, 'Ganjil', 4, '2025/2026'],
+                ['Keamanan Jaringan', 3, 'Ganjil', 3, '2026/2027'],
+                ['Machine Learning', 3, 'Genap', 3, '2026/2027'],
+                ['Rekayasa Perangkat Lunak', 3, 'Genap', 3, '2025/2026'],
+                ['Proyek Akhir', 4, 'Ganjil', 6, '2026/2027'],
+                ['Manajemen Proyek TI', 4, 'Ganjil', 2, '2026/2027'],
+                ['Magang Industri', 4, 'Genap', 6, '2026/2027'],
+                ['Tugas Akhir', 4, 'Genap', 6, '2026/2027'],
+            ])->map(fn ($r) => [
+                'mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1],
+                'periode' => $r[2], 'sks' => $r[3], 'tahun' => $r[4],
+            ]);
+
+            $berjalan = collect([
+                ['Kecerdasan Buatan',  2, 'Ganjil', 2],
+                ['Jaringan Komputer',  2, 'Ganjil', 4],
+                ['Computer Vision',    2, 'Ganjil', 3],
+                ['Sistem Operasi',     2, 'Ganjil', 4],
+                ['Jaringan Komputer',  2, 'Ganjil', 4],
+                ['Internet of Things', 2, 'Ganjil', 4],
+            ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1], 'periode' => $r[2], 'tahun' => $defaultTahun, 'sks' => $r[3]]);
+
+            $rows = match ($tab) {
+                'berjalan' => $berjalan,
+                'katalog' => $katalog,
+                default => $arsip,
+            };
+        }
+
+        // Filter sisi server (memastikan pencarian & dropdown tetap akurat)
+        $cocok = fn ($r) => ($filter['q'] === '' || mb_stripos($r['mk'], $filter['q']) !== false)
             && ($filter['semester'] === '' || $r['periode'] === $filter['semester'])
             && ($filter['tingkat'] === '' || (string) $r['tingkat'] === $filter['tingkat'])
             && ($filter['tahun'] === '' || $r['tahun'] === $filter['tahun']);
 
         $rows = match ($tab) {
-            'berjalan' => $berjalan,
-            'katalog' => $katalog->filter($cocok)->sortBy([['tingkat', 'asc'], ['mk', 'asc']])->values(),
-            default => $arsip->filter($cocok)->values(),
+            'berjalan' => $berjalan->values(),
+            'katalog' => $rows->filter($cocok)->sortBy([['tingkat', 'asc'], ['mk', 'asc']])->values(),
+            default => $rows->filter($cocok)->values(),
         };
-        $tahunList = $arsip->pluck('tahun')
-            ->merge($katalog->pluck('tahun'))
+
+        $tahunList = $rows->pluck('tahun')
+            ->merge([$defaultTahun, '2026/2027', '2025/2026', '2024/2025'])
+            ->filter()
             ->unique()
             ->sortDesc()
             ->values()
@@ -153,8 +241,8 @@ class MahasiswaController extends Controller
             'filter' => $filter,
             'tahunList' => $tahunList,
             'ringkasan' => [
-                'tahun_akademik' => '2026/2027 Ganjil',
-                'semester_ke' => config('mahasiswa.semester'),
+                'tahun_akademik' => $tahunAktifLabel,
+                'semester_ke' => $semesterKe,
                 'sks_tempuh' => 84,
                 'sks_total' => 144,
                 'sks_diambil' => $berjalan->sum('sks'),

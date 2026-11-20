@@ -21,7 +21,10 @@
 
 @section('content')
         <main class="px-4 py-8 sm:px-6">
-            <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mata Kuliah</h1>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mata Kuliah</h1>
+                <a href="{{ route('admin.kurikulum.mata-kuliah.import') }}" class="rounded-md border border-[#2277FF] px-4 py-2 text-base font-medium text-[#2277FF]">Import dari Excel</a>
+            </div>
             <div class="mt-2">
                 <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Kurikulum'], ['Mata Kuliah', 'admin.kurikulum.mata-kuliah'], ['Tambah']]" />
             </div>
