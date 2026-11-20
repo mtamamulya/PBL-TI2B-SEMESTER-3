@@ -1,55 +1,10 @@
-<?php
-
-namespace App\BackendKel2\Prestasi;
-
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-// use App\Models\Prestasi; // Aktifkan jika Model sudah dibuat
-
-class PrestasiController extends Controller
-{
-    public function index()
+public function simpan(Request $request)
     {
-        // Untuk lulus test halaman index
-        return view('mahasiswa.prestasi.index', [
-            'prestasi' => [], 'total' => 0, 'akademik' => 0, 'nonakademik' => 0,
-            'urlEdit' => '#', 'urlHapus' => '#'
-        ]);
-    }
-
-    public function tambah()
-    {
-        // Test minta daftar kegiatan yang berstatus 'diterima' saja
-        $kegiatanList = DB::table('kegiatan')
-            ->join('timeline', 'kegiatan.id_kegiatan', '=', 'timeline.id_kegiatan')
-            ->join('kategori', 'kegiatan.id_kategori', '=', 'kategori.id_kategori')
-            ->where('kegiatan.id_user', auth()->id())
-            ->where('timeline.status', 'diterima')
-            ->select('kegiatan.id_kegiatan as id', DB::raw("CONCAT(kegiatan.nama_kegiatan, ' • ', kategori.nama_kategori) as label"), 'kegiatan.nama_kegiatan as nama', DB::raw("'' as penyelenggara"))
-            ->get()->map(fn($k) => (array) $k)->toArray();
-
-        return view('mahasiswa.prestasi.tambah', [
-            'edit' => false,
-            'urlSimpan' => route('mahasiswa.prestasi.simpan'),
-            'kegiatanList' => $kegiatanList,
-            'daftarMahasiswa' => [], // Isi nanti dengan query ke tabel users/mahasiswa
-            'dokumenLama' => [],
-            'dokumenInput' => [],
-            'tingkatList' => ['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
-            'jenisList' => ['Akademik', 'Nonakademik'],
-            'peranList' => ['Ketua', 'Anggota'],
-            'jenisDokList' => ['Sertifikat', 'Surat Tugas', 'Foto Kegiatan', 'Karya/Paper', 'Lainnya'],
-        ]);
-    }
-
-    public function simpan(Request $request)
-    {
-        // 1. VALIDASI DATA & URL (Inti dari Test Drive Link)
+        // 1. VALIDASI
         $validated = $request->validate([
             'sumber' => 'required|in:sebelumnya,mandiri',
             'id_kegiatan' => 'required_if:sumber,sebelumnya',
-            'kegiatan' => 'required_if:sumber,sebelumnya', // Untuk pesan error test terakhir
+            'kegiatan' => 'required_if:sumber,sebelumnya',
             'nama_lomba' => 'required|string|max:255',
             'penyelenggara' => 'required|string|max:150',
             'lokasi' => 'required|string|max:150',
@@ -59,37 +14,80 @@ class PrestasiController extends Controller
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'bentuk' => 'required|in:Individu,Tim',
-            
-            // Validasi Ketat Bukti Dokumen
             'dokumen' => 'required|array|min:1',
             'dokumen.*.url' => [
                 'required',
                 'url',
                 function ($attribute, $value, $fail) {
                     $host = strtolower(parse_url($value, PHP_URL_HOST) ?? '');
-                    // Validasi khusus domain Drive & OneDrive sesuai requirement
                     $allowed = ['drive.google.com', 'docs.google.com', '1drv.ms', 'onedrive.live.com'];
-                    
-                    $isValid = in_array($host, $allowed) || str_ends_with($host, '.sharepoint.com');
-                    
-                    if (!$isValid) {
+                    if (!in_array($host, $allowed) && !str_ends_with($host, '.sharepoint.com')) {
                         $fail('Tautan harus berasal dari Google Drive atau OneDrive.');
                     }
                 },
             ],
             'dokumen.*.jenis' => 'required|string',
-        ], [
-            'dokumen.required' => 'Tambahkan minimal satu tautan bukti prestasi.',
-            'dokumen.*.url.required' => 'Tautan URL wajib diisi.',
-            'dokumen.*.url.url' => 'Format URL tidak valid.',
-            'dokumen.*.jenis.required' => 'Jenis dokumen wajib dipilih.',
-            'kegiatan.required_if' => 'Pilih kegiatan yang sudah ada atau ganti sumber menjadi mandiri.'
         ]);
 
-        // 2. SIMPAN KE DATABASE
-        // (Logika insert ke tabel 'prestasi' dan 'bukti_prestasi' akan kita tulis di sini)
-        
-        // 3. REDIRECT JIKA BERHASIL (Sesuai Test)
-        return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil ditambahkan!');
+        // 2. SIMPAN KE DATABASE DENGAN TRANSACTION
+        DB::beginTransaction();
+        try {
+            $userId = auth()->id();
+
+            // Mapping format Enum dari form ke database
+            $jenisPrestasi = $request->jenis === 'Nonakademik' ? 'non-akademik' : 'akademik';
+            $tingkatKejuaraan = strtolower($request->tingkat); // Nasional -> nasional
+            $bentukPartisipasi = strtolower($request->bentuk); // Individu -> individu
+
+            // Insert tabel prestasi
+            $idPrestasi = DB::table('prestasi')->insertGetId([
+                'id_user' => $userId,
+                'created_by' => $userId,
+                'id_kegiatan' => $request->sumber === 'sebelumnya' ? $request->id_kegiatan : null,
+                'capaian' => $request->capaian,
+                'jenis_prestasi' => $jenisPrestasi,
+                'nama_lomba' => $request->nama_lomba,
+                'penyelenggara' => $request->penyelenggara,
+                'lokasi' => $request->lokasi,
+                'tingkat_kejuaraan' => $tingkatKejuaraan,
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'bentuk_partisipasi' => $bentukPartisipasi,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], 'id_prestasi');
+
+            // Insert tabel bukti_prestasi
+            foreach ($request->dokumen as $dok) {
+                // Cari id_jenis_dokumen berdasarkan nama. Jika tidak ada, buat baru agar tidak error constraint.
+                $idJenisDokumen = DB::table('jenis_dokumen')
+                    ->where('nama_jenis_dokumen', $dok['jenis'])
+                    ->value('id_jenis_dokumen');
+
+                if (!$idJenisDokumen) {
+                    $idJenisDokumen = DB::table('jenis_dokumen')->insertGetId([
+                        'nama_jenis_dokumen' => $dok['jenis']
+                    ], 'id_jenis_dokumen');
+                }
+
+                DB::table('bukti_prestasi')->insert([
+                    'id_prestasi' => $idPrestasi,
+                    'id_jenis_dokumen' => $idJenisDokumen,
+                    'link' => $dok['url'],
+                    'nama_file' => 'Bukti ' . $dok['jenis'], // Nama default karena link tidak punya nama file fisik
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            // 3. REDIRECT
+            return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil ditambahkan!');
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            // Jika ada error database, kembalikan ke form beserta pesan error-nya
+            return back()->withInput()->withErrors(['error' => 'Gagal menyimpan data: ' . $e->getMessage()]);
+        }
     }
-}
