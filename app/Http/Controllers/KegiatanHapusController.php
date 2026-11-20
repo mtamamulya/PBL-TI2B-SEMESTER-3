@@ -2,56 +2,40 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\ApiClient;
-use App\Support\ApiException;
-use Illuminate\Http\RedirectResponse;
+use App\Repositories\KegiatanData;
 use Illuminate\Http\Request;
 
 /**
- * Hapus kegiatan dosen / mahasiswa melalui API DELETE /admin/kegiatan/{id}.
- * Hanya admin yang diizinkan menghapus; kaprodi akan ditolak API (403).
+ * Hapus kegiatan dosen / mahasiswa. Dipakai admin DAN kaprodi (dibedakan dari nama route).
+ * Kaprodi hanya boleh menghapus kegiatan yang sudah disetujui (yang tampil di daftarnya).
  */
 class KegiatanHapusController extends Controller
 {
-    public function dosen(Request $request, string $id): RedirectResponse
+    public function __construct(private KegiatanData $data) {}
+
+    public function dosen(Request $request, string $id)
     {
         return $this->hapus($request, 'dosen', $id);
     }
 
-    public function mahasiswa(Request $request, string $id): RedirectResponse
+    public function mahasiswa(Request $request, string $id)
     {
         return $this->hapus($request, 'mahasiswa', $id);
     }
 
-    private function hapus(Request $request, string $jenis, string $id): RedirectResponse
+    private function hapus(Request $request, string $jenis, string $id)
     {
-        $prefix = $request->routeIs('kaprodi.*') ? 'kaprodi' : 'admin';
-        $tujuan = redirect()->route($prefix.'.kegiatan.index', ['tab' => $jenis]);
+        $kaprodi = $request->routeIs('kaprodi.*');
+        $row = $this->data->cari($jenis, $id);
 
-        try {
-            $hasil = ApiClient::pengguna()->delete('/admin/kegiatan/'.$id);
-        } catch (ApiException $e) {
-            $status = $e->getStatusCode();
+        abort_if($row === null, 404, 'Kegiatan tidak ditemukan.');
+        abort_if($kaprodi && $row['status'] !== KegiatanData::DISETUJUI, 404, 'Kegiatan tidak ditemukan.');
 
-            if ($status === 401) {
-                throw $e;
-            }
+        $this->data->hapus($jenis, $id);
 
-            $pesan = match ($status) {
-                403 => 'Anda tidak memiliki izin untuk menghapus kegiatan.',
-                404 => 'Kegiatan tidak ditemukan atau sudah dihapus.',
-                409 => $e->getMessage() ?: 'Kegiatan tidak dapat dihapus karena masih digunakan pada data prestasi.',
-                default => $e->getMessage() ?: 'Gagal menghapus kegiatan.',
-            };
-
-            return $tujuan->with('error', $pesan);
-        }
-
-        $nama = $hasil['data']['nama'] ?? null;
-        $pesanSukses = is_string($nama) && $nama !== ''
-            ? 'Kegiatan "'.$nama.'" berhasil dihapus.'
-            : ($hasil['message'] ?? 'Kegiatan berhasil dihapus.');
-
-        return $tujuan->with('success', $pesanSukses);
+        // Kembali ke halaman Kegiatan gabungan, di tab jenis yang sama.
+        return redirect()
+            ->route(($kaprodi ? 'kaprodi' : 'admin').'.kegiatan.index', ['tab' => $jenis])
+            ->with('success', 'Kegiatan "'.$row['nama'].'" berhasil dihapus.');
     }
 }
