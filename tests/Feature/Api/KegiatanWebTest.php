@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -278,5 +279,115 @@ class KegiatanWebTest extends TestCase
         $this->admin()->get(route('admin.kegiatan.semua.laporan'))
             ->assertRedirect(route('admin.kegiatan.index'))
             ->assertSessionHas('error');
+    }
+
+    // ---------- tambah kegiatan ----------
+
+    private function form(array $ganti = []): array
+    {
+        return array_replace([
+            'id_kategori' => 3,
+            'jenis_kegiatan' => 'Kegiatan Prodi',
+            'nama_kegiatan' => 'Workshop Kurikulum OBE',
+            'penyelenggara' => 'Prodi TRK',
+            'tanggal_mulai' => '2026-10-05',
+            'tanggal_selesai' => '2026-10-06',
+            'anggota' => ['Dosen:1', 'Mahasiswa:5'],
+        ], $ganti);
+    }
+
+    private function hasilTambah(string $jenis = 'prodi', array $peringatan = []): array
+    {
+        return [
+            'success' => true,
+            'message' => 'Kegiatan berhasil ditambahkan.',
+            'data' => ['id' => '21', 'jenis' => $jenis, 'nama' => 'Workshop Kurikulum OBE'],
+            'peringatan' => $peringatan,
+        ];
+    }
+
+    public function test_admin_store_posts_to_api_and_goes_to_the_tab_of_the_result(): void
+    {
+        Http::fake(['*/admin/kegiatan' => Http::response($this->hasilTambah('prodi'), 201)]);
+
+        $this->admin()->post(route('admin.kegiatan.store'), $this->form())
+            ->assertRedirect(route('admin.kegiatan.index', ['tab' => 'prodi']))
+            ->assertSessionHas('success', 'Kegiatan berhasil ditambahkan.')
+            ->assertSessionMissing('peringatan');
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST'
+            && str_ends_with($r->url(), '/admin/kegiatan')
+            && $r->hasHeader('Authorization', 'Bearer token-uji')
+            && $r['id_kategori'] == 3
+            && $r['jenis_kegiatan'] === 'Kegiatan Prodi'
+            && $r['anggota[0]'] === 'Dosen:1'
+            && $r['anggota[1]'] === 'Mahasiswa:5');
+    }
+
+    public function test_kaprodi_store_redirects_to_kaprodi_list_with_tab_from_api(): void
+    {
+        // Tab mengikuti jenis dari API (pemilik kegiatan), bukan tebakan dari form.
+        Http::fake(['*/admin/kegiatan' => Http::response($this->hasilTambah('dosen'), 201)]);
+
+        $this->kaprodi()->post(route('kaprodi.kegiatan.store'), $this->form(['jenis_kegiatan' => 'Kegiatan Dosen']))
+            ->assertRedirect(route('kaprodi.kegiatan.index', ['tab' => 'dosen']));
+    }
+
+    public function test_store_shows_warnings_from_api(): void
+    {
+        $peringatan = ['Kategori "Seminar" belum punya isian "tanggal_selesai", nilainya tidak disimpan.'];
+        Http::fake(['*/admin/kegiatan' => Http::response($this->hasilTambah('prodi', $peringatan), 201)]);
+
+        $this->admin()->post(route('admin.kegiatan.store'), $this->form())
+            ->assertRedirect(route('admin.kegiatan.index', ['tab' => 'prodi']))
+            ->assertSessionHas('peringatan', $peringatan);
+    }
+
+    public function test_store_sends_documents_with_bracket_keys_and_skips_empty_cards(): void
+    {
+        Http::fake(['*/admin/kegiatan' => Http::response($this->hasilTambah(), 201)]);
+
+        $this->admin()->post(route('admin.kegiatan.store'), $this->form([
+            'dokumen' => [
+                0 => ['nama' => '', 'jenis' => '', 'keterangan' => '', 'tautan' => ''], // kartu kosong
+                1 => ['nama' => 'Surat tugas', 'jenis' => 'Surat tugas', 'file' => UploadedFile::fake()->create('surat.pdf', 100, 'application/pdf')],
+            ],
+        ]))->assertRedirect(route('admin.kegiatan.index', ['tab' => 'prodi']));
+
+        // Ada file, jadi dikirim multipart; kartu kosong dilewati.
+        Http::assertSent(fn (Request $r) => $r->isMultipart() && str_ends_with($r->url(), '/admin/kegiatan'));
+    }
+
+    public function test_store_returns_to_the_form_with_errors_when_api_says_422(): void
+    {
+        Http::fake(['*/admin/kegiatan' => Http::response([
+            'success' => false,
+            'message' => 'Data yang dikirim tidak valid. Periksa kembali isian Anda.',
+            'errors' => ['anggota' => ['Kegiatan dosen harus memiliki minimal satu anggota dosen.']],
+        ], 422)]);
+
+        $this->admin()->from(route('admin.kegiatan.create'))
+            ->post(route('admin.kegiatan.store'), $this->form(['jenis_kegiatan' => 'Kegiatan Dosen', 'anggota' => ['Mahasiswa:5']]))
+            ->assertRedirect(route('admin.kegiatan.create'))
+            ->assertSessionHasErrors('anggota');
+    }
+
+    public function test_store_does_not_hide_api_downtime(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('mati'));
+
+        $this->admin()->post(route('admin.kegiatan.store'), $this->form())->assertStatus(503);
+    }
+
+    public function test_store_validates_locally_before_calling_api(): void
+    {
+        Http::fake();
+
+        $this->admin()->from(route('admin.kegiatan.create'))
+            ->post(route('admin.kegiatan.store'), $this->form(['anggota' => [], 'id_kategori' => '']))
+            ->assertRedirect(route('admin.kegiatan.create'))
+            ->assertSessionHasErrors(['anggota', 'id_kategori']);
+
+        Http::assertNothingSent();
     }
 }
