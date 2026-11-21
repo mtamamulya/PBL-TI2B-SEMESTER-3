@@ -1,8 +1,15 @@
 <?php
 
+use App\BackendKel1\Autentikasi\PeranApi;
 use App\BackendKel1\Prestasi\AdminPrestasiApiController;
 use App\BackendKel1\Prestasi\PrestasiController;
+use App\BackendKel1\Prestasi\PrestasiRekapController;
 use Illuminate\Support\Facades\Route;
+
+// Rekap untuk daftar kaprodi dan laporan PDF/Excel: admin DAN kaprodi.
+Route::middleware(['auth:sanctum', PeranApi::class.':1,2'])
+    ->get('admin/prestasi/rekap', [PrestasiRekapController::class, 'index'])
+    ->name('api.admin.prestasi.rekap');
 
 Route::middleware('auth:sanctum')
     ->prefix('admin/prestasi')

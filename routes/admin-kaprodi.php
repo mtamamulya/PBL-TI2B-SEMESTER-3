@@ -44,6 +44,7 @@ use App\Http\Controllers\LandingMahasiswaController;
 use App\Http\Controllers\MataKuliahController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
+use App\Http\Controllers\PrestasiLaporanController;
 use App\Http\Controllers\PublicBeritaController;
 use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
@@ -171,6 +172,10 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     // Prestasi
     Route::get('/prestasi', [AdminPrestasiController::class, 'index'])->name('admin.prestasi');
     Route::get('/prestasi/tambah', [AdminPrestasiController::class, 'create'])->name('admin.prestasi.create');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('admin.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('admin.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('admin.prestasi.mahasiswa.laporan');
     Route::post('/prestasi', [AdminPrestasiController::class, 'store'])->name('admin.prestasi.store');
     Route::get('/prestasi/{id}', [AdminPrestasiController::class, 'show'])->name('admin.prestasi.show');
     Route::get('/prestasi/{id}/edit', [AdminPrestasiController::class, 'edit'])->name('admin.prestasi.edit');
@@ -269,6 +274,10 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/profil', [KaprodiProfilController::class, 'index'])->name('kaprodi.profil');
 
     Route::get('/prestasi', [KaprodiPrestasiController::class, 'index'])->name('kaprodi.prestasi');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('kaprodi.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('kaprodi.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('kaprodi.prestasi.mahasiswa.laporan');
     Route::get('/prestasi/{id}', [KaprodiPrestasiController::class, 'show'])->name('kaprodi.prestasi.show');
 
     Route::get('/pengajuan/{id}/tanda-tangan', [KaprodiPengajuanController::class, 'ttdSurat'])->name('kaprodi.pengajuan.ttd');
