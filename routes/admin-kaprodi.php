@@ -127,6 +127,9 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/kegiatan', [AdminKegiatanController::class, 'index'])->name('admin.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('admin.kegiatan.create');
     Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('admin.kegiatan.store');
+    // Nama lama untuk tautan/breadcrumb lama; daftar kegiatan kini satu halaman bertab (sama seperti sisi kaprodi).
+    Route::redirect('/kegiatan/dosen', '/admin/kegiatan?tab=dosen')->name('admin.kegiatan.dosen');
+    Route::redirect('/kegiatan/mahasiswa', '/admin/kegiatan?tab=mahasiswa')->name('admin.kegiatan.mahasiswa');
 
     Route::get('/kegiatan/dosen/laporan', [KegiatanLaporanController::class, 'dosen'])->name('admin.kegiatan.dosen.laporan');
     Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.laporan');
