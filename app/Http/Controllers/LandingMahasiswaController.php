@@ -2,136 +2,102 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\MahasiswaStore;
+use App\Support\ApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class LandingMahasiswaController extends Controller
 {
-    public function __construct(private MahasiswaStore $store) {}
-
-    /** Helper pemanggil internal API /api/v1/mahasiswa */
-    private function callApi(string $method, string $uri, array $params = [], array $files = []): array
-    {
-        $apiRequest = Request::create($uri, $method, $params, [], $files);
-        $apiRequest->headers->set('Accept', 'application/json');
-
-        $response = app()->handle($apiRequest);
-
-        return [
-            'status' => $response->getStatusCode(),
-            'body' => json_decode($response->getContent(), true) ?? [],
-        ];
-    }
-
-    /** Daftar mahasiswa (mengambil data dari GET /api/v1/mahasiswa). */
     public function index()
     {
-        $res = $this->callApi('GET', '/api/v1/mahasiswa');
+        $hasil = ApiClient::pengguna()->get('/mahasiswa');
+        $meta = $hasil['meta'] ?? [];
 
         return view('admin.mahasiswa', [
-            'students' => $res['body']['data'] ?? [],
-            'levels' => $res['body']['levels'] ?? MahasiswaStore::TINGKAT,
+            'students' => $hasil['data'] ?? [],
+            'levels' => $meta['levels'] ?? ['Tingkat 1', 'Tingkat 2', 'Tingkat 3', 'Tingkat 4'],
         ]);
     }
 
-    /** Detail satu mahasiswa (mengambil data dari GET /api/v1/mahasiswa/{id}). */
     public function show(string $id)
     {
-        $res = $this->callApi('GET', "/api/v1/mahasiswa/{$id}");
-        abort_if($res['status'] === 404, 404);
+        $hasil = ApiClient::pengguna()->get("/mahasiswa/{$id}");
 
         return view('admin.mahasiswa-detail', [
-            'mahasiswa' => $res['body']['data'],
-            'academic' => $res['body']['academic'],
-            'identity' => $res['body']['identity'],
-            'history' => $res['body']['history'],
-            'kegiatan' => $res['body']['kegiatan'],
+            'mahasiswa' => $hasil['data'] ?? [],
+            'fotoUrl' => $hasil['fotoUrl'] ?? null,
+            'academic' => $hasil['academic'] ?? [],
+            'history' => $hasil['history'] ?? [],
+            'kegiatan' => $hasil['kegiatan'] ?? [],
         ]);
     }
 
-    /** Form tambah mahasiswa. */
     public function create()
     {
+        $hasil = ApiClient::pengguna()->get('/mahasiswa');
+        $meta = $hasil['meta'] ?? [];
+
         return view('admin.mahasiswa-tambah', [
-            'tahun' => range((int) date('Y'), (int) date('Y') - 9),
-            'statusAkad' => $this->store->opsiStatus(),
+            'tahun' => $meta['tahun'] ?? range((int) date('Y'), (int) date('Y') - 9),
+            'statusAkad' => $meta['status'] ?? ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
         ]);
     }
 
-    /** Simpan mahasiswa baru via POST /api/v1/mahasiswa. */
     public function store(Request $request): RedirectResponse
     {
-        $res = $this->callApi('POST', '/api/v1/mahasiswa', $request->except('_token'));
+        $payload = $request->only(['nama', 'nim', 'angkatan', 'status', 'email', 'password']);
+        $hasil = ApiClient::pengguna()->post('/mahasiswa', $payload);
+        $idBaru = $hasil['data']['id'] ?? null;
 
-        if ($res['status'] === 422) {
-            return back()->withErrors($res['body']['errors'] ?? [])->withInput();
+        if ($idBaru) {
+            return redirect()
+                ->route('admin.mahasiswa.show', ['id' => $idBaru])
+                ->with('status', 'Mahasiswa baru berhasil ditambahkan.');
         }
 
-        $id = $res['body']['data']['id'];
-
-        return redirect()->route('admin.mahasiswa.show', $id)
-            ->with('status', $res['body']['message'] ?? 'Mahasiswa baru berhasil ditambahkan.');
+        return redirect()
+            ->route('admin.mahasiswa')
+            ->with('status', 'Mahasiswa baru berhasil ditambahkan.');
     }
 
-    /** Form edit mahasiswa (mengambil data dari GET /api/v1/mahasiswa/{id}). */
     public function edit(string $id)
     {
-        $res = $this->callApi('GET', "/api/v1/mahasiswa/{$id}");
-        abort_if($res['status'] === 404, 404);
-
-        $mahasiswa = $res['body']['data'];
-
-        $tahun = range((int) date('Y'), (int) date('Y') - 9);
-        if (! in_array((int) $mahasiswa['angkatan'], $tahun, true)) {
-            $tahun[] = (int) $mahasiswa['angkatan'];
-            rsort($tahun);
-        }
+        $detail = ApiClient::pengguna()->get("/mahasiswa/{$id}");
 
         return view('admin.mahasiswa-edit', [
-            'mahasiswa' => $mahasiswa,
-            'tahun' => $tahun,
-            'statusAkad' => $this->store->opsiStatus(),
-            'fotoUrl' => $res['body']['fotoUrl'] ?? null,
+            'mahasiswa' => $detail['data'] ?? [],
+            'fotoUrl' => $detail['fotoUrl'] ?? null,
+            'tahun' => range((int) date('Y'), (int) date('Y') - 9),
+            'statusAkad' => ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
         ]);
     }
 
-    /** Simpan perubahan mahasiswa via PUT /api/v1/mahasiswa/{id}. */
     public function update(Request $request, string $id): RedirectResponse
     {
-        $res = $this->callApi('PUT', "/api/v1/mahasiswa/{$id}", $request->except(['_token', '_method']), $request->allFiles());
+        $payload = $request->only(['nama', 'nim', 'angkatan', 'status', 'email', 'password', 'hapus_foto']);
 
-        abort_if($res['status'] === 404, 404);
-
-        if ($res['status'] === 422) {
-            return back()->withErrors($res['body']['errors'] ?? [])->withInput();
+        if ($request->hasFile('foto')) {
+            ApiClient::pengguna()->put("/mahasiswa/{$id}", $payload, ['foto' => $request->file('foto')]);
+        } else {
+            ApiClient::pengguna()->put("/mahasiswa/{$id}", $payload);
         }
 
-        return redirect()->route('admin.mahasiswa.show', $id)
-            ->with('status', $res['body']['message'] ?? 'Perubahan data mahasiswa berhasil disimpan.');
+        return redirect()
+            ->route('admin.mahasiswa.show', ['id' => $id])
+            ->with('status', 'Perubahan data mahasiswa berhasil disimpan.');
     }
 
-    /** Sinkronisasi kelas via POST /api/v1/mahasiswa/sinkronisasi-kelas. */
-    public function buatKelasSemester(): RedirectResponse
-    {
-        $res = $this->callApi('POST', '/api/v1/mahasiswa/sinkronisasi-kelas');
-
-        if ($res['status'] !== 200) {
-            return redirect()->route('admin.mahasiswa')
-                ->with('error', $res['body']['message'] ?? 'Gagal melakukan sinkronisasi kelas.');
-        }
-
-        return redirect()->route('admin.mahasiswa')
-            ->with('status', $res['body']['message']);
-    }
-
-    /** Ubah status aktif/nonaktif via PATCH /api/v1/mahasiswa/{id}/status. */
     public function toggleStatus(string $id): RedirectResponse
     {
-        $res = $this->callApi('PATCH', "/api/v1/mahasiswa/{$id}/status");
-        abort_if($res['status'] === 404, 404);
+        $hasil = ApiClient::pengguna()->patch("/mahasiswa/{$id}/status");
 
-        return redirect()->back()
-            ->with('status', $res['body']['message'] ?? 'Status mahasiswa berhasil diperbarui.');
+        return back()->with('status', $hasil['message'] ?? 'Status mahasiswa berhasil diperbarui.');
+    }
+
+    public function buatKelasSemester(): RedirectResponse
+    {
+        $hasil = ApiClient::pengguna()->post('/mahasiswa/sinkronisasi-kelas');
+
+        return back()->with('status', $hasil['message'] ?? 'Sinkronisasi kelas selesai.');
     }
 }
