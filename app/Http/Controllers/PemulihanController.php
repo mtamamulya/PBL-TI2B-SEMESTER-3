@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
@@ -193,12 +192,10 @@ class PemulihanController extends Controller
         abort_unless(session('pemulihan.step') === 3, 404);
 
         $data = $request->validate([
-            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+            'password' => ['required', 'min:8', 'confirmed'],
         ], [
             'password.required' => 'Kata sandi baru wajib diisi.',
             'password.min' => 'Kata sandi minimal 8 karakter.',
-            'password.letters' => 'Kata sandi harus mengandung huruf.',
-            'password.numbers' => 'Kata sandi harus mengandung angka.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak sama.',
         ]);
 
