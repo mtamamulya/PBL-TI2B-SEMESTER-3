@@ -18,6 +18,9 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class PemulihanController extends Controller
 {
+    /** Label alur pada otp_codes.tujuan. Alur lain (mis. ganti sandi lewat profil) memakai label sendiri, jadi barisnya tidak saling menimpa. */
+    private const TUJUAN = 'lupa_sandi';
+
     private const OTP_MENIT = 5;
 
     private const OTP_MAKS_PERCOBAAN = 3;
@@ -137,6 +140,7 @@ class PemulihanController extends Controller
         $otp = $user
             ? DB::table('otp_codes')
                 ->where('id_user', $user->getKey())
+                ->where('tujuan', self::TUJUAN)
                 ->whereNull('consumed_at')
                 ->latest('id_otp_code')
                 ->first()
@@ -246,6 +250,7 @@ class PemulihanController extends Controller
     private function sendOtp(User $user): void
     {
         $otp = DB::table('otp_codes')->where('id_user', $user->getKey())
+            ->where('tujuan', self::TUJUAN)
             ->whereNull('consumed_at')->latest('id_otp_code')->first();
 
         if ($otp && Carbon::parse($otp->last_sent_at)
@@ -271,6 +276,7 @@ class PemulihanController extends Controller
         } else {
             $otpId = (int) DB::table('otp_codes')->insertGetId(array_merge($values, [
                 'id_user' => $user->getKey(),
+                'tujuan' => self::TUJUAN,
                 'created_at' => $now,
             ]), 'id_otp_code');
         }

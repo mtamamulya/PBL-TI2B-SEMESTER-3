@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('id_user')
                 ->constrained('users', 'id_user')
                 ->cascadeOnDelete();
+            $table->string('tujuan', 30);
             $table->string('code_hash');
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->timestamp('expires_at');
@@ -20,7 +21,7 @@ return new class extends Migration
             $table->timestamp('verified_at')->nullable();
             $table->timestamp('consumed_at')->nullable();
             $table->timestamps();
-            $table->index(['id_user', 'consumed_at']);
+            $table->index(['id_user', 'tujuan', 'consumed_at']);
         });
     }
 
