@@ -22,6 +22,9 @@ class PemulihanController extends Controller
 
     private const OTP_MENIT = 5;
 
+    /** Setelah OTP benar, waktu untuk mengisi dan menyimpan sandi baru (menit). */
+    private const SANDI_BARU_MENIT = 7;
+
     private const OTP_MAKS_PERCOBAAN = 3;
 
     private const OTP_JEDA_KIRIM_DETIK = 60;
@@ -33,9 +36,19 @@ class PemulihanController extends Controller
         }
 
         $step = (int) session('pemulihan.step', 1);
+
+        // Langkah 3 hanya boleh tampil selama OTP yang sudah terverifikasi masih berlaku.
+        if ($step === 3 && ! $this->otpTerverifikasiMasihBerlaku()) {
+            session()->forget('pemulihan');
+
+            return redirect()->route('password.request')
+                ->withErrors(['email' => 'Waktu membuat kata sandi baru sudah habis. Minta kode OTP baru.']);
+        }
+
         $data = [
             'step' => $step,
             'email' => session('pemulihan.email'),
+            'batasMenit' => self::SANDI_BARU_MENIT,
         ];
 
         $view = view('pemulihan', $data);
@@ -176,8 +189,13 @@ class PemulihanController extends Controller
             ]);
         }
 
+        // OTP benar: beri waktu terpisah untuk mengisi sandi baru, lalu hitung dari sekarang.
         DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-            ->update(['verified_at' => now(), 'updated_at' => now()]);
+            ->update([
+                'verified_at' => now(),
+                'expires_at' => now()->addMinutes(self::SANDI_BARU_MENIT),
+                'updated_at' => now(),
+            ]);
 
         session([
             'pemulihan.step' => 3,
@@ -242,6 +260,22 @@ class PemulihanController extends Controller
         session(['pemulihan.step' => 4]);
 
         return redirect()->route('password.request');
+    }
+
+    /** OTP pada sesi ini sudah diverifikasi, belum dipakai, dan belum lewat masa berlakunya. */
+    private function otpTerverifikasiMasihBerlaku(): bool
+    {
+        $id = session('pemulihan.otp_id');
+        if (! $id) {
+            return false;
+        }
+
+        $otp = DB::table('otp_codes')->where('id_otp_code', $id)->where('tujuan', self::TUJUAN)->first();
+
+        return $otp
+            && $otp->verified_at !== null
+            && $otp->consumed_at === null
+            && ! Carbon::parse($otp->expires_at)->isPast();
     }
 
     private function sendOtp(User $user): void

@@ -150,6 +150,7 @@
             <div class="flex flex-col gap-1">
                 <h2 class="{{ $title }}">Buat Kata Sandi Baru</h2>
                 <p class="{{ $desc }}">Email berhasil diverifikasi. Buat kata sandi yang kuat dan berbeda dari kata sandi sebelumnya.</p>
+                <p class="{{ $hint }}">Selesaikan dalam {{ $batasMenit ?? 7 }} menit, kalau lewat kamu perlu meminta kode OTP baru.</p>
             </div>
             @if ($error)<div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{{ $error }}</div>@endif
             <label class="flex flex-col gap-1">
@@ -199,7 +200,6 @@
         </script>
         @endpush
 
-    {{-- ============ BERHASIL ============ --}}
     @else
         <div class="{{ $card }} items-center text-center">
             <span class="flex size-11 items-center justify-center rounded-full bg-[#E6F4D7] text-[#4C8A1F]"><svg class="size-5" viewBox="0 0 24 24" {!! $svg !!}><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5l4.5 -5"/></svg></span>

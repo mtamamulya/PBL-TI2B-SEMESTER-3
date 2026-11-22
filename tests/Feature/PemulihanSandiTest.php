@@ -397,6 +397,56 @@ class PemulihanSandiTest extends TestCase
         $this->assertTrue(Hash::check('hurufsajaya', $this->sandiTersimpan()));
     }
 
+    public function test_verifying_the_otp_gives_a_separate_window_to_set_the_new_password(): void
+    {
+        $this->sampaiLangkahTiga();
+
+        $this->assertTrue(
+            Carbon::parse($this->otp()->expires_at)->greaterThan(now()->addMinutes(6)),
+            'Setelah OTP benar, batas waktu harus diperpanjang (sekitar 7 menit).'
+        );
+    }
+
+    public function test_password_can_still_be_saved_six_minutes_after_the_otp_was_verified(): void
+    {
+        $this->sampaiLangkahTiga();
+
+        // Sudah lewat 5 menit dari OTP dikirim, tapi masih dalam jendela sandi baru.
+        Carbon::setTestNow(now()->addMinutes(6));
+
+        $this->post(route('password.simpan'), ['password' => 'SandiBaru123', 'password_confirmation' => 'SandiBaru123'])
+            ->assertRedirect(route('password.request'));
+
+        $this->assertSame(4, session('pemulihan.step'));
+        $this->assertTrue(Hash::check('SandiBaru123', $this->sandiTersimpan()));
+    }
+
+    public function test_password_cannot_be_saved_after_the_window_has_passed(): void
+    {
+        $this->sampaiLangkahTiga();
+
+        Carbon::setTestNow(now()->addMinutes(8));
+
+        $this->from(route('password.request'))
+            ->post(route('password.simpan'), ['password' => 'SandiBaru123', 'password_confirmation' => 'SandiBaru123'])
+            ->assertSessionHasErrors('password');
+
+        $this->assertTrue(Hash::check(self::SANDI_LAMA, $this->sandiTersimpan()));
+    }
+
+    public function test_step_three_page_sends_you_back_to_step_one_when_the_window_has_passed(): void
+    {
+        $this->sampaiLangkahTiga();
+
+        Carbon::setTestNow(now()->addMinutes(8));
+
+        $this->get(route('password.request'))
+            ->assertRedirect(route('password.request'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertNull(session('pemulihan'));
+    }
+
     public function test_saving_a_password_without_verifying_otp_is_a_404(): void
     {
         $this->mintaOtp(); // baru langkah 2
