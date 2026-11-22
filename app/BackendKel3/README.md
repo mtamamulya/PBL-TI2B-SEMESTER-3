@@ -1,5 +1,11 @@
 # Backend dosen · Kelompok 3
 
+## Koreksi database yang sudah terpasang · 22 November 2026
+
+Jalankan `php artisan migrate` setelah mengambil develop terbaru. Migration `2026_11_22_000001_reconcile_existing_otp_codes` memperbaiki instalasi lama yang sudah mencatat migration OTP tetapi belum memiliki `tujuan`. Baris lama diberi tujuan `lupa_sandi`; waktu OTP memakai DATETIME agar perubahan jumlah percobaan tidak menggeser waktu kedaluwarsa secara otomatis di MariaDB. Data OTP dan indeks pencarian dipertahankan. Rollback migration ini sengaja tidak menghapus kolom koreksi yang dibutuhkan kode aplikasi.
+
+Riwayat migration yang lengkap belum menjamin struktur database lama sama dengan kode, karena sebagian migration awal pernah diedit. Bandingkan kolom, indeks, dan foreign key sebelum memakai database lama. Jangan menjalankan `migrate:fresh` pada database berisi data. Tabel arsip atau tabel dokumen paralel lama tidak perlu dihapus untuk menjalankan aplikasi; rekonsiliasi datanya dilakukan terpisah.
+
 ## Integrasi branch anggota · 22 November 2026
 
 Integrasi mencakup `feature/API-penelitian`, `feature/kel3-pengabdian`, `rhafihairy/dashboard-notifikasi`, `feature/kel3/PrestasiBerita-lia`, dan `feature/dokumen-surat-ridho`. Riwayat commit masing-masing branch dipertahankan melalui merge.
