@@ -683,7 +683,7 @@ class PengajuanController extends Controller
         }];
 
         $common = [
-            'category' => ['required', Rule::in(['Lomba', 'Volunteer', 'Magang', 'Pengabdian'])],
+            'category' => ['required', Rule::in(['Lomba', 'Volunteer', 'KKL', 'Magang', 'Pengabdian', 'Penelitian'])],
             'location' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
@@ -720,6 +720,10 @@ class PengajuanController extends Controller
                 'organizer' => ['required', 'string', 'max:255'],
                 'info_url' => ['nullable', 'url'],
                 'advisor' => ['nullable', 'string', 'max:255'],
+            ],
+            'KKL', 'Penelitian' => [
+                'title' => ['required', 'string', 'max:255'],
+                'organizer' => ['required', 'string', 'max:255'],
             ],
             default => [],
         };

@@ -15,7 +15,17 @@
         'type' => $f['type'] ?? 'Dokumentasi',
         'url' => $f['url'] ?? (isset($f['path']) ? asset('storage/'.$f['path']) : ''),
     ])->all());
-    $categories = ['Lomba', 'Volunteer', 'Magang', 'Pengabdian'];
+    $categories = $isActivityHistory
+        ? ['Lomba', 'Volunteer', 'KKL', 'Magang', 'Pengabdian', 'Penelitian']
+        : ['Lomba', 'Volunteer', 'Magang', 'Pengabdian'];
+    $categoryPresentation = [
+        'Lomba' => ['icon' => 'ti ti-trophy', 'color' => 'bg-amber-50 text-amber-600', 'description' => 'Kompetisi dan kejuaraan'],
+        'Volunteer' => ['icon' => 'ti ti-heart-handshake', 'color' => 'bg-rose-50 text-rose-600', 'description' => 'Program relawan dan sosial'],
+        'KKL' => ['icon' => 'ti ti-map-pin', 'color' => 'bg-emerald-50 text-emerald-600', 'description' => 'Kuliah Kerja Lapangan'],
+        'Magang' => ['icon' => 'ti ti-briefcase', 'color' => 'bg-violet-50 text-violet-600', 'description' => 'Pengalaman kerja profesional'],
+        'Pengabdian' => ['icon' => 'ti ti-users', 'color' => 'bg-pink-50 text-pink-600', 'description' => 'Kontribusi untuk masyarakat'],
+        'Penelitian' => ['icon' => 'ti ti-microscope', 'color' => 'bg-cyan-50 text-cyan-600', 'description' => 'Riset dan karya ilmiah'],
+    ];
     $documentTypes = ['Dokumentasi', 'Surat Mitra', 'Surat Mahasiswa', 'Surat Pengabdian'];
     $locLabels = [
         'Lomba' => 'Lokasi Lomba',
@@ -38,6 +48,8 @@
 <div class="flex flex-col gap-6 px-4 pb-10 pt-7 sm:px-6 lg:px-12"
      x-data="{
          category: @js($v('category', '')),
+         categoryOpen: false,
+         categoryPresentation: @js($categoryPresentation),
          participation: @js($v('participation', 'Tim')),
          level: @js($v('level', '')),
          members: @js($members),
@@ -83,7 +95,7 @@
          check() {
              const f = this.$refs.form;
              const v = n => ((f.elements[n] && f.elements[n].value) || '').toString().trim();
-             const need = ({ Lomba: ['title', 'organizer', 'level'], Volunteer: ['title', 'organizer', 'role'], Magang: ['role', 'organizer', 'duration_months'], Pengabdian: ['title', 'organizer'] })[this.category] || [];
+             const need = ({ Lomba: ['title', 'organizer', 'level'], Volunteer: ['title', 'organizer', 'role'], KKL: ['title', 'organizer'], Magang: ['role', 'organizer', 'duration_months'], Pengabdian: ['title', 'organizer'], Penelitian: ['title', 'organizer'] })[this.category] || [];
              const hasTeam = this.category === 'Lomba';
              let ok = Boolean(this.category) && need.every(n => v(n)) && ['location', 'start_date', 'end_date'].every(n => v(n));
              if (ok && v('end_date') < v('start_date')) ok = false;
@@ -110,20 +122,54 @@
     <form method="POST" action="{{ $formAction }}" x-ref="form"
           @input="check()" @change="check()"
           @submit="if (!ok) { $event.preventDefault(); } else { submitting = true; }"
-          class="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]">
+          class="overflow-visible rounded-2xl border border-[#E5E7EB] bg-white shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]">
         @csrf
         @if ($item) @method('PUT') @endif
         <div class="flex flex-col gap-5 p-5 sm:p-7">
 
             <x-pengajuan.field label="Kategori" hint="Pilih kategori kegiatan yang paling sesuai." name="category">
-                <div class="relative">
-                    <select name="category" x-model="category" class="{{ $select }}">
-                        <option value="">Pilih kategori</option>
+                <div class="relative" @click.outside="categoryOpen = false"
+                     @keydown.escape.stop.prevent="categoryOpen = false; $refs.categoryTrigger.focus()">
+                    <input type="hidden" name="category" x-model="category">
+                    <button x-ref="categoryTrigger" type="button" aria-haspopup="listbox"
+                            :aria-expanded="categoryOpen"
+                            @click="categoryOpen = !categoryOpen"
+                            class="group flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-sm outline-none transition-all duration-200"
+                            :class="categoryOpen ? 'border-[#2277FF] ring-4 ring-[#2277FF]/10' : 'border-[#E5E7EB] hover:border-[#BFDBFE] hover:bg-[#FCFDFF]'">
+                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg transition-all duration-200 group-hover:scale-105"
+                              :class="category ? categoryPresentation[category].color : 'bg-[#EFF6FF] text-[#2563EB]'">
+                            <i class="text-lg"
+                               :class="category ? categoryPresentation[category].icon : 'ti ti-category-2'"></i>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-[13px] font-semibold text-[#111827]"
+                                  x-text="category || 'Pilih kategori kegiatan'"></span>
+                            <span class="mt-0.5 block text-[11px] text-[#6B7280]"
+                                  x-text="category ? categoryPresentation[category].description : 'Pilih kategori yang paling sesuai'"></span>
+                        </span>
+                        <i class="ti ti-chevron-down shrink-0 text-base text-[#6B7280] transition-transform duration-200"
+                           :class="categoryOpen ? 'rotate-180 text-[#2277FF]' : ''"></i>
+                    </button>
+
+                    <div x-show="categoryOpen" x-cloak x-transition
+                         role="listbox" aria-label="Pilihan kategori kegiatan"
+                         class="absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-80 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.16)]">
                         @foreach ($categories as $c)
-                            <option value="{{ $c }}">{{ $c }}</option>
+                            <button type="button" role="option" :aria-selected="category === @js($c)"
+                                    @click="category = @js($c); categoryOpen = false"
+                                    class="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors"
+                                    :class="category === @js($c) ? 'bg-[#EFF6FF]' : 'hover:bg-[#F9FAFB]'">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-lg {{ $categoryPresentation[$c]['color'] }}">
+                                    <i class="{{ $categoryPresentation[$c]['icon'] }} text-lg"></i>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[13px] font-semibold text-[#111827]">{{ $c }}</span>
+                                    <span class="mt-0.5 block text-[11px] text-[#6B7280]">{{ $categoryPresentation[$c]['description'] }}</span>
+                                </span>
+                                <i x-show="category === @js($c)" x-cloak class="ti ti-check text-base font-bold text-[#2563EB]"></i>
+                            </button>
                         @endforeach
-                    </select>
-                    <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-3 text-base"></i>
+                    </div>
                 </div>
                 <p class="text-xs leading-[18px] text-[#6B7280]" x-text="category ? 'Kategori terpilih: ' + category + '.' : 'Pilih kategori untuk menampilkan isian pengajuan.'"></p>
             </x-pengajuan.field>
@@ -215,6 +261,18 @@
 
                     <x-pengajuan.field label="Dosen Pembimbing / Pendamping" optional name="advisor">
                         <input name="advisor" x-model="advisor" value="{{ $v('advisor') }}" class="{{ $input }}" placeholder="Masukkan nama dosen pendamping">
+                    </x-pengajuan.field>
+                </div>
+            </template>
+
+            {{-- KKL DAN PENELITIAN --}}
+            <template x-if="category === 'KKL' || category === 'Penelitian'">
+                <div class="flex flex-col gap-5">
+                    <x-pengajuan.field label="Nama / Judul Kegiatan" required hint="Tuliskan nama kegiatan KKL atau penelitian." name="title">
+                        <input name="title" value="{{ $v('title') }}" class="{{ $input }}" placeholder="Masukkan nama atau judul kegiatan">
+                    </x-pengajuan.field>
+                    <x-pengajuan.field label="Penyelenggara / Instansi" required hint="Masukkan pihak penyelenggara atau instansi terkait." name="organizer">
+                        <input name="organizer" value="{{ $v('organizer') }}" class="{{ $input }}" placeholder="Nama program studi, instansi, atau lembaga">
                     </x-pengajuan.field>
                 </div>
             </template>

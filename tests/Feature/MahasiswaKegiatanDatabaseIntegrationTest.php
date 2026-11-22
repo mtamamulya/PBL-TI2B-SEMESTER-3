@@ -98,6 +98,7 @@ class MahasiswaKegiatanDatabaseIntegrationTest extends TestCase
 
         $activityPage = app(KegiatanController::class)->index($request)->getData();
         $this->assertCount(2, $activityPage['allActivities']);
+        $this->assertSame(['Tercatat', 'Tercatat'], $activityPage['allActivities']->pluck('status')->all());
         $this->assertSame(2, $activityPage['categoryCounts']['VOLUNTEER']);
         $this->assertSame(1, $activityPage['semesters']->get(0)['value']);
         $this->assertSame(1, $activityPage['semesters']->get(1)['value']);
@@ -128,12 +129,68 @@ class MahasiswaKegiatanDatabaseIntegrationTest extends TestCase
         $this->assertDatabaseCount('kegiatan', 1);
         $this->assertDatabaseHas('timeline', ['status' => 'diajukan']);
 
+        $activityRequest = Request::create('/mahasiswa/kegiatan', 'GET');
+        $activityRequest->setUserResolver(fn () => $this->student);
+        $activityPage = app(KegiatanController::class)->index($activityRequest)->getData();
+        $this->assertSame('Diajukan', $activityPage['allActivities']->first()['status']);
+
+        DB::table('timeline')->insert([
+            'id_kegiatan' => 1,
+            'status' => 'direview',
+            'tanggal_status' => now()->addSecond(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $reviewedActivityPage = app(KegiatanController::class)->index($activityRequest)->getData();
+        $this->assertSame('Direview', $reviewedActivityPage['allActivities']->first()['status']);
+
         $dashboard = Request::create('/mahasiswa/dashboard', 'GET');
         $dashboard->setUserResolver(fn () => $this->student);
         $dashboardData = app(DashboardController::class)->index($dashboard)->getData();
         $this->assertSame(1, $dashboardData['totalPengajuan']);
         $this->assertSame(1, $dashboardData['totalKegiatan']);
         $this->assertCount(1, $dashboardData['pengajuanTerbaru']);
+    }
+
+    public function test_activity_form_categories_match_dashboard_cards_and_accept_kkl_and_research(): void
+    {
+        $this->actingAs($this->student)
+            ->get(route('kegiatan.create'))
+            ->assertOk()
+            ->assertSee('role="listbox"', false)
+            ->assertSee('role="option"', false)
+            ->assertSee('categoryPresentation[category].icon', false)
+            ->assertSee('categoryPresentation[category].color', false)
+            ->assertSee('Lomba')
+            ->assertSee('Volunteer')
+            ->assertSee('KKL')
+            ->assertSee('Magang')
+            ->assertSee('Pengabdian')
+            ->assertSee('Penelitian');
+
+        foreach (['KKL', 'Penelitian'] as $category) {
+            $request = Request::create(route('kegiatan.store'), 'POST', [
+                'category' => $category,
+                'title' => 'Kegiatan '.$category,
+                'organizer' => 'Program Studi',
+                'location' => 'Semarang',
+                'start_date' => '2026-10-30',
+                'end_date' => '2026-10-31',
+            ]);
+            $request->setUserResolver(fn () => $this->student);
+
+            app(PengajuanController::class)->storeActivity($request);
+        }
+
+        $this->assertDatabaseCount('kegiatan', 2);
+        $this->assertDatabaseHas('kategori', ['nama_kategori' => 'KKL']);
+        $this->assertDatabaseHas('kategori', ['nama_kategori' => 'Penelitian']);
+
+        $activityRequest = Request::create('/mahasiswa/kegiatan', 'GET');
+        $activityRequest->setUserResolver(fn () => $this->student);
+        $activityPage = app(KegiatanController::class)->index($activityRequest)->getData();
+        $this->assertSame(1, $activityPage['categoryCounts']['KKL']);
+        $this->assertSame(1, $activityPage['categoryCounts']['PENELITIAN']);
     }
 
     private function addVolunteerActivity(string $title, string $startDate, bool $withDocument = false): void

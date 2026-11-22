@@ -35,15 +35,7 @@ class KegiatanController extends Controller
             'date' => $k->tanggal_mulai?->locale('id')->translatedFormat('d M Y') ?? '—',
             'raw_date' => $k->tanggal_mulai?->toDateString() ?? '',
             'created_at' => $k->created_at?->toDateString(),
-            'status' => match ($k->statusTerkini?->status) {
-                'diajukan' => 'Diajukan',
-                'direview' => 'Direview',
-                'diterima' => 'Disetujui',
-                'direvisi' => 'Perlu revisi',
-                'ditolak' => 'Ditolak',
-                'selesai' => 'Selesai',
-                default => 'Belum diajukan',
-            },
+            'status' => $this->statusLabel($k->statusTerkini?->status),
             'note' => $k->statusTerkini?->catatan_revisi,
             'capaian' => $this->activityValue($k, 'posisi_dalam_kegiatan', $hasDynamicDetails) ?? '—',
             'tingkat' => ucfirst($this->activityValue($k, 'tingkat_kejuaraan', $hasDynamicDetails) ?? '—'),
@@ -115,6 +107,20 @@ class KegiatanController extends Controller
         return $detail?->getAttribute($input) ?? $kegiatan->getAttribute($input);
     }
 
+    private function statusLabel(?string $status): string
+    {
+        return match ($status) {
+            'tercatat' => 'Tercatat',
+            'diajukan' => 'Diajukan',
+            'direview' => 'Direview',
+            'diterima' => 'Disetujui',
+            'direvisi' => 'Perlu revisi',
+            'ditolak' => 'Ditolak',
+            'selesai' => 'Selesai',
+            default => 'Tercatat',
+        };
+    }
+
     public function show(Request $request, int $id)
     {
         $kegiatan = Kegiatan::untukUser($request->user())->with([
@@ -133,7 +139,7 @@ class KegiatanController extends Controller
                 'tahun' => $kegiatan->tanggal_mulai?->year ?? '—',
                 'mulai' => $kegiatan->tanggal_mulai?->locale('id')->translatedFormat('j F Y') ?? '—',
                 'selesai' => $kegiatan->tanggal_selesai?->locale('id')->translatedFormat('j F Y') ?? '—',
-                'status' => ucfirst($kegiatan->statusTerkini?->status ?? 'Belum diajukan'),
+                'status' => $this->statusLabel($kegiatan->statusTerkini?->status),
             ],
             'anggota' => $kegiatan->anggota->map(fn ($a) => [
                 'nama' => $a->user?->mahasiswa?->nama ?? $a->user?->dosen?->nama ?? $a->user?->email ?? '—',
