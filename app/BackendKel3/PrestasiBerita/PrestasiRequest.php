@@ -23,12 +23,11 @@ class PrestasiRequest extends FormRequest
 
     public function rules(): array
     {
-        $isUpdate = $this->isMethod('patch') || $this->isMethod('put');
-        $required = $isUpdate ? 'sometimes' : 'required';
+        $required = 'required'; // Update menyimpan satu formulir lengkap, sama seperti kontrak frontend.
 
         return [
             'sumber' => ["{$required}", Rule::in(['kegiatan', 'mandiri'])],
-            'id_kegiatan' => ['nullable', 'integer', 'exists:kegiatan,id_kegiatan'],
+            'id_kegiatan' => ['nullable', 'required_if:sumber,kegiatan', 'integer', 'exists:kegiatan,id_kegiatan'],
             'nama_prestasi' => ["{$required}", 'string', 'max:255'],
             'penyelenggara' => ["{$required}", 'string', 'max:150'],
             'tingkat' => ["{$required}", Rule::in(['kabupaten/kota', 'provinsi', 'nasional', 'internasional'])],

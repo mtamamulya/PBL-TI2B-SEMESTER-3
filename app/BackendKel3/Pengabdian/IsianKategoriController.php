@@ -30,7 +30,7 @@ class IsianKategoriController extends Controller
                 'id_isian_kategori' => (int) $i->id_isian_kategori,
                 'input' => $i->input,
                 'jenis_input' => $i->jenis_input,
-                'wajib' => $i->aturan !== null,
+                'wajib' => ! in_array($i->aturan, [null, '', 'NULL'], true),
                 'aturan' => $i->aturan,
                 'jumlah_isian' => $i->jumlah_isian === null ? null : (int) $i->jumlah_isian,
             ])

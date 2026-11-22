@@ -357,10 +357,13 @@
                 const formData = new FormData(formElement);
 
                 // Tentukan endpoint tujuan (khusus Penelitian nembak ke API penelitian)
-                const url = this.kategori === 'Penelitian' ? '/api/v1/penelitian' : '/api/kegiatan';
+                const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
 
                 this.sedangMenyimpan = true;
                 try {
+                    if (!['Penelitian', 'Pengabdian'].includes(this.kategori)) {
+                        throw new Error('Penyimpanan kategori ini belum tersedia pada form ini.');
+                    }
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: {
@@ -380,7 +383,7 @@
                     this.$dispatch('tampil-alert', {
                         tipe: 'sukses',
                         judul: 'Data berhasil disimpan',
-                        pesan: result.message || 'Data penelitian berhasil masuk ke database TiDB!'
+                        pesan: result.message || 'Data kegiatan berhasil disimpan.'
                     });
 
                 } catch (error) {

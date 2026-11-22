@@ -44,7 +44,7 @@ class BeritaController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Opsi form berita berhasil diambil.', 'data' => [
             'kegiatan' => $kegiatan,
-            'status' => ['draft', 'publish'],
+            'status' => ['draft', 'diajukan'],
         ]]);
     }
 
@@ -69,12 +69,12 @@ class BeritaController extends Controller
             'isi_berita' => $validated['isi_berita'],
             'sampul' => $pathSampul ? Storage::url($pathSampul) : null,
             'status' => $validated['status'] ?? 'draft',
-            'tanggal_publish' => ($validated['status'] ?? 'draft') === 'publish' ? now() : null,
+            'tanggal_publish' => null,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Berita berhasil disimpan sebagai draft.',
+            'message' => 'Berita berhasil disimpan.',
             'data' => $berita,
         ], 201);
     }
@@ -94,6 +94,7 @@ class BeritaController extends Controller
         $user = $request->user();
         $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
 
+        abort_unless(in_array($berita->status, ['draft', 'revisi'], true), 403, 'Berita ini tidak dapat diubah.');
         $validated = $request->validated();
 
         if (! empty($validated['id_kegiatan'])) {
@@ -110,10 +111,6 @@ class BeritaController extends Controller
             unset($validated['sampul']);
         }
 
-        if (($validated['status'] ?? $berita->status) === 'publish' && ! $berita->tanggal_publish) {
-            $validated['tanggal_publish'] = now();
-        }
-
         $berita->update($validated);
 
         return response()->json([
@@ -128,6 +125,7 @@ class BeritaController extends Controller
         $user = $request->user();
         $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
 
+        abort_unless(in_array($berita->status, ['draft', 'revisi'], true), 403, 'Berita ini tidak dapat dihapus.');
         if ($berita->sampul) {
             $oldPath = str_replace('/storage/', '', $berita->sampul);
             Storage::disk('public')->delete($oldPath);

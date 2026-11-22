@@ -22,15 +22,15 @@ class DashboardApiController extends Controller
             : TahunAkademik::where('status', true)->first();
 
         $queryKegiatan = method_exists(Kegiatan::class, 'scopeUntukUser') && $user
-            ? Kegiatan::untukUser($user->id_user)
+            ? Kegiatan::untukUser($user)
             : Kegiatan::where('id_user', $user?->id_user ?? 0);
 
         $semuaKegiatan = $queryKegiatan->with([
             'kategori.jenisKegiatan',
-            'timeline' => fn ($q) => $q->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
+            'timeline' => fn ($q) => $q->reorder()->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
         ])->get()->map(function ($item) {
             $latest = $item->timeline->first();
-            $item->status_terakhir = $latest?->status ?? 'diajukan';
+            $item->status_terakhir = $latest?->status ?? 'draft';
             $item->tanggal_status_terakhir = $latest?->tanggal_status ?? $item->created_at;
 
             return $item;
@@ -76,7 +76,7 @@ class DashboardApiController extends Controller
             ->values()
             ->map(fn ($item) => [
                 'id_kegiatan' => $item->id_kegiatan,
-                'judul' => $item->nama_kegiatan ?? $item->judul ?? 'Kegiatan #' . $item->id_kegiatan,
+                'judul' => $item->nama_kegiatan ?? $item->judul ?? 'Kegiatan #'.$item->id_kegiatan,
                 'kategori' => $item->kategori?->nama_kategori,
                 'status' => $item->status_terakhir,
                 'tanggal_update' => $item->tanggal_status_terakhir,

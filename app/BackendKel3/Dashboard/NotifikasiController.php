@@ -23,7 +23,7 @@ class NotifikasiController extends Controller
             ->get()
             ->map(function ($item) {
                 $kegiatan = $item->kegiatan;
-                $judul = $kegiatan?->nama_kegiatan ?? $kegiatan?->judul ?? 'Kegiatan #' . $item->id_kegiatan;
+                $judul = $kegiatan?->nama_kegiatan ?? $kegiatan?->judul ?? 'Kegiatan #'.$item->id_kegiatan;
 
                 return [
                     'id_timeline' => $item->id_timeline,

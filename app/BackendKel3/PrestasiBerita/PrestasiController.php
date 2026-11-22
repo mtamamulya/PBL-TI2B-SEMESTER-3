@@ -122,7 +122,7 @@ class PrestasiController extends Controller
 
     public function update(PrestasiRequest $request, int $id)
     {
-        $prestasi = Prestasi::untukUser($request->user())->findOrFail($id);
+        $prestasi = Prestasi::where('id_user', $request->user()->getKey())->findOrFail($id);
         $validated = $request->validated();
         DB::transaction(function () use ($prestasi, $validated) {
             $prestasi->update($this->atribut($validated, $prestasi->lokasi ?? 'Semarang'));
@@ -138,7 +138,7 @@ class PrestasiController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        Prestasi::untukUser($request->user())->findOrFail($id)->delete();
+        Prestasi::where('id_user', $request->user()->getKey())->findOrFail($id)->delete();
 
         return response()->json(['success' => true, 'message' => 'Prestasi dihapus']);
     }

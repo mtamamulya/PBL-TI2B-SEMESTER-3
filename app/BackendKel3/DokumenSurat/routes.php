@@ -1,11 +1,12 @@
 <?php
 
+use App\Http\Controllers\BackendKel3\DokumenSurat\DokumenSuratController;
 use Illuminate\Support\Facades\Route;
-use App\BackendKel3\DokumenSurat\DokumenSuratController;
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/dosen/pengajuan/{id}/dokumen', [DokumenSuratController::class, 'index']);
-    Route::post('/dosen/pengajuan/{id}/dokumen', [DokumenSuratController::class, 'store']);
-    Route::delete('/dosen/pengajuan/{id}/dokumen/{dokumenId}', [DokumenSuratController::class, 'destroy']);
-    Route::get('/dosen/pengajuan/{id}/surat', [DokumenSuratController::class, 'showSurat']);
-});
+// Alias pengajuan dipertahankan untuk konsumen branch Ridho.
+foreach (['kegiatan', 'pengajuan'] as $prefix) {
+    Route::get("$prefix/{id}/dokumen", [DokumenSuratController::class, 'index'])->whereNumber('id')->name("$prefix.dokumen.index");
+    Route::post("$prefix/{id}/dokumen", [DokumenSuratController::class, 'store'])->whereNumber('id')->name("$prefix.dokumen.store");
+    Route::delete("$prefix/{id}/dokumen/{dokumenId}", [DokumenSuratController::class, 'destroy'])->whereNumber(['id', 'dokumenId'])->name("$prefix.dokumen.destroy");
+}
+Route::get('pengajuan/{id}/surat', [DokumenSuratController::class, 'showSurat'])->whereNumber('id')->name('pengajuan.surat');

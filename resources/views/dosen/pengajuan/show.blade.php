@@ -389,11 +389,11 @@
 
             ambilDokumen() {
                 console.log("ID Pengajuan saat ini:", pengajuanId);
-                fetch(`/api/dosen/pengajuan/${pengajuanId}/dokumen`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/dokumen`, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
                     }
                 })
                 .then(response => response.json())
@@ -469,13 +469,14 @@
 
                 const formData = new FormData();
                 formData.append('jenis_dokumen', this.baru[0].jenis);
-                formData.append('berkas', this.baru[0].fileObj);
+                this.baru.forEach(item => formData.append('files[]', item.fileObj));
+                formData.append('ajukan_kembali', '1');
 
-                fetch(`/api/dosen/pengajuan/${pengajuanId}/dokumen`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/dokumen`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
                     },
                     body: formData
                 })
@@ -486,9 +487,13 @@
                         this.tambahRiwayat('Diajukan kembali', 'biru', pengaju, `Dokumen perbaikan: ${this.baru.length} file`);
                         this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
                         this.ambilDokumen();
+                        this.statusSekarang = 'Diajukan';
+                        this.baru = [];
+                    } else {
+                        this.galat = result.message || 'Pengajuan gagal disimpan.';
                     }
                 })
-                .catch(error => console.error('Error saat mengajukan:', error));
+                .catch(() => { this.galat = 'Tidak dapat menghubungi server.'; });
             },
         }));
     });

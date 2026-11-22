@@ -7,6 +7,21 @@ use Illuminate\Validation\Rule;
 
 class BeritaRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        foreach (['judul' => 'judul_berita', 'isi' => 'isi_berita', 'kegiatan_id' => 'id_kegiatan'] as $old => $new) {
+            if (! $this->has($new) && $this->has($old)) {
+                $this->merge([$new => $this->input($old)]);
+            }
+        }
+        if (! $this->hasFile('sampul') && $this->hasFile('foto')) {
+            $this->files->set('sampul', $this->file('foto'));
+        }
+        if (! $this->has('status') && $this->input('intent') === 'submit') {
+            $this->merge(['status' => 'diajukan']);
+        }
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -22,8 +37,8 @@ class BeritaRequest extends FormRequest
             'judul_berita' => ["{$required}", 'string', 'max:255'],
             'isi_berita' => ["{$required}", 'string'],
             'sampul' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'status' => ['nullable', Rule::in(['draft', 'publish'])],
-            'catatan_revisi' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::in(['draft', 'diajukan'])],
+
         ];
     }
 
@@ -36,7 +51,7 @@ class BeritaRequest extends FormRequest
             'sampul.image' => 'Sampul harus berupa gambar.',
             'sampul.mimes' => 'Sampul harus berformat jpg, jpeg, png, atau webp.',
             'sampul.max' => 'Ukuran sampul maksimal 2 MB.',
-            'status.in' => 'Status harus draft atau publish.',
+            'status.in' => 'Status harus draft atau diajukan.',
         ];
     }
 }

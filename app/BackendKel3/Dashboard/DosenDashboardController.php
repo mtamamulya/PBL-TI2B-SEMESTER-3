@@ -24,18 +24,18 @@ class DosenDashboardController extends Controller
 
         // Gunakan scope Kegiatan::untukUser() jika tersedia di model Kegiatan
         $queryKegiatan = method_exists(Kegiatan::class, 'scopeUntukUser') && $user
-            ? Kegiatan::untukUser($user->id_user)
+            ? Kegiatan::untukUser($user)
             : Kegiatan::where('id_user', $user?->id_user ?? 0);
 
         $semuaKegiatan = $queryKegiatan->with([
             'kategori.jenisKegiatan',
-            'timeline' => fn ($q) => $q->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
+            'timeline' => fn ($q) => $q->reorder()->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
         ])
             ->latest('id_kegiatan')
             ->get()
             ->map(function ($item) {
                 $latestTimeline = $item->timeline->first();
-                $item->status_terakhir = $latestTimeline?->status ?? 'diajukan';
+                $item->status_terakhir = $latestTimeline?->status ?? 'draft';
                 $item->tanggal_status_terakhir = $latestTimeline?->tanggal_status ?? $item->created_at;
                 $item->catatan_terakhir = $latestTimeline?->catatan_revisi;
 
@@ -45,7 +45,7 @@ class DosenDashboardController extends Controller
         // Grafik per tahun (5 tahun terakhir)
         $tahunSekarang = (int) now()->year;
         $perTahun = [];
-        for ($tahun = $tahunSekarang - 4; $tahun <= $tahunSekarang; $tahun++) {
+        for ($tahun = $tahunSekarang - 4; $tahun <= $tahunSekarang + 2; $tahun++) {
             $perTahun[(string) $tahun] = 0;
         }
 
@@ -89,10 +89,11 @@ class DosenDashboardController extends Controller
         $perluRevisi = $semuaKegiatan->where('status_terakhir', 'direvisi')->count();
 
         $stats = [
-            ['label' => 'Total Kegiatan', 'value' => $totalKegiatan, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
+            ['label' => 'Pengajaran', 'value' => $totalPengajaran, 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
             ['label' => 'Penelitian', 'value' => $totalPenelitian, 'url' => url('/penelitian'), 'aria' => 'Lihat detail penelitian', 'alert' => false],
             ['label' => 'Pengabdian', 'value' => $totalPengabdian, 'url' => url('/pengabdian'), 'aria' => 'Lihat detail pengabdian', 'alert' => false],
-            ['label' => 'Pengajaran', 'value' => $totalPengajaran, 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
+            ['label' => 'Menunggu Verifikasi', 'value' => $semuaKegiatan->whereIn('status_terakhir', ['diajukan', 'direview', 'direvisi'])->count(), 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat pengajuan menunggu verifikasi', 'alert' => true],
+            ['label' => 'Total Kegiatan', 'value' => $totalKegiatan, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
             ['label' => 'Perlu Revisi', 'value' => $perluRevisi, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat kegiatan perlu revisi', 'alert' => $perluRevisi > 0],
         ];
 
@@ -104,7 +105,7 @@ class DosenDashboardController extends Controller
 
                 return [
                     'id' => $item->id_kegiatan,
-                    'nama' => $item->nama_kegiatan ?? $item->judul ?? 'Kegiatan #' . $item->id_kegiatan,
+                    'nama' => $item->nama_kegiatan ?? $item->judul ?? 'Kegiatan #'.$item->id_kegiatan,
                     'jenis' => $item->kategori?->nama_kategori ?? '-',
                     'tanggal' => $tanggal ? Carbon::parse($tanggal)->locale('id')->translatedFormat('d M Y') : '-',
                 ];

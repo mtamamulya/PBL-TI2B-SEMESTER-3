@@ -2,186 +2,136 @@
 
 namespace App\Http\Controllers\BackendKel3\DokumenSurat;
 
+use App\BackendKel3\Pengajuan\AlurPengajuan;
 use App\Http\Controllers\Controller;
-use App\Models\DokumenTerlampir;
-use App\Models\Models\BackendKel3\DokumenSurat;
+use App\Models\Dokumen;
+use App\Models\JenisDokumen;
+use App\Models\Kegiatan;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class DokumenSuratController extends Controller
 {
-    public function index($id): JsonResponse
+    public function index(Request $request, int $id): JsonResponse
     {
+        $kegiatan = Kegiatan::untukUser($request->user())->findOrFail($id);
+
+        return ApiResponse::ok($kegiatan->dokumen()->with('jenisDokumen')->get()->map($this->bentuk(...)));
+    }
+
+    public function store(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'file' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+            'dokumen' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+            'berkas' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+            'files' => 'nullable|array|max:20',
+            'files.*' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+            'nama_file' => 'nullable|string|max:255',
+            'id_jenis_dokumen' => 'nullable|integer|exists:jenis_dokumen,id_jenis_dokumen',
+            'jenis_dokumen' => 'nullable|string|max:100',
+            'file_path' => 'nullable|url:http,https|max:2048',
+            'link_dokumen' => 'nullable|url:http,https|max:2048',
+            'id_detail_kegiatan' => 'nullable|integer|exists:detail_kegiatan,id_detail_kegiatan',
+            'ajukan_kembali' => 'sometimes|boolean',
+        ]);
+        $files = $request->file('files') ?? array_filter([
+            $request->file('file') ?? $request->file('dokumen') ?? $request->file('berkas'),
+        ]);
+        $link = $data['link_dokumen'] ?? $data['file_path'] ?? null;
+        if (! $files && ! $link) {
+            return ApiResponse::gagal('Pilih berkas atau isi tautan dokumen.', 422);
+        }
+        $paths = [];
         try {
-            $surat = DokumenSurat::where('id', $id)
-                ->orWhere('user_id', $id)
-                ->first();
+            $saved = DB::transaction(function () use ($request, $id, $data, $files, $link, &$paths) {
+                $kegiatan = $this->dapatDiubah($request, $id);
+                $jenis = $data['id_jenis_dokumen'] ?? JenisDokumen::firstOrCreate([
+                    'nama_jenis_dokumen' => $data['jenis_dokumen'] ?? 'Dokumen pendukung',
+                ])->getKey();
+                $saved = collect();
+                foreach ($files ?: [null] as $file) {
+                    $path = $file ? $file->store('dokumen_perbaikan', 'public') : null;
+                    if ($path) {
+                        $paths[] = $path;
+                    }
+                    $saved->push(Dokumen::create([
+                        'id_kegiatan' => $kegiatan->getKey(),
+                        'id_jenis_dokumen' => $jenis,
+                        'id_detail_kegiatan' => $data['id_detail_kegiatan'] ?? null,
+                        'nama_file' => $file?->getClientOriginalName() ?? $data['nama_file'] ?? 'Dokumen',
+                        'tipe_dokumen' => $file?->getMimeType() ?? 'tautan',
+                        'link_dokumen' => $path ? Storage::disk('public')->url($path) : $link,
+                        'is_lampiran' => false,
+                    ]));
+                }
+                if ($request->boolean('ajukan_kembali')) {
+                    app(AlurPengajuan::class)->ajukanUlang($id, (int) $request->user()->getKey());
+                }
 
-            $dokumen = $surat
-                ? DokumenTerlampir::where('dokumen_surat_id', $surat->id)->get()
-                : [];
-
-            return response()->json([
-                'success' => true,
-                'message' => 'List dokumen berhasil dimuat.',
-                'data' => $dokumen
-            ], 200);
+                return $saved;
+            });
         } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error: ' . $e->getMessage(),
-                'data' => []
-            ], 200);
+            Storage::disk('public')->delete($paths);
+            throw $e;
         }
+
+        return ApiResponse::ok($saved->map($this->bentuk(...)), 'Dokumen berhasil disimpan.', 201);
     }
 
-    public function store(Request $request, $id): JsonResponse
+    public function destroy(Request $request, int $id, int $dokumenId): JsonResponse
     {
-        $request->validate([
-            'file'          => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
-            'dokumen'       => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
-            'files.*'       => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
-            'nama_file'     => 'nullable|string',
-            'jenis_dokumen' => 'nullable|string',
-            'file_path'     => 'nullable|string',
+        DB::transaction(function () use ($request, $id, $dokumenId) {
+            $kegiatan = $this->dapatDiubah($request, $id);
+            $dokumen = $kegiatan->dokumen()->findOrFail($dokumenId);
+            abort_if($dokumen->buktiHistory()->exists(), 403, 'Bukti riwayat tidak dapat dihapus.');
+            $dokumen->delete();
+            // Berkas fisik disimpan sebagai arsip; hanya relasi aktif yang dihapus.
+        });
+
+        return ApiResponse::ok(null, 'Dokumen berhasil dihapus.');
+    }
+
+    public function showSurat(Request $request, int $id): JsonResponse
+    {
+        $k = Kegiatan::untukUser($request->user())->with('kategori')->findOrFail($id);
+        $status = $k->timeline()->reorder()->orderByDesc('tanggal_status')->orderByDesc('id_timeline')->value('status');
+        if (! in_array($status, ['diterima', 'selesai'], true) || ! $k->nomor_sk) {
+            return ApiResponse::gagal('Surat belum diterbitkan.', 404);
+        }
+        if (! $k->kategori?->isi_surat) {
+            return ApiResponse::gagal('Kategori ini belum memiliki template surat.', 404);
+        }
+
+        return ApiResponse::ok([
+            'id_kegiatan' => $id,
+            'nama_kegiatan' => $k->nama_kegiatan,
+            'nomor_sk' => $k->nomor_sk,
+            'tanggal_sk' => $k->tanggal_sk?->toDateString(),
+            'template_surat' => $k->kategori->isi_surat,
+            'lampiran_peserta' => (bool) $k->kategori->lampiran_peserta,
+            'dokumen' => $k->dokumen()->where('is_lampiran', true)->get()->map($this->bentuk(...)),
         ]);
-
-        $surat = DokumenSurat::where('id', $id)
-            ->orWhere('user_id', $id)
-            ->first();
-
-        if (!$surat) {
-            $surat = DokumenSurat::create([
-                'user_id'         => $id,
-                'nama_kegiatan'   => 'Pengajuan Kegiatan #' . $id,
-                'jenis_kegiatan'  => 'Kegiatan Dosen',
-                'kategori'        => 'Pengabdian',
-                'penyelenggara'   => '-',
-                'tanggal_mulai'   => now()->toDateString(),
-                'tanggal_selesai' => now()->toDateString(),
-                'status'          => 'Diajukan',
-            ]);
-        }
-
-        $uploadedFiles = [];
-        if ($request->hasFile('files')) {
-            $uploadedFiles = $request->file('files');
-        } elseif ($request->hasFile('file')) {
-            $uploadedFiles = [$request->file('file')];
-        } elseif ($request->hasFile('dokumen')) {
-            $uploadedFiles = [$request->file('dokumen')];
-        }
-
-        if (!empty($uploadedFiles)) {
-            $saved = [];
-            $jenis = $request->input('jenis_dokumen', 'Dokumen Perbaikan');
-
-            foreach ($uploadedFiles as $file) {
-                $path = $file->store('dokumen_perbaikan', 'public');
-
-                $saved[] = DokumenTerlampir::create([
-                    'dokumen_surat_id' => $surat->id,
-                    'nama_file'        => $file->getClientOriginalName(),
-                    'jenis_dokumen'    => $jenis,
-                    'file_path'        => Storage::url($path),
-                ]);
-            }
-
-            if ($request->boolean('ajukan_kembali', true)) {
-                $surat->update(['status' => 'Diajukan']);
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Dokumen perbaikan berhasil diunggah.',
-                'data' => count($saved) === 1 ? $saved[0] : $saved
-            ], 201);
-        }
-
-        $validated = $request->validate([
-            'nama_file' => 'required|string',
-            'file_path' => 'required|string',
-        ]);
-
-        $dokumen = DokumenTerlampir::create([
-            'dokumen_surat_id' => $surat->id,
-            'nama_file'        => $validated['nama_file'],
-            'jenis_dokumen'    => $request->input('jenis_dokumen', 'Dokumen'),
-            'file_path'        => $validated['file_path'],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Dokumen berhasil diunggah.',
-            'data' => $dokumen
-        ], 201);
     }
 
-    public function destroy($id, $dokumenId): JsonResponse
+    private function dapatDiubah(Request $request, int $id): Kegiatan
     {
-        $surat = DokumenSurat::where('id', $id)
-            ->orWhere('user_id', $id)
-            ->first();
+        $k = Kegiatan::where('id_user', $request->user()->getKey())->lockForUpdate()->findOrFail($id);
+        $status = $k->timeline()->reorder()->orderByDesc('tanggal_status')->orderByDesc('id_timeline')->value('status');
+        abort_unless($status === null || $status === 'direvisi', 403, 'Lampiran hanya dapat diubah sebelum diajukan atau saat direvisi.');
 
-        if (!$surat) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data pengajuan surat tidak ditemukan.'
-            ], 404);
-        }
-
-        $dokumen = DokumenTerlampir::where('dokumen_surat_id', $surat->id)
-            ->where('id', $dokumenId)
-            ->first();
-
-        if (!$dokumen) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Dokumen tidak ditemukan.'
-            ], 404);
-        }
-
-        $dokumen->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Dokumen berhasil dihapus.'
-        ], 200);
+        return $k;
     }
 
-    public function showSurat($id): JsonResponse
+    private function bentuk(Dokumen $dokumen): array
     {
-        try {
-            $surat = DokumenSurat::with('dokumenTerlampir')
-                ->where('id', $id)
-                ->orWhere('user_id', $id)
-                ->first();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Detail surat berhasil dimuat.',
-                'data' => $surat
-            ], 200);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error: ' . $e->getMessage(),
-                'data' => null
-            ], 200);
-        }
-    }
-
-    public function opsi(): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'message' => 'Opsi pengajaran berhasil dimuat.',
-            'data' => [
-                ['id' => 1, 'nama' => 'Proposal Kegiatan'],
-                ['id' => 2, 'nama' => 'Surat Tugas'],
-                ['id' => 3, 'nama' => 'Laporan Kemajuan'],
-            ]
-        ], 200);
+        return $dokumen->toArray() + [
+            'id' => $dokumen->getKey(),
+            'jenis_dokumen' => $dokumen->jenisDokumen?->nama_jenis_dokumen,
+            'file_path' => $dokumen->link_dokumen,
+        ];
     }
 }
