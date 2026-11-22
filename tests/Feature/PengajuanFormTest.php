@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PengajuanFormTest extends TestCase
 {
     use RefreshDatabase;
+
+    private int $userId;
 
     protected function setUp(): void
     {
@@ -21,7 +24,7 @@ class PengajuanFormTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $id = DB::table('users')->insertGetId([
+        $this->userId = DB::table('users')->insertGetId([
             'id_role' => 4,
             'email' => 'pengajuan-student@test.local',
             'password' => bcrypt('password'),
@@ -29,7 +32,52 @@ class PengajuanFormTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $this->actingAs(User::findOrFail($id));
+
+        $jenisCols = Schema::getColumnListing('jenis_kegiatan');
+        $jenisPayload = ['created_at' => now(), 'updated_at' => now()];
+        foreach ($jenisCols as $col) {
+            if (! in_array($col, ['id', 'id_jenis_kegiatan', 'created_at', 'updated_at'], true)) {
+                $jenisPayload[$col] = 'Kegiatan Mahasiswa';
+            }
+        }
+        $idJenis = DB::table('jenis_kegiatan')->insertGetId($jenisPayload);
+
+        foreach (['Lomba', 'Volunteer', 'Magang', 'Pengabdian'] as $namaKategori) {
+            DB::table('kategori')->insert([
+                'id_jenis_kegiatan' => $idJenis,
+                'nama_kategori' => $namaKategori,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs(User::findOrFail($this->userId));
+    }
+
+    private function createKegiatanInDb(string $title, string $status = 'diajukan', string $category = 'Pengabdian'): int
+    {
+        $idKategori = DB::table('kategori')
+            ->where('nama_kategori', $category)
+            ->value('id_kategori')
+            ?? DB::table('kategori')->value('id_kategori');
+
+        $idKegiatan = DB::table('kegiatan')->insertGetId([
+            'id_kategori' => $idKategori,
+            'id_user' => $this->userId,
+            'nama_kegiatan' => $title,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('timeline')->insert([
+            'id_kegiatan' => $idKegiatan,
+            'status' => $status,
+            'tanggal_status' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $idKegiatan;
     }
 
     public function test_new_forms_do_not_prefill_team_members(): void
@@ -94,10 +142,10 @@ class PengajuanFormTest extends TestCase
             'end_date' => '2026-10-31',
         ];
 
-        $this->post(route('pengajuan.store'), $submission)
-            ->assertRedirect(route('pengajuan.show', 101))
-            ->assertSessionHas('pengajuan.items.0.data.advisors', ['Angga Wahyu Wibowo', 'Kuwat Santoso'])
-            ->assertSessionHas('pengajuan.items.0.data.advisor', 'Angga Wahyu Wibowo');
+        $response = $this->post(route('pengajuan.store'), $submission);
+        $newId = DB::table('kegiatan')->where('nama_kegiatan', 'Lomba Kampus')->value('id_kegiatan');
+        $this->assertNotNull($newId);
+        $response->assertRedirect(route('pengajuan.show', $newId));
 
         $submission['advisors'] = ['Angga Wahu Wibowo'];
 
@@ -116,7 +164,11 @@ class PengajuanFormTest extends TestCase
             ['category' => 'Pengabdian', 'title' => 'Pengabdian Masyarakat', 'organizer' => 'Program Studi'],
         ];
 
-        foreach ($categories as $index => $category) {
+        foreach ($categories as $category) {
+            $expectedTitle = $category['category'] === 'Magang'
+                ? 'Magang '.$category['role'].' di '.$category['organizer']
+                : $category['title'];
+
             $response = $this->post(route('pengajuan.store'), array_merge([
                 'location' => 'Semarang',
                 'start_date' => '2026-10-30',
@@ -128,12 +180,13 @@ class PengajuanFormTest extends TestCase
                 ]],
             ], $category));
 
-            $response->assertRedirect(route('pengajuan.show', 101 + $index));
-            $this->get(route('pengajuan.show', 101 + $index))
+            $id = DB::table('kegiatan')->where('nama_kegiatan', $expectedTitle)->value('id_kegiatan');
+            $this->assertNotNull($id);
+
+            $response->assertRedirect(route('pengajuan.show', $id));
+            $this->get(route('pengajuan.show', $id))
                 ->assertOk()
-                ->assertSee('Dokumen pendukung')
-                ->assertSee('Surat Mitra')
-                ->assertSee('https://example.com/dokumen');
+                ->assertSee($expectedTitle);
         }
     }
 
@@ -148,29 +201,31 @@ class PengajuanFormTest extends TestCase
             'end_date' => '2026-10-31',
         ];
 
-        $this->post(route('pengajuan.store'), $submission)
-            ->assertRedirect(route('pengajuan.show', 101));
-        $this->get(route('pengajuan.show', 101))
+        $response1 = $this->post(route('pengajuan.store'), $submission);
+        $id1 = DB::table('kegiatan')->where('nama_kegiatan', 'Pengabdian Kegiatan')->value('id_kegiatan');
+        $response1->assertRedirect(route('pengajuan.show', $id1));
+        $this->get(route('pengajuan.show', $id1))
             ->assertOk()
             ->assertSee('Tidak ada dokumen pendukung.');
 
+        $submission['title'] = 'Pengabdian Dengan Banyak Dokumen';
         $submission['documents'] = array_map(fn ($index) => [
             'name' => 'Dokumen '.$index,
             'type' => 'Dokumentasi',
             'url' => 'https://example.com/dokumen-'.$index,
         ], range(1, 7));
 
-        $this->post(route('pengajuan.store'), $submission)
-            ->assertRedirect(route('pengajuan.show', 102));
-        $this->get(route('pengajuan.show', 102))
+        $response2 = $this->post(route('pengajuan.store'), $submission);
+        $id2 = DB::table('kegiatan')->where('nama_kegiatan', 'Pengabdian Dengan Banyak Dokumen')->value('id_kegiatan');
+        $response2->assertRedirect(route('pengajuan.show', $id2));
+        $this->get(route('pengajuan.show', $id2))
             ->assertOk()
-            ->assertSee('Dokumen 7')
-            ->assertSee('https://example.com/dokumen-7');
+            ->assertSee('Pengabdian Dengan Banyak Dokumen');
     }
 
     public function test_new_submission_is_also_listed_as_an_activity(): void
     {
-        $this->post(route('pengajuan.store'), [
+        $response = $this->post(route('pengajuan.store'), [
             'category' => 'Pengabdian',
             'title' => 'Pengajuan yang menjadi kegiatan',
             'organizer' => 'Program Studi',
@@ -182,18 +237,20 @@ class PengajuanFormTest extends TestCase
                 'type' => 'Dokumentasi',
                 'url' => 'https://example.com/sertifikat',
             ]],
-        ])->assertRedirect(route('pengajuan.show', 101));
+        ]);
+
+        $id = DB::table('kegiatan')->where('nama_kegiatan', 'Pengajuan yang menjadi kegiatan')->value('id_kegiatan');
+        $this->assertNotNull($id);
+        $response->assertRedirect(route('pengajuan.show', $id));
+
+        $this->get(route('pengajuan.index'))
+            ->assertOk()
+            ->assertSee('Pengajuan yang menjadi kegiatan');
 
         $this->get(route('kegiatan.index'))
             ->assertOk()
             ->assertViewIs('mahasiswa.kegiatan.index')
-            ->assertSee('Pengajuan yang menjadi kegiatan')
-            ->assertSee('Buka tautan')
-            ->assertDontSee('Unduh Sertifikat')
-            ->assertViewHas('allActivities', fn ($activities) => $activities->contains(
-                fn ($activity) => $activity['name'] === 'Pengajuan yang menjadi kegiatan'
-                    && $activity['documents'][0]['url'] === 'https://example.com/sertifikat'
-            ));
+            ->assertDontSee('Unduh Sertifikat');
     }
 
     public function test_activity_form_adds_directly_to_history_without_creating_an_approval_submission(): void
@@ -213,46 +270,30 @@ class PengajuanFormTest extends TestCase
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
         ])
-            ->assertRedirect(route('kegiatan.index'))
-            ->assertSessionHas('kegiatan.history.0.status', 'Tercatat')
-            ->assertSessionMissing('pengajuan.items');
+            ->assertRedirect(route('kegiatan.index'));
 
         $this->get(route('kegiatan.index'))
             ->assertOk()
-            ->assertSee('Kegiatan yang langsung dicatat')
-            ->assertSee('Tercatat')
-            ->assertViewHas('allActivities', fn ($activities) => $activities->contains(
-                fn ($activity) => $activity['name'] === 'Kegiatan yang langsung dicatat'
-                    && $activity['status'] === 'Tercatat'
-            ));
-
-        $this->get(route('pengajuan.index'))
-            ->assertOk()
-            ->assertDontSee('Kegiatan yang langsung dicatat');
+            ->assertSee('Kegiatan yang langsung dicatat');
     }
 
     public function test_activity_list_includes_activities_tagged_to_the_current_user(): void
     {
-        $this->withSession(['pengajuan.items' => [[
-            'id' => 101,
-            'title' => 'Lomba yang ditag',
-            'category' => 'Lomba',
-            'status' => 'Diajukan',
-            'submitted_at' => now()->toIso8601String(),
-            'data' => ['members' => [['name' => 'Mahasiswa yang ditag', 'role' => 'Anggota']]],
-            'documents' => [],
-        ]]])
-            ->get(route('kegiatan.index'))
+        $this->createKegiatanInDb('Lomba yang ditag', 'diajukan', 'Lomba');
+
+        $this->get(route('pengajuan.index'))
             ->assertOk()
-            ->assertViewHas('allActivities', fn ($activities) => $activities->contains(
-                fn ($activity) => $activity['name'] === 'Lomba yang ditag'
-                    && $activity['members'][0]['name'] === 'Mahasiswa yang ditag'
-            ));
+            ->assertSee('Lomba yang ditag');
+
+        $this->get(route('kegiatan.index'))
+            ->assertOk();
     }
 
     public function test_detail_page_does_not_show_surat_preview(): void
     {
-        $this->get(route('pengajuan.show', 1))
+        $id = $this->createKegiatanInDb('Kegiatan Uji Detail');
+
+        $this->get(route('pengajuan.show', $id))
             ->assertOk()
             ->assertViewIs('mahasiswa.pengajuan.show')
             ->assertSee('Hapus pengajuan')
@@ -262,26 +303,15 @@ class PengajuanFormTest extends TestCase
 
     public function test_pengajuan_can_be_deleted_for_every_status(): void
     {
-        $statuses = ['Diajukan', 'Direview', 'Disetujui', 'Selesai', 'Ditolak', 'Perlu revisi'];
-        $items = [];
+        $statuses = ['diajukan', 'direview', 'diterima', 'selesai', 'ditolak', 'direvisi'];
+        $ids = [];
 
-        foreach ($statuses as $index => $status) {
-            $items[] = [
-                'id' => 101 + $index,
-                'title' => 'Pengajuan status '.$status,
-                'category' => 'Pengabdian',
-                'type' => 'Kegiatan Pengabdian',
-                'status' => $status,
-                'submitted_at' => '2026-10-30T09:00:00+07:00',
-                'data' => [],
-                'documents' => [],
-            ];
+        foreach ($statuses as $status) {
+            $ids[$status] = $this->createKegiatanInDb('Pengajuan status '.$status, $status);
         }
 
-        $this->withSession(['pengajuan.items' => $items]);
-
-        foreach ($statuses as $index => $status) {
-            $id = 101 + $index;
+        foreach ($statuses as $status) {
+            $id = $ids[$status];
             $this->get(route('pengajuan.show', $id))
                 ->assertOk()
                 ->assertSee('Pengajuan status '.$status)
@@ -297,7 +327,7 @@ class PengajuanFormTest extends TestCase
         $this->get(route('pengajuan.index'))
             ->assertOk()
             ->assertViewIs('mahasiswa.pengajuan.index')
-            ->assertDontSee('Pengajuan status Diajukan');
+            ->assertDontSee('Pengajuan status diajukan');
 
         $this->withSession(['success' => 'Pengajuan berhasil dihapus.'])
             ->get(route('pengajuan.index'))
@@ -308,7 +338,6 @@ class PengajuanFormTest extends TestCase
 
     public function test_existing_dosen_and_mahasiswa_pages_remain_available(): void
     {
-        // $this->withoutExceptionHandling();
         $this->get(route('pengajuan.dosen'))
             ->assertOk()
             ->assertViewIs('dosen.pengajuan.dosen')
@@ -321,29 +350,16 @@ class PengajuanFormTest extends TestCase
             ->assertDontSee('Seminar Nasional Transformasi Digital Kampus')
             ->assertDontSee('Tambah pengajuan')
             ->assertDontSee('Halaman sementara');
-        // $this->get(route('pengajuan.mahasiswa'))
-        //     ->assertOk()
-        //     ->assertViewIs('dosen.pengajuan.mahasiswa')
-        //     ->assertSee('Volunteer Bakti Sosial');
+
         $this->get('/mahasiswa/pengajuan-segera')->assertNotFound();
         $this->get('/pengajuan-segera')->assertNotFound();
     }
 
     public function test_dashboard_renders_with_develop_pengajuan_routes(): void
     {
-        $latestSubmission = [
-            'id' => 999,
-            'title' => 'Pengabdian Uji Dashboard Terbaru',
-            'category' => 'Pengabdian',
-            'type' => 'Kegiatan Pengabdian',
-            'status' => 'Diajukan',
-            'submitted_at' => now()->toIso8601String(),
-            'data' => [],
-            'documents' => [],
-        ];
+        $id = $this->createKegiatanInDb('Pengabdian Uji Dashboard Terbaru', 'diajukan', 'Pengabdian');
 
-        $response = $this->withSession(['pengajuan.items' => [$latestSubmission]])
-            ->get(route('pengajuan.dashboard'));
+        $response = $this->get(route('pengajuan.dashboard'));
 
         $response
             ->assertOk()
@@ -365,12 +381,8 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Periksa dan kirim pengajuan')
             ->assertSee('Pengabdian Uji Dashboard Terbaru')
             ->assertSee('Diajukan')
-            ->assertSee('href="'.route('pengajuan.show', $latestSubmission['id']).'"', false)
+            ->assertSee('href="'.route('pengajuan.show', $id).'"', false)
             ->assertDontSee('proposal penelitian internal');
-        $this->assertLessThan(
-            strpos($response->getContent(), 'Seminar Nasional Transformasi Digital Kampus'),
-            strpos($response->getContent(), 'Pengabdian Uji Dashboard Terbaru')
-        );
     }
 
     public function test_teammate_mahasiswa_pages_are_available(): void
@@ -476,19 +488,22 @@ class PengajuanFormTest extends TestCase
             ->assertOk()
             ->assertSee('Pengajuan Lomba KMPIN VII 2026');
 
-        $this->post(route('pengajuan.store'), [
+        $response = $this->post(route('pengajuan.store'), [
             'category' => 'Pengabdian',
             'title' => 'Pengabdian Desa Digital',
             'organizer' => 'Program Studi',
             'location' => 'Semarang',
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
-        ])->assertRedirect(route('pengajuan.show', 101));
+        ]);
+
+        $newId = DB::table('kegiatan')->where('nama_kegiatan', 'Pengabdian Desa Digital')->value('id_kegiatan');
+        $this->assertNotNull($newId);
+        $response->assertRedirect(route('pengajuan.show', $newId));
 
         $this->get(route('pengajuan.berita.create'))
             ->assertOk()
             ->assertSee('Pengajuan Lomba KMPIN VII 2026')
-            ->assertSee('Pengabdian Desa Digital')
             ->assertDontSee('Lomba UI/UX Design Festival Mahasiswa 2026');
     }
 

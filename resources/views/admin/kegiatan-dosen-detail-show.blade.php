@@ -43,7 +43,7 @@
             <x-admin.breadcrumb :items="[
                 ['Dashboard', 'admin.dashboard'],
                 ['Kegiatan'],
-                ['Kegiatan Dosen', 'admin.kegiatan.dosen'],
+                ['Kegiatan Dosen', 'admin.kegiatan.index'],
                 ['Detail'],
             ]" />
         </div>

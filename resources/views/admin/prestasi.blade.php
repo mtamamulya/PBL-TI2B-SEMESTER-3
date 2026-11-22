@@ -154,6 +154,46 @@
 
     <div class="flex flex-col gap-8 rounded-lg bg-white p-4 pb-6 shadow-sm">
 
+        @if (session('error'))
+            <div class="rounded-md border border-[#F5C2C2] bg-[#FDE8E8] px-4 py-3 text-sm text-[#B42318]" role="alert">{{ session('error') }}</div>
+        @endif
+
+        {{-- Area Laporan & Ekspor (mengikuti tab yang dipilih) --}}
+        <form id="formLaporan" method="GET" action="{{ route('admin.prestasi.semua.laporan') }}" class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50/30 p-5">
+            <div class="flex flex-col gap-1">
+                <h2 id="laporanJudul" class="text-lg font-bold text-gray-800">Laporan Seluruh Data Prestasi</h2>
+                <p class="text-sm text-gray-500">Unduh rekap prestasi berdasarkan kurun waktu (tahun selesai).</p>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="flex flex-col gap-1">
+                    <label for="selDari" class="text-xs font-medium text-gray-600">Dari tahun</label>
+                    <div class="relative w-28">
+                        <select id="selDari" name="dari" class="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-8 text-sm outline-none focus:border-blue-500 cursor-pointer"></select>
+                        <svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6l6 -6"/></svg>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label for="selSampai" class="text-xs font-medium text-gray-600">Sampai tahun</label>
+                    <div class="relative w-28">
+                        <select id="selSampai" name="sampai" class="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-8 text-sm outline-none focus:border-blue-500 cursor-pointer"></select>
+                        <svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6l6 -6"/></svg>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 ml-2">
+                    <button type="submit" name="format" value="pdf" class="flex h-10 items-center gap-1.5 rounded-md border border-red-200 px-4 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50 cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 11l5 5l5 -5"/><path d="M12 4l0 12"/></svg>
+                        PDF
+                    </button>
+                    <button type="submit" name="format" value="xlsx" class="flex h-10 items-center gap-1.5 rounded-md border border-green-200 px-4 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 11l5 5l5 -5"/><path d="M12 4l0 12"/></svg>
+                        Excel
+                    </button>
+                </div>
+            </div>
+        </form>
+
         {{-- Tab tipe --}}
         <div id="tabs" role="tablist" class="flex gap-6 overflow-x-auto border-b border-[#0A0A0A]/[0.06]">
             @foreach ($tabs as $t)
@@ -201,7 +241,7 @@
                     <tr>
                         <th>Nama Prestasi</th>
                         <th>Kategori Kegiatan</th>
-                        <th>Pemilik Kegiatan</th>
+                        <th>Pemilik Prestasi</th>
                         <th>Tipe Pemilik</th>
                         <th>Selesai Kegiatan</th>
                         <th>Aksi</th>
@@ -287,7 +327,7 @@
         columns: [
             { data: 'nama',       render: TXT, className: 'truncate' },
             { data: 'kategori',   render: TXT, className: 'truncate' },
-            { data: 'pengunggah', render: TXT, className: 'truncate' },
+            { data: 'pemilik_prestasi', render: TXT, className: 'truncate' },
             {
                 data: 'tipe',
                 render: function (d, type) {
@@ -319,7 +359,7 @@
             var td = tr.children;
             td[0].title = r.nama || '';
             td[1].title = r.kategori || '';
-            td[2].title = r.pengunggah || '';
+            td[2].title = r.pemilik_prestasi || '';
             td[4].title = r.tanggal || '';
         },
         // Hanya paginasi (tengah bawah). Kotak cari, "show entries", dan info bawaan dimatikan
@@ -340,10 +380,35 @@
     table.on('draw.dt', togglePager);
     togglePager();
 
+    /* ---------- Laporan PDF/Excel: pilihan tahun dan alamat unduhan mengikuti tab ---------- */
+    var URL_LAPORAN = {
+        'Semua':     @json(route('admin.prestasi.semua.laporan')),
+        'Dosen':     @json(route('admin.prestasi.dosen.laporan')),
+        'Mahasiswa': @json(route('admin.prestasi.mahasiswa.laporan'))
+    };
+    var JUDUL_LAPORAN = { 'Semua': 'Laporan Seluruh Data Prestasi', 'Dosen': 'Laporan Data Prestasi Dosen', 'Mahasiswa': 'Laporan Data Prestasi Mahasiswa' };
+
+    function aturLaporan(tab) {
+        var ada = {};
+        data.forEach(function (r) {
+            if ((tab === 'Semua' || r.tipe === tab) && r.raw_date) ada[String(r.raw_date).slice(0, 4)] = 1;
+        });
+        var tahun = Object.keys(ada).sort();
+        var opsi = tahun.map(function (t, i) {
+            return '<option value="' + esc(t) + '"' + (i === tahun.length - 1 ? ' selected' : '') + '>' + esc(t) + '</option>';
+        }).join('');
+        $('selDari').innerHTML = opsi;
+        $('selSampai').innerHTML = opsi;
+        $('formLaporan').action = URL_LAPORAN[tab];
+        $('laporanJudul').textContent = JUDUL_LAPORAN[tab];
+    }
+    aturLaporan('Semua');
+
     /* ---------- Event filter ---------- */
     tabs.forEach(function (t) {
         t.addEventListener('click', function () {
             filter.tab = t.dataset.tab;
+            aturLaporan(filter.tab);
             tabs.forEach(function (x) { x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
             table.draw();
         });
