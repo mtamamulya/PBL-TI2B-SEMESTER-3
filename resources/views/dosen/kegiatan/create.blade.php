@@ -348,7 +348,54 @@
             hapusDokumen(i) { this.dokumen.splice(i, 1); },
 // Simpan (simulasi)
             tersimpan: false,
-            simpan() { this.tersimpan = true; this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Data berhasil disimpan', pesan: 'Simulasi: data belum masuk database.' }); },
+            sedangMenyimpan: false,
+            async simpan() {
+                if (this.sedangMenyimpan) return;
+
+                // Ambil seluruh isi <form> secara otomatis (termasuk inputan detail[...], anggota, dokumen)
+                const formElement = this.$el;
+                const formData = new FormData(formElement);
+
+                // Tentukan endpoint tujuan (khusus Penelitian nembak ke API penelitian)
+                const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
+
+                this.sedangMenyimpan = true;
+                try {
+                    if (!['Penelitian', 'Pengabdian'].includes(this.kategori)) {
+                        throw new Error('Penyimpanan kategori ini belum tersedia pada form ini.');
+                    }
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]')?.value || ''
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Terjadi kesalahan validasi saat menyimpan.');
+                    }
+
+                    this.tersimpan = true;
+                    this.$dispatch('tampil-alert', {
+                        tipe: 'sukses',
+                        judul: 'Data berhasil disimpan',
+                        pesan: result.message || 'Data kegiatan berhasil disimpan.'
+                    });
+
+                } catch (error) {
+                    this.$dispatch('tampil-alert', {
+                        tipe: 'error',
+                        judul: 'Gagal menyimpan data',
+                        pesan: error.message
+                    });
+                } finally {
+                    this.sedangMenyimpan = false;
+                }
+            },
         }));
     });
 </script>

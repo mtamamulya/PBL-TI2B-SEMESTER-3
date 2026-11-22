@@ -1,5 +1,19 @@
 # Backend dosen · Kelompok 3
 
+## Integrasi branch anggota · 22 November 2026
+
+Integrasi mencakup `feature/API-penelitian`, `feature/kel3-pengabdian`, `rhafihairy/dashboard-notifikasi`, `feature/kel3/PrestasiBerita-lia`, dan `feature/dokumen-surat-ridho`. Riwayat commit masing-masing branch dipertahankan melalui merge.
+
+- API privat berada di `/api/v1/dosen`, memakai token atau sesi Sanctum serta pemeriksaan dosen aktif. Router tiap modul dimuat satu kali. Endpoint berita dosen ditangani Kelompok 3; endpoint kategori berita dan review admin tetap di Kelompok 2.
+- Penelitian dan pengabdian memakai `KegiatanRisetController`, tabel `kegiatan`, `detail_kegiatan`, dan `anggota_kegiatan`. Kirim `id_kategori`, `nama_kegiatan`, opsional `id_skim`, `id_kelompok_bidang`, serta `detail: [{id_isian_kategori, isian}]`. Tanggal menggunakan definisi isian kategori. Nama master pada form lama harus cocok dengan data database; data contoh bukan otomatis menjadi data master.
+- Lampiran memakai tabel `dokumen` yang sama dengan alur pengajuan Revo. URL `kegiatan/{id}/dokumen` dan alias `pengajuan/{id}/dokumen` menerima `file`, `dokumen`, `berkas`, `files[]`, atau tautan HTTP(S). Hanya pemilik boleh mengubah lampiran pada draft atau status `direvisi`. `ajukan_kembali=true` menjalankan validasi alur pengajuan ulang dalam transaksi yang sama. Mengunggah tanpa opsi itu tidak mengubah status.
+- Penghapusan lampiran menghapus relasi aktif; berkas fisik tetap diarsipkan. Bukti yang sudah ditautkan ke riwayat tidak dapat dihapus. Tabel paralel `dokumen_surats`, `dokumen_terlampirs`, `pengajuans`, dan `riwayat_statuses` dari branch lama tidak dipakai dan migration baru untuk tabel tersebut tidak disertakan. Tidak ada perintah penghapusan tabel pada database anggota yang sudah menggunakannya.
+- `GET pengajuan/{id}/surat` mengembalikan metadata/template dan lampiran terpilih setelah kegiatan diterima dan bernomor SK. Endpoint ini belum menghasilkan PDF surat bertanda tangan.
+- Dashboard membaca status timeline paling baru; kegiatan tanpa timeline merupakan draft. Notifikasi hanya menampilkan timeline kegiatan milik pengguna.
+- Berita dosen mendukung draft dan pengajuan review; publikasi tetap melalui pengelola. Prestasi tetap memakai formulir update lengkap dan hanya pemilik yang boleh mengubah atau menghapus.
+
+Pengujian lintas modul ada di `tests/Feature/BackendKel3/IntegrasiKelompok3Test.php`. Halaman yang masih memakai data contoh dan penyelesaian PDF surat tetap merupakan pekerjaan lanjutan anggota; merge tidak menyatakan seluruh jobdesk selesai.
+
 Folder kerja tim ada di `app/BackendKel3`. Klik nama anggota untuk membuka jobdesk, daftar endpoint, rekan yang perlu diajak koordinasi, dan contoh uji penerimaan.
 
 | Anggota | Modul | Hasil pertama yang bisa didemokan |
