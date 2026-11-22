@@ -74,6 +74,10 @@ Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->name
 Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->name('password.kirim-ulang');
 Route::post('/lupa-sandi/ubah-email', [PemulihanController::class, 'ubahEmail'])->name('password.ubah-email');
 Route::post('/lupa-sandi/sandi', [PemulihanController::class, 'simpan'])->name('password.simpan');
+Route::post('/lupa-sandi/email', [PemulihanController::class, 'kirimOtp'])->middleware('throttle:5,1')->name('password.email');
+Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->middleware('throttle:10,1')->name('password.otp');
+Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->middleware('throttle:5,1')->name('password.kirim-ulang');
+Route::get('/lupa-sandi/email', fn () => redirect()->route('password.request'));
 
 // ---------- Admin (dijaga AdminOnly) ----------
 Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {

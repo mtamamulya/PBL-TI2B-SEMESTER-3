@@ -163,7 +163,7 @@
                                 alt="" class="w-4">
                     </button>
                 </div>
-                <span class="{{ $hint }}">Minimal 8 karakter, kombinasi huruf, angka, dan simbol.</span>
+                <span class="{{ $hint }}">Minimal 8 karakter, kombinasi huruf dan angka.</span>
             </label>
             <label class="flex flex-col gap-1">
                 <span class="{{ $label }}">Konfirmasi Kata Sandi Baru</span>

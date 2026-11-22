@@ -9,8 +9,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
@@ -60,10 +62,19 @@ class PemulihanController extends Controller
         $user = User::query()->where('email', $email)->where('status', true)->first();
 
         if ($user) {
-            $this->sendOtp($user);
+            try {
+                $this->sendOtp($user);
+            } catch (TransportExceptionInterface $e) {
+                Log::error('Gagal mengirim OTP pemulihan: '.$e->getMessage());
+
+                return back()->withInput($request->only('email'))
+                    ->withErrors(['email' => 'Email gagal dikirim. Coba lagi beberapa saat atau hubungi administrator.']);
+            }
         }
 
-        session(['pemulihan' => ['step' => 2, 'email' => $email]]);
+        // Jeda kirim ulang dihitung dari sesi (berlaku sama untuk email terdaftar maupun tidak),
+        // supaya pesan "tunggu" tidak membocorkan apakah email itu terdaftar.
+        session(['pemulihan' => ['step' => 2, 'email' => $email, 'terakhir_kirim' => now()->timestamp]]);
 
         return redirect()->route('password.request')
             ->with('status', 'Jika email terdaftar, kode OTP telah dikirim. Periksa kotak masuk atau folder spam.');
@@ -81,10 +92,25 @@ class PemulihanController extends Controller
                 ->withErrors(['otp' => 'Layanan email belum dikonfigurasi. Hubungi administrator.']);
         }
 
+        $sisa = self::OTP_JEDA_KIRIM_DETIK - (now()->timestamp - (int) session('pemulihan.terakhir_kirim', 0));
+        if ($sisa > 0) {
+            return redirect()->route('password.request')
+                ->withErrors(['otp' => "Tunggu {$sisa} detik sebelum meminta kode baru."]);
+        }
+
         $user = User::query()->where('email', $email)->where('status', true)->first();
         if ($user) {
-            $this->sendOtp($user);
+            try {
+                $this->sendOtp($user);
+            } catch (TransportExceptionInterface $e) {
+                Log::error('Gagal mengirim ulang OTP pemulihan: '.$e->getMessage());
+
+                return redirect()->route('password.request')
+                    ->withErrors(['otp' => 'Email gagal dikirim. Coba lagi beberapa saat atau hubungi administrator.']);
+            }
         }
+
+        session(['pemulihan.terakhir_kirim' => now()->timestamp]);
 
         return redirect()->route('password.request')
             ->with('status', 'Jika email terdaftar, kode baru telah dikirim. Periksa kotak masuk atau folder spam.');
@@ -163,10 +189,12 @@ class PemulihanController extends Controller
         abort_unless(session('pemulihan.step') === 3, 404);
 
         $data = $request->validate([
-            'password' => ['required', 'min:8', 'confirmed'],
+            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
         ], [
             'password.required' => 'Kata sandi baru wajib diisi.',
             'password.min' => 'Kata sandi minimal 8 karakter.',
+            'password.letters' => 'Kata sandi harus mengandung huruf.',
+            'password.numbers' => 'Kata sandi harus mengandung angka.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak sama.',
         ]);
 
@@ -193,12 +221,21 @@ class PemulihanController extends Controller
                 ]);
             }
 
-            User::query()->where('email', $email)->where('status', true)
-                ->update([
-                    'password' => Hash::make($data['password']),
-                    'remember_token' => Str::random(60),
-                    'updated_at' => now(),
+            $user = User::query()->where('email', $email)->where('status', true)->first();
+
+            if (! $user) {
+                throw ValidationException::withMessages([
+                    'password' => 'Akun tidak ditemukan atau tidak aktif. Mulai kembali.',
                 ]);
+            }
+
+            $user->forceFill([
+                'password' => Hash::make($data['password']),
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            // Token API lama (Sanctum) ikut dicabut, supaya perangkat yang masih login tidak lolos dengan sandi lama.
+            $user->tokens()->delete();
         });
 
         session(['pemulihan.step' => 4]);
@@ -250,7 +287,8 @@ class PemulihanController extends Controller
 
     private function emailDeliveryAvailable(): bool
     {
-        if (app()->environment('testing')) {
+        // Uji lokal boleh memakai mailer "log" (OTP dibaca dari storage/logs/laravel.log). Di produksi tetap harus mailer sungguhan.
+        if (app()->environment(['testing', 'local'])) {
             return true;
         }
 
