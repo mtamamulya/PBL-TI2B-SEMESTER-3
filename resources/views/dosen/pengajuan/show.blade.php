@@ -323,9 +323,9 @@
                             <li class="flex items-center justify-between gap-3 py-2.5 border-b border-gray-200 last:border-b-0">
                                 <div class="flex min-w-0 flex-col gap-1">
                                     <span class="truncate text-lg font-medium" x-text="doc.nama_file" :title="doc.nama_file"></span>
-                                    <span class="text-[15px] text-gray-400" x-text="doc.jenis_dokumen"></span>
+                                    <span class="text-[15px] text-gray-400" x-text="typeof doc.jenis_dokumen === 'object' ? doc.jenis_dokumen?.nama_jenis_dokumen : doc.jenis_dokumen"></span>
                                 </div>
-                                <a :href="doc.tautan || '#'" :download="doc.nama_file" :aria-label="`Unduh ${doc.nama_file}`"
+                                <a :href="doc.link_dokumen || doc.file_path || '#'" target="_blank" :download="doc.nama_file" :aria-label="`Unduh ${doc.nama_file}`"
                                    class="flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-white hover:bg-blue-700">
                                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5"/></svg>
                                 </a>
@@ -393,12 +393,11 @@
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
                     }
                 })
                 .then(response => response.json())
                 .then(result => {
-                    // Diperbaiki menggunakan result.success (menyesuaikan format backend Laravel)
                     if (result.success && Array.isArray(result.data)) {
                         this.daftarDokumen = result.data;
                     }
@@ -476,13 +475,12 @@
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
                     },
                     body: formData
                 })
                 .then(response => response.json())
                 .then(result => {
-                    // Diperbaiki menggunakan result.success
                     if (result.success) {
                         this.tambahRiwayat('Diajukan kembali', 'biru', pengaju, `Dokumen perbaikan: ${this.baru.length} file`);
                         this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
