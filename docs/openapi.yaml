@@ -1552,6 +1552,52 @@ components:
         '401':
           $ref: '#/components/responses/TidakLogin'
 
+  /berita/gambar-konten:
+    post:
+      tags: [Berita]
+      summary: Unggah gambar dokumentasi untuk disisipkan di dalam isi berita
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [gambar]
+              properties:
+                gambar:
+                  type: string
+                  format: binary
+                  description: Gambar JPG, PNG, atau WebP maksimal 5 MB.
+      responses:
+        '201':
+          description: Gambar konten berhasil diunggah.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                      url:
+                        type: string
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
   /berita/{id}:
     get:
       tags: [Berita]
@@ -2521,8 +2567,33 @@ components:
                 type: string
             capaianList:
               type: array
+              description: Saran capaian standar dan nilai historis; input manual tetap diperbolehkan.
               items:
                 type: string
+            saranIsian:
+              type: object
+              description: Pilihan autocomplete dari maksimal 300 prestasi terbaru; masing-masing maksimal 60 nilai unik.
+              properties:
+                nama_lomba:
+                  type: array
+                  items:
+                    type: string
+                penyelenggara:
+                  type: array
+                  items:
+                    type: string
+                lokasi:
+                  type: array
+                  items:
+                    type: string
+                dosen:
+                  type: array
+                  items:
+                    type: string
+                kategori:
+                  type: array
+                  items:
+                    type: string
             jenisList:
               type: array
               items:
@@ -2627,7 +2698,8 @@ components:
           enum: [Kabupaten/Kota, Provinsi, Nasional, Internasional]
         capaian:
           type: string
-          enum: [Juara 1, Juara 2, Juara 3, Harapan 1, Harapan 2, Harapan 3, Finalis, Peserta]
+          maxLength: 255
+          description: Capaian juara atau penghargaan khusus; boleh diisi manual di luar saran standar.
         jenis:
           type: string
           enum: [Akademik, Nonakademik]
