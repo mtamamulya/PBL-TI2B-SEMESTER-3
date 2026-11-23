@@ -150,30 +150,27 @@
             <div class="flex flex-col gap-1">
                 <h2 class="{{ $title }}">Buat Kata Sandi Baru</h2>
                 <p class="{{ $desc }}">Email berhasil diverifikasi. Buat kata sandi yang kuat dan berbeda dari kata sandi sebelumnya.</p>
+                <p class="{{ $hint }}">Selesaikan dalam {{ $batasMenit ?? 7 }} menit, kalau lewat kamu perlu meminta kode OTP baru.</p>
             </div>
             @if ($error)<div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{{ $error }}</div>@endif
             <label class="flex flex-col gap-1">
                 <span class="{{ $label }}">Kata Sandi Baru</span>
-                <div class="flex items-center">
-                    <input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Masukkan kata sandi baru" class="password {{ $input }}">
-                    <button type="button" class="togglePassword focus:outline-none -ml-8" 
-                            class="focus:outline-none -ml-8">
-                        <img src=
-                            "https://media.geeksforgeeks.org/wp-content/uploads/20240227164304/visible.png" 
-                                alt="" class="w-4">
+                <div class="relative flex items-center">
+                    <input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Masukkan kata sandi baru" class="{{ $input }} pr-10">
+                    <button type="button" data-toggle-sandi aria-label="Tampilkan kata sandi" aria-pressed="false" class="absolute right-2 flex size-7 items-center justify-center rounded-md text-[#6B7280] hover:text-[#2277FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2277FF]">
+                        <svg class="mata size-[18px]" viewBox="0 0 24 24" {!! $svg !!}><circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7"/></svg>
+                        <svg class="mata-coret hidden size-[18px]" viewBox="0 0 24 24" {!! $svg !!}><path d="M10.585 10.587a2 2 0 0 0 2.829 2.828"/><path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87"/><path d="M3 3l18 18"/></svg>
                     </button>
                 </div>
-                <span class="{{ $hint }}">Minimal 8 karakter, kombinasi huruf, angka, dan simbol.</span>
+                <span class="{{ $hint }}">Minimal 8 karakter. Disarankan kombinasi huruf, angka, dan simbol.</span>
             </label>
             <label class="flex flex-col gap-1">
                 <span class="{{ $label }}">Konfirmasi Kata Sandi Baru</span>
-                <div class="flex items-center">
-                    <input type="password" name="password_confirmation" required autocomplete="new-password" placeholder="Masukkan kembali kata sandi baru" class="password {{ $input }}">
-                    <button type="button" class="togglePassword focus:outline-none -ml-8" 
-                            class="focus:outline-none -ml-8">
-                        <img src=
-                            "https://media.geeksforgeeks.org/wp-content/uploads/20240227164304/visible.png" 
-                                alt="" class="w-4">
+                <div class="relative flex items-center">
+                    <input type="password" name="password_confirmation" required autocomplete="new-password" placeholder="Masukkan kembali kata sandi baru" class="{{ $input }} pr-10">
+                    <button type="button" data-toggle-sandi aria-label="Tampilkan kata sandi" aria-pressed="false" class="absolute right-2 flex size-7 items-center justify-center rounded-md text-[#6B7280] hover:text-[#2277FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2277FF]">
+                        <svg class="mata size-[18px]" viewBox="0 0 24 24" {!! $svg !!}><circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7"/></svg>
+                        <svg class="mata-coret hidden size-[18px]" viewBox="0 0 24 24" {!! $svg !!}><path d="M10.585 10.587a2 2 0 0 0 2.829 2.828"/><path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87"/><path d="M3 3l18 18"/></svg>
                     </button>
                 </div>
             </label>
@@ -184,7 +181,25 @@
             </div>
         </form>
 
-    {{-- ============ BERHASIL ============ --}}
+        @push('scripts')
+        <script>
+            (function () {
+                document.querySelectorAll('[data-toggle-sandi]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var input = btn.parentElement.querySelector('input');
+                        var tampil = input.type === 'password';
+                        input.type = tampil ? 'text' : 'password';
+                        btn.setAttribute('aria-pressed', tampil ? 'true' : 'false');
+                        btn.setAttribute('aria-label', tampil ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
+                        btn.querySelector('.mata').classList.toggle('hidden', tampil);
+                        btn.querySelector('.mata-coret').classList.toggle('hidden', !tampil);
+                        input.focus();
+                    });
+                });
+            })();
+        </script>
+        @endpush
+
     @else
         <div class="{{ $card }} items-center text-center">
             <span class="flex size-11 items-center justify-center rounded-full bg-[#E6F4D7] text-[#4C8A1F]"><svg class="size-5" viewBox="0 0 24 24" {!! $svg !!}><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5l4.5 -5"/></svg></span>

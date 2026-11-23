@@ -1,3 +1,8 @@
 <?php
 
-// Daftarkan endpoint Penelitian di sini. Prefix /api/v1/dosen berasal dari router Kelompok 3.
+use App\BackendKel3\Penelitian\DosenPenelitianController;
+use Illuminate\Support\Facades\Route;
+
+Route::apiResource('penelitian', DosenPenelitianController::class)
+    ->only(['index', 'store', 'show', 'update', 'destroy'])
+    ->names('api.penelitian');

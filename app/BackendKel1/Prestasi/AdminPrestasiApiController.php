@@ -19,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 class AdminPrestasiApiController extends Controller
 {
-    private const RELASI = [
+    public const RELASI = [
         'user.dosen',
         'user.mahasiswa',
         'creator.dosen',
@@ -584,7 +584,7 @@ class AdminPrestasiApiController extends Controller
      * Ubah data Eloquent menjadi bentuk yang diharapkan DataTables dan
      * Blade detail/edit saat ini. Tidak mengarang data yang tidak ada di ERD.
      */
-    private function formatRow(Prestasi $item): array
+    public function formatRow(Prestasi $item): array
     {
         $kegiatan = $item->kegiatan;
         $pemilik = $item->user;
@@ -679,7 +679,7 @@ class AdminPrestasiApiController extends Controller
             'anggota' => $anggota,
             'tanggal' => $tanggal?->locale('id')->translatedFormat('d F Y') ?? '-',
             'raw_date' => $tanggal?->toDateString(),
-            'semester' => '-',
+            'semester' => $tanggal ? ($tanggal->month >= 9 || $tanggal->month <= 2 ? 'Ganjil' : 'Genap') : '-',
             'bukti' => $item->buktiPrestasi->map(fn ($b) => [
                 'id' => $b->id_bukti_prestasi,
                 'link' => $b->link,
