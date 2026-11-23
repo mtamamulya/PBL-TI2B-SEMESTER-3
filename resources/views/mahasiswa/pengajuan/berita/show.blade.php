@@ -28,7 +28,11 @@
             <div><span class="text-[#6B7280]">Sumber kegiatan</span><p class="mt-1 font-medium">{{ $item['source_type'] === 'previous' ? 'Kegiatan sebelumnya' : 'Tanpa kegiatan sebelumnya' }}</p></div>
             <div><span class="text-[#6B7280]">Nama kegiatan</span><p class="mt-1 font-medium">{{ $item['previous_activity'] ?: ($item['activity_name'] ?: '—') }}</p></div>
         </div>
-        <div class="whitespace-pre-line text-[15px] leading-7 text-[#374151]">{{ $item['content'] ?: 'Belum ada isi berita.' }}</div>
+        @if ($safeContent !== '')
+            <div class="berita-content text-[15px] leading-7 text-[#374151]">{!! $safeContent !!}</div>
+        @else
+            <div class="text-[15px] leading-7 text-[#6B7280]">Belum ada isi berita.</div>
+        @endif
     </article>
 </div>
 @endsection
