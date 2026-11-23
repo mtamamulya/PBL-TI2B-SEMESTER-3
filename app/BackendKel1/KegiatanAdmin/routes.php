@@ -11,6 +11,7 @@ Route::middleware(['auth:sanctum', PeranApi::class.':1,2'])
     ->group(function () {
         Route::get('/ringkasan', [KegiatanAdminController::class, 'ringkasan'])->name('ringkasan');
         Route::get('/', [KegiatanAdminController::class, 'index'])->name('index');
+        Route::post('/', [KegiatanAdminController::class, 'store'])->name('store');
         Route::get('/{id}', [KegiatanAdminController::class, 'show'])->whereNumber('id')->name('show');
         Route::delete('/{id}', [KegiatanAdminController::class, 'destroy'])->whereNumber('id')->name('destroy');
     });
