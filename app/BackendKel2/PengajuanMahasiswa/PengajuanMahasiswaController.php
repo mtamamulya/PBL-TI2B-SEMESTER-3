@@ -32,6 +32,7 @@ class PengajuanMahasiswaController extends Controller
             'id_kategori' => 'required|exists:kategori,id_kategori',
             'id_user' => 'nullable|exists:users,id_user',
             'nama_kegiatan' => 'required|string|max:255',
+            'dosen_pendamping' => 'nullable|string|max:255',
             'detail' => 'nullable|array',
             'detail.*' => 'nullable|string',
             'documents' => 'nullable|array',
@@ -46,6 +47,7 @@ class PengajuanMahasiswaController extends Controller
                 'id_kategori' => $validated['id_kategori'],
                 'id_user' => $validated['id_user'] ?? null,
                 'nama_kegiatan' => $validated['nama_kegiatan'],
+                'dosen_pendamping' => $validated['dosen_pendamping'] ?? null,
             ]);
 
             // 1. Catat status awal di tabel timeline
@@ -128,13 +130,14 @@ class PengajuanMahasiswaController extends Controller
         $validated = $request->validate([
             'id_kategori' => 'sometimes|exists:kategori,id_kategori',
             'nama_kegiatan' => 'sometimes|string|max:255',
+            'dosen_pendamping' => 'sometimes|nullable|string|max:255',
             'detail' => 'nullable|array',
             'detail.*' => 'nullable|string',
             'lampiran' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         return DB::transaction(function () use ($request, $kegiatan, $validated) {
-            $kegiatan->update(collect($validated)->only(['id_kategori', 'nama_kegiatan'])->toArray());
+            $kegiatan->update(collect($validated)->only(['id_kategori', 'nama_kegiatan', 'dosen_pendamping'])->toArray());
 
             if (! empty($validated['detail'])) {
                 foreach ($validated['detail'] as $idIsian => $nilai) {

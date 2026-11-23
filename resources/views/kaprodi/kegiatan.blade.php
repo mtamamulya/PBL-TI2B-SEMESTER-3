@@ -1,7 +1,7 @@
 {{--
     resources/views/kaprodi/kegiatan.blade.php
     Kegiatan gabungan kaprodi (Semua | Dosen | Mahasiswa | Prodi), DataTables 2.x. HANYA kegiatan yang sudah disetujui.
-    Aksi: lihat dan tambah. Hapus disembunyikan untuk kaprodi (hanya admin yang boleh, dijaga API: 403). Laporan PDF/Excel per tab. Sorting kolom tetap ada.
+    Aksi: lihat, hapus, tambah (kaprodi: CRUD). Laporan PDF/Excel per tab. Sorting kolom tetap ada.
 --}}
 @extends('layouts.kaprodi')
 
@@ -107,6 +107,22 @@
     #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
     #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
 
+    /* Modal Hapus */
+    #modalHapus { position: fixed; inset: 0; margin: auto; height: fit-content; width: 380px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
+    #modalHapus::backdrop { background: rgb(10 10 10 / .45); }
+    #modalHapus[open] { animation: modalMasuk .15s ease-out; }
+    @keyframes modalMasuk { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .modal-kartu { padding: 24px; border-radius: 12px; background: #fff; text-align: center; box-shadow: 0 20px 50px rgb(0 0 0 / .2); }
+    .modal-ikon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 9999px; background: #FFD9D9; color: #E5484D; }
+    .modal-judul { font-size: 18px; font-weight: 700; line-height: 24px; color: #0A0A0A; }
+    .modal-teks { margin-top: 8px; font-size: 14px; line-height: 20px; color: #55555C; }
+    .modal-teks strong { font-weight: 600; color: #0A0A0A; word-break: break-word; }
+    .modal-aksi { display: flex; gap: 12px; margin-top: 24px; }
+    .modal-btn { flex: 1; height: 40px; border: 1px solid transparent; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .modal-btn-batal { background: #fff; border-color: #E8E8EC; color: #2E2E2E; }
+    .modal-btn-batal:hover { background: #F9F9FB; }
+    .modal-btn-hapus { background: #E5484D; color: #fff; }
+    .modal-btn-hapus:hover { background: #D13A3F; }
 </style>
 
 <main class="flex flex-col gap-10 px-4 py-8 sm:px-6">
@@ -229,6 +245,20 @@
     </div>
 </main>
 
+{{-- Modal Konfirmasi Hapus --}}
+<dialog id="modalHapus" aria-labelledby="modalHapusJudul" aria-describedby="modalHapusTeks">
+    <div class="modal-kartu">
+        <div class="modal-ikon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg>
+        </div>
+        <h2 id="modalHapusJudul" class="modal-judul">Hapus kegiatan?</h2>
+        <p id="modalHapusTeks" class="modal-teks"><strong id="modalHapusNama"></strong> akan dihapus permanen.</p>
+        <div class="modal-aksi">
+            <button type="button" id="modalHapusBatal" class="modal-btn modal-btn-batal">Batal</button>
+            <button type="button" id="modalHapusYa" class="modal-btn modal-btn-hapus">Hapus</button>
+        </div>
+    </div>
+</dialog>
 @endsection
 
 @push('scripts')
@@ -247,6 +277,12 @@
         mahasiswa: @json(route('kaprodi.kegiatan.mahasiswa.show', ['id' => '__ID__'])),
         prodi:     null   // detail kegiatan prodi menyusul (Fase C)
     };
+    var URL_DELETE = {
+        semua:     null,
+        dosen:     @json(route('kaprodi.kegiatan.dosen.destroy', ['id' => '__ID__'])),
+        mahasiswa: @json(route('kaprodi.kegiatan.mahasiswa.destroy', ['id' => '__ID__'])),
+        prodi:     null   // hapus kegiatan prodi menyusul (Fase C)
+    };
     var URL_LAPORAN = {
         semua:     @json(route('kaprodi.kegiatan.semua.laporan')),
         dosen:     @json(route('kaprodi.kegiatan.dosen.laporan')),
@@ -254,6 +290,7 @@
         prodi:     @json(route('kaprodi.kegiatan.prodi.laporan'))
     };
     
+    var CSRF = @json(csrf_token());
     var PENGAJU = { semua: 'Pengaju / Penanggung Jawab', dosen: 'Pengaju', mahasiswa: 'Pengaju', prodi: 'Penanggung Jawab' };
     
     var STATUS = {
@@ -278,6 +315,7 @@
     }
     
     var I_EYE   = svg('<circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667-6 7-10 7s-7.333-2.333-10-7c2.667-4.667 6-7 10-7s7.333 2.333 10 7"/>', 20, 1.5);
+    var I_TRASH = svg('<path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" />', 20, 1.5);
 
     var TXT = DataTable.render.text();
 
@@ -325,7 +363,11 @@
                         ? '<a href="' + URL_DETAIL[r.jenis].replace('__ID__', encodeURIComponent(r.id)) + '" title="Lihat" class="rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] hover:bg-[#BBD2F6] cursor-pointer">' + I_EYE + '</a>'
                         : '<button type="button" title="Detail belum tersedia" disabled class="cursor-not-allowed rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] opacity-50">' + I_EYE + '</button>';
                     
-                    return '<div class="flex items-center gap-3">' + lihatBtn + '</div>';
+                    var hapusBtn = URL_DELETE[r.jenis]
+                        ? '<button type="button" title="Hapus" data-act="delete" data-id="' + esc(r.id) + '" class="rounded-md bg-[#FFD9D9] p-1.5 text-[#E5484D] hover:bg-[#FFC9C9] cursor-pointer">' + I_TRASH + '</button>'
+                        : '';
+
+                    return '<div class="flex items-center gap-3">' + lihatBtn + hapusBtn + '</div>';
                 }
             }
         ],
@@ -455,6 +497,42 @@
     $('fSemester').addEventListener('change', function (e) { filter.semester = e.target.value; table.draw(); togglePager(); });
     $('fKategori').addEventListener('change', function (e) { filter.kategori = e.target.value; table.draw(); togglePager(); });
     $('fKelas').addEventListener('change', function (e) { filter.kelas = e.target.value; table.draw(); togglePager(); });
+
+    var modal = $('modalHapus'), modalNama = $('modalHapusNama'), btnBatal = $('modalHapusBatal'), btnYa = $('modalHapusYa');
+    var idHapus = null, jenisHapus = null;
+
+    function kirimHapus(id) {
+        if (!URL_DELETE[jenisHapus]) return;
+        var f = document.createElement('form');
+        f.method = 'POST';
+        f.action = URL_DELETE[jenisHapus].replace('__ID__', encodeURIComponent(id));
+        f.innerHTML = '<input type="hidden" name="_token" value="' + CSRF + '"><input type="hidden" name="_method" value="DELETE">';
+        document.body.appendChild(f);
+        f.submit();
+    }
+
+    $('tabel').addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-act="delete"]'); if (!b) return;
+        var rowData = table.row(b.closest('tr')).data();
+        idHapus = b.dataset.id;
+        jenisHapus = rowData ? rowData.jenis : tab;
+        if (typeof modal.showModal !== 'function') {
+            if (confirm('Hapus kegiatan "' + (rowData ? rowData.nama : '') + '"?')) kirimHapus(idHapus);
+            return;
+        }
+        modalNama.textContent = '"' + (rowData ? rowData.nama : '') + '"';
+        modal.showModal();
+    });
+
+    btnBatal.addEventListener('click', function () { modal.close(); });
+    modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
+    modal.addEventListener('close', function () { idHapus = null; btnYa.disabled = false; btnYa.textContent = 'Hapus'; });
+    btnYa.addEventListener('click', function () {
+        if (!idHapus) return;
+        btnYa.disabled = true;
+        btnYa.textContent = 'Menghapus...';
+        kirimHapus(idHapus);
+    });
 })();
 </script>
 @endpush

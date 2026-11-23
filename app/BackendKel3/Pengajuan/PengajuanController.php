@@ -20,19 +20,21 @@ class PengajuanController extends Controller
     public function index(Request $request): JsonResponse
     {
         $idUser = (int) $request->user()->getKey();
-        $filterStatus = $request->query('status');
+        $filterStatus = $request->query('status'); // diajukan, direview, direvisi, ditolak, diterima, selesai
         $search = $request->query('search');
 
         $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline'])
             ->where('id_user', $idUser)
             ->whereHas('timeline');
 
+        // Filter berdasarkan status terkini
         if (! empty($filterStatus) && $filterStatus !== 'semua') {
             $query->whereHas('statusTerkini', function ($q) use ($filterStatus) {
                 $q->where('status', strtolower($filterStatus));
             });
         }
 
+        // Filter pencarian judul kegiatan (sesuai UI search bar)
         if (! empty($search)) {
             $query->where('nama_kegiatan', 'like', "%{$search}%");
         }

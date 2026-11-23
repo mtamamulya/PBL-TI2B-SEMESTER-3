@@ -190,6 +190,86 @@ class PengajuanFormTest extends TestCase
         }
     }
 
+    public function test_magang_submission_preserves_the_optional_advisor(): void
+    {
+        $this->get(route('pengajuan.create'))
+            ->assertOk()
+            ->assertSee('Dosen Pendamping')
+            ->assertSee('Masukkan nama dosen pendamping');
+
+        $response = $this->post(route('pengajuan.store'), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Kuwat Santoso',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ]);
+        $activityId = DB::table('kegiatan')
+            ->where('dosen_pendamping', 'Kuwat Santoso')
+            ->orderByDesc('id_kegiatan')
+            ->value('id_kegiatan');
+
+        $this->assertNotNull($activityId);
+        $response->assertRedirect(route('pengajuan.show', $activityId));
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => $activityId,
+            'dosen_pendamping' => 'Kuwat Santoso',
+        ]);
+    }
+
+    public function test_database_magang_submission_persists_and_displays_the_advisor(): void
+    {
+        $response = $this->post(route('pengajuan.store'), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Kuwat Santoso',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ]);
+        $activityId = DB::table('kegiatan')
+            ->where('dosen_pendamping', 'Kuwat Santoso')
+            ->orderByDesc('id_kegiatan')
+            ->value('id_kegiatan');
+
+        $this->assertNotNull($activityId);
+        $response->assertRedirect(route('pengajuan.show', $activityId));
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => $activityId,
+            'dosen_pendamping' => 'Kuwat Santoso',
+        ]);
+
+        $this->get(route('pengajuan.show', $activityId))
+            ->assertOk()
+            ->assertSee('Dosen Pendamping')
+            ->assertSee('Kuwat Santoso');
+
+        $this->get(route('pengajuan.edit', $activityId))
+            ->assertOk()
+            ->assertSee('value="Kuwat Santoso"', false);
+
+        $this->put(route('pengajuan.update', $activityId), [
+            'category' => 'Magang',
+            'organizer' => 'Perusahaan',
+            'role' => 'Developer',
+            'duration_months' => 6,
+            'advisor' => 'Tahan Prahara',
+            'location' => 'Semarang',
+            'start_date' => '2026-10-30',
+            'end_date' => '2026-10-31',
+        ])->assertRedirect(route('pengajuan.show', $activityId));
+
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => $activityId,
+            'dosen_pendamping' => 'Tahan Prahara',
+        ]);
+    }
+
     public function test_documents_are_optional_and_have_no_count_limit(): void
     {
         $submission = [
@@ -471,6 +551,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Dari kegiatan sebelumnya')
             ->assertSee('Tanpa kegiatan sebelumnya')
             ->assertSee('Kategori berita')
+            ->assertSee('data-rich-text-editor', false)
             ->assertSee('Foto sampul berita')
             ->assertSee('Simpan Draft');
 
@@ -480,6 +561,33 @@ class PengajuanFormTest extends TestCase
             ->assertOk()
             ->assertViewIs('mahasiswa.pengajuan.berita.show')
             ->assertSee('Draft');
+    }
+
+    public function test_berita_rich_text_is_preserved_and_unsafe_markup_is_removed(): void
+    {
+        $this->post(route('pengajuan.berita.store'), [
+            'intent' => 'draft',
+            'content' => '<h2 onclick="alert(1)" style="color: rgb(200, 1, 2)">Judul</h2><p><strong>Rapi</strong><script>alert(1)</script><a href="javascript:alert(1)">tautan</a></p>',
+        ])->assertRedirect(route('pengajuan.berita.show', 1));
+
+        $this->get(route('pengajuan.berita.show', 1))
+            ->assertOk()
+            ->assertSee('<strong>Rapi</strong>', false)
+            ->assertSee('Judul')
+            ->assertSee('tautan')
+            ->assertDontSee('onclick', false)
+            ->assertDontSee('javascript:', false)
+            ->assertDontSee('alert(1)');
+    }
+
+    public function test_berita_rich_text_character_limit_counts_text_content(): void
+    {
+        $this->from(route('pengajuan.berita.create'))
+            ->post(route('pengajuan.berita.store'), [
+                'intent' => 'draft',
+                'content' => '<p>'.str_repeat('a', 5001).'</p>',
+            ])
+            ->assertSessionHasErrors('content');
     }
 
     public function test_berita_form_lists_existing_and_new_pengajuan_activities(): void
