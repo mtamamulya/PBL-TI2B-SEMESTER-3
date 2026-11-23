@@ -19,24 +19,26 @@ class PengajuanController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $idUser = (int) $request->user()->getKey();
+        // Mengambil id_user dari tabel users
+        $idUser = (int) $request->user()->getKey(); 
         $filterStatus = $request->query('status');
         $search = $request->query('search');
 
+        // HAPUS ->whereHas('timeline') agar kegiatan yang belum diajukan (draft) tetap tampil di front end
         $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline'])
-            ->where('id_user', $idUser)
-            ->whereHas('timeline');
+            ->where('id_user', $idUser); // Sesuai dengan kolom id_user di tabel kegiatan
 
-        if (! empty($filterStatus) && $filterStatus !== 'semua') {
+        if (! empty($filterStatus) && strtolower($filterStatus) !== 'semua') {
             $query->whereHas('statusTerkini', function ($q) use ($filterStatus) {
                 $q->where('status', strtolower($filterStatus));
             });
         }
 
         if (! empty($search)) {
-            $query->where('nama_kegiatan', 'like', "%{$search}%");
+            $query->where('nama_kegiatan', 'like', "%{$search}%"); // Sesuai dengan nama_kegiatan[cite: 7]
         }
 
+        // Menggunakan updated_at karena kolom tersebut tersedia di tabel kegiatan[cite: 7]
         $daftarPengajuan = $query->latest('updated_at')->get();
 
         return response()->json([
@@ -54,7 +56,7 @@ class PengajuanController extends Controller
         $idUser = (int) $request->user()->getKey();
 
         $kegiatan = Kegiatan::with(['kategori', 'timeline', 'statusTerkini'])
-            ->where('id_kegiatan', $id)
+            ->where('id_kegiatan', $id) // Sesuai kolom id_kegiatan[cite: 7]
             ->where('id_user', $idUser)
             ->firstOrFail();
 
@@ -79,12 +81,10 @@ class PengajuanController extends Controller
 
     /**
      * POST /dosen/pengajuan/{id}/ajukan
-     * Pemilik mengajukan kegiatan yang belum memiliki tahap pengajuan.
      */
     public function ajukan(Request $request, int $id): JsonResponse
     {
         $idUser = (int) $request->user()->getKey();
-
         $timeline = $this->alurPengajuan->ajukanBaru($id, $idUser);
 
         return response()->json([
@@ -96,7 +96,6 @@ class PengajuanController extends Controller
 
     /**
      * POST /dosen/pengajuan/{id}/ajukan-ulang
-     * Mengajukan ulang setelah kegiatan direvisi dan dilengkapi.
      */
     public function ajukanUlang(Request $request, int $id): JsonResponse
     {
@@ -105,7 +104,6 @@ class PengajuanController extends Controller
         ]);
 
         $idUser = (int) $request->user()->getKey();
-
         $timeline = $this->alurPengajuan->ajukanUlang(
             $id,
             $idUser,

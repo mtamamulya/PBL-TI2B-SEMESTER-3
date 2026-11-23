@@ -10,20 +10,12 @@ use Illuminate\Validation\ValidationException;
 class AlurPengajuan
 {
     public const STATUS_DIAJUKAN = 'diajukan';
-
     public const STATUS_DIREVIEW = 'direview';
-
     public const STATUS_DIREVISI = 'direvisi';
-
     public const STATUS_DITOLAK = 'ditolak';
-
     public const STATUS_DITERIMA = 'diterima';
-
     public const STATUS_SELESAI = 'selesai';
 
-    /**
-     * Mengajukan kegiatan pertama kali.
-     */
     public function ajukanBaru(int $idKegiatan, int $idUser): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser) {
@@ -51,9 +43,6 @@ class AlurPengajuan
         });
     }
 
-    /**
-     * Mengajukan ulang kegiatan setelah direvisi dan dilengkapi.
-     */
     public function ajukanUlang(int $idKegiatan, int $idUser, ?string $catatan = null): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser, $catatan) {
@@ -66,7 +55,7 @@ class AlurPengajuan
 
             $statusTerakhir = Timeline::where('id_kegiatan', $kegiatan->id_kegiatan)
                 ->orderByDesc('tanggal_status')
-                ->orderByDesc('id_timeline')
+                ->orderByDesc('id_timeline') // Asumsi primary key tabel timeline adalah id_timeline
                 ->first();
 
             if (! $statusTerakhir || $statusTerakhir->status !== self::STATUS_DIREVISI) {
@@ -79,26 +68,29 @@ class AlurPengajuan
                 'id_kegiatan' => $kegiatan->id_kegiatan,
                 'status' => self::STATUS_DIAJUKAN,
                 'tanggal_status' => now(),
-                'catatan_revisi' => $catatan,
+                'catatan_revisi' => $catatan, 
             ]);
         });
     }
 
     private function validasiKepemilikan(Kegiatan $kegiatan, int $idUser): void
     {
-        if ((int) $kegiatan->id_user !== $idUser) {
+        // Mencocokkan id_user yang sedang login dengan id_user pembuat di tabel kegiatan[cite: 7]
+        if ((int) $kegiatan->id_user !== $idUser) { 
             abort(403, 'Anda tidak memiliki akses untuk mengajukan kegiatan ini.');
         }
     }
 
     private function validasiKelengkapan(Kegiatan $kegiatan): void
     {
+        // Memastikan id_kategori sudah terisi[cite: 7]
         if (empty($kegiatan->id_kategori)) {
             throw ValidationException::withMessages([
                 'id_kategori' => 'Kategori kegiatan wajib diisi sebelum diajukan.',
             ]);
         }
 
+        // Pastikan model Kegiatan memiliki relasi dokumen() ke tabel dokumen
         if (! $kegiatan->dokumen()->exists()) {
             throw ValidationException::withMessages([
                 'dokumen' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',
