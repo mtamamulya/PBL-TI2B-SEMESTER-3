@@ -3,6 +3,7 @@
 @section('content')
 @php
     $status = $row['status'];
+    $advisor = $item['dosen_pendamping'] ?? data_get($item, 'data.advisor');
     $badge = [
         'Diajukan' => 'bg-[#DBEAFE] text-[#1D4ED8]',
         'Disetujui' => 'bg-[#ECFDF5] text-[#047857]',
@@ -160,6 +161,12 @@
                         <div class="text-[15px] font-semibold">{{ $student['name'] }} / {{ $student['nim'] }}</div>
                     </div>
                 </div>
+                @if ($advisor && str_contains(strtolower((string) $row['category']), 'magang'))
+                    <div>
+                        <div class="text-[13px] text-[#6B7280]">Dosen Pendamping</div>
+                        <div class="text-[15px] font-semibold">{{ $advisor }}</div>
+                    </div>
+                @endif
             </div>
 
             <div class="{{ $card }} flex flex-col gap-4">

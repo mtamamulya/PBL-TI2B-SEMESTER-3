@@ -89,7 +89,7 @@ class DosenPengajaranController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Pengajaran berhasil disimpan.',
-                'data' => $item->load(self::RELASI),
+                'data' => $item,
             ], 201);
 
         } catch (ValidationException $e) {
@@ -116,7 +116,6 @@ class DosenPengajaranController extends Controller
                         'prodi' => $item->enrollmentTingkatKelas->prodi->jenjang.' '.$item->enrollmentTingkatKelas->prodi->nama_prodi,
                         'rombel' => (string) $item->id_enrollment_tingkat_kelas,
                         'matkul' => (string) $item->id_enrollment_mk,
-                        'dokumen' => $this->dokumen($item),
                     ],
                 ],
             ]);
@@ -131,22 +130,19 @@ class DosenPengajaranController extends Controller
             $item = $this->milikDosen($request, $id);
             $data = $this->validasi($request, (int) $item->id_dosen, $item);
 
-            DB::transaction(function () use ($item, $data, $request) {
+            DB::transaction(function () use ($item, $data) {
                 $item->update([
                     'id_enrollment_tingkat_kelas' => $data['id_enrollment_tingkat_kelas'],
                     'id_enrollment_mk' => $data['id_enrollment_mk'],
                 ]);
 
-                if ($request->has('dokumen')) {
-                    $item->pengajaran()->delete();
-                    $this->simpanDokumen($item, $data['dokumen'] ?? []);
-                }
+                $this->simpanDokumen($item, $data['dokumen'] ?? []);
             });
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Perubahan pengajaran berhasil disimpan.',
-                'data' => $item->fresh(self::RELASI),
+                'data' => $item,
             ]);
 
         } catch (ValidationException $e) {
@@ -194,7 +190,7 @@ class DosenPengajaranController extends Controller
             'dokumen' => ['nullable', 'array'],
             'dokumen.*.nama' => ['required', 'string', 'max:255'],
             'dokumen.*.id_jenis_dokumen' => ['required', 'integer', 'exists:jenis_dokumen,id_jenis_dokumen'],
-            'dokumen.*.tautan' => ['required', 'url:http,https', 'max:2048'],
+            'dokumen.*.tautan' => ['required', 'url', 'max:255'],
         ], [
             'id_enrollment_tingkat_kelas.required' => 'Kelas wajib dipilih.',
             'id_enrollment_tingkat_kelas.exists' => 'Kelas yang dipilih tidak ditemukan.',
@@ -203,8 +199,8 @@ class DosenPengajaranController extends Controller
             'dokumen.*.nama.required' => 'Nama dokumen wajib diisi.',
             'dokumen.*.id_jenis_dokumen.required' => 'Jenis dokumen wajib dipilih.',
             'dokumen.*.id_jenis_dokumen.exists' => 'Jenis dokumen tidak valid.',
-            'dokumen.*.tautan.required' => 'Tautan URL dokumen wajib diisi.',
-            'dokumen.*.tautan.url' => 'Tautan dokumen harus berupa URL valid (http/https).',
+            'dokumen.*.tautan.required' => 'Tautan dokumen wajib diisi.',
+            'dokumen.*.tautan.url' => 'Format tautan dokumen harus berupa URL yang valid (contoh: https://...).',
         ]);
 
         $rombel = EnrollmentTingkatKelas::findOrFail($data['id_enrollment_tingkat_kelas']);
@@ -233,24 +229,6 @@ class DosenPengajaranController extends Controller
         return $data;
     }
 
-    private function simpanDokumen(EnrollmentKelasMataKuliah $kelasMk, array $daftarDokumen): void
-    {
-        foreach ($daftarDokumen as $doc) {
-            $dokumen = Dokumen::create([
-                'id_jenis_dokumen' => $doc['id_jenis_dokumen'],
-                'nama_file' => $doc['nama'],
-                'tipe_dokumen' => 'tautan',
-                'link_dokumen' => $doc['tautan'],
-                'is_lampiran' => false,
-            ]);
-
-            Pengajaran::create([
-                'id_enrollment_kelas_mk' => $kelasMk->getKey(),
-                'id_dokumen' => $dokumen->getKey(),
-            ]);
-        }
-    }
-
     private function opsiForm(): array
     {
         return [
@@ -275,9 +253,9 @@ class DosenPengajaranController extends Controller
                 ])->sortBy('label')->values()->all(),
             'jenis_dokumen' => JenisDokumen::orderBy('nama_jenis_dokumen')->get()
                 ->map(fn (JenisDokumen $j) => [
-                    'id' => $j->getKey(),
+                    'id' => $j->id_jenis_dokumen,
                     'nama' => $j->nama_jenis_dokumen,
-                ])->values()->all(),
+                ])->all(),
         ];
     }
 
@@ -319,13 +297,39 @@ class DosenPengajaranController extends Controller
         return $item->pengajaran
             ->filter(fn ($p) => $p->dokumen !== null)
             ->map(fn ($p) => [
-                'id' => $p->dokumen->getKey(),
-                'id_jenis_dokumen' => (string) $p->dokumen->id_jenis_dokumen,
+                'id_dokumen' => $p->dokumen->id_dokumen,
+                'id_jenis_dokumen' => $p->dokumen->id_jenis_dokumen,
                 'nama' => $p->dokumen->nama_file,
                 'jenis' => $p->dokumen->jenisDokumen?->nama_jenis_dokumen ?? '-',
                 'keterangan' => '',
                 'tautan' => $p->dokumen->link_dokumen,
             ])->values()->all();
+    }
+
+    private function simpanDokumen(EnrollmentKelasMataKuliah $item, array $daftarDokumen): void
+    {
+        $lama = Pengajaran::where('id_enrollment_kelas_mk', $item->getKey())->get();
+        $dokumenIds = $lama->pluck('id_dokumen')->filter()->all();
+
+        Pengajaran::where('id_enrollment_kelas_mk', $item->getKey())->delete();
+        if (! empty($dokumenIds)) {
+            Dokumen::whereIn('id_dokumen', $dokumenIds)->delete();
+        }
+
+        foreach ($daftarDokumen as $doc) {
+            $dokumen = Dokumen::create([
+                'id_jenis_dokumen' => $doc['id_jenis_dokumen'],
+                'nama_file' => $doc['nama'],
+                'tipe_dokumen' => 'link',
+                'link_dokumen' => $doc['tautan'],
+                'is_lampiran' => false,
+            ]);
+
+            Pengajaran::create([
+                'id_enrollment_kelas_mk' => $item->getKey(),
+                'id_dokumen' => $dokumen->id_dokumen,
+            ]);
+        }
     }
 
     private function namaKelas(EnrollmentKelasMataKuliah $item): string
