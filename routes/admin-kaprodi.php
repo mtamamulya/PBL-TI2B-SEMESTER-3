@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminAkreditasiController;
+use App\Http\Controllers\KelompokBidangController;
 // ---------- Controller Publik & Landing ----------
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminBeritaController;
@@ -154,6 +155,12 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::put('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'update'])->name('admin.kegiatan.kategori-kegiatan.update');
     Route::delete('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'destroy'])->name('admin.kegiatan.kategori-kegiatan.destroy');
 
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('admin.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('admin.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('admin.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('admin.kegiatan.kelompok-bidang.destroy');
+
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
     Route::get('berita/tambah', [AdminBeritaController::class, 'create'])->name('admin.berita.create');
@@ -194,6 +201,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.dosen',
         'admin.kegiatan.jenis-dokumen',
         'admin.kegiatan.kategori-kegiatan',
+        'admin.kegiatan.kelompok-bidang',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -239,6 +247,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/mahasiswa', [KaprodiMahasiswaController::class, 'index'])->name('kaprodi.mahasiswa');
     Route::get('/dosen/{id}', [KaprodiDosenController::class, 'show'])->name('kaprodi.dosen.show');
     Route::get('/mahasiswa/{id}', [KaprodiMahasiswaController::class, 'show'])->name('kaprodi.mahasiswa.show');
+
     // Kegiatan gabungan (Dosen | Mahasiswa | Prodi). URL lama dialihkan ke tab yang sesuai.
     Route::get('/kegiatan', [KaprodiKegiatanController::class, 'index'])->name('kaprodi.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('kaprodi.kegiatan.create');
@@ -262,6 +271,13 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
 
     Route::get('/kegiatan/kategori-kegiatan', [KaprodiKategoriKegiatanController::class, 'index'])->name('kaprodi.kegiatan.kategori-kegiatan');
     Route::get('/kegiatan/jenis-dokumen', [KaprodiJenisDokumenController::class, 'index'])->name('kaprodi.kegiatan.jenis-dokumen');
+
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('kaprodi.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('kaprodi.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('kaprodi.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('kaprodi.kegiatan.kelompok-bidang.destroy');
+
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
     Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.destroy');
@@ -291,6 +307,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.mahasiswa',
         'kaprodi.kegiatan.kategori-kegiatan',
         'kaprodi.kegiatan.jenis-dokumen',
+        'kaprodi.kegiatan.kelompok-bidang',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',
