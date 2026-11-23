@@ -124,8 +124,6 @@
                 <h2 id="h-dokumen" class="text-[15px] font-semibold">Dokumen Pendukung</h2>
             </div>
 
-            <p role="note" class="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-700">Catatan: dokumen belum disimpan ke database, menunggu keputusan tim.</p>
-
             <template x-for="(d, i) in dokumen" :key="d.id">
                 <div class="overflow-hidden rounded-lg border border-gray-200">
                     <div class="flex items-center justify-between gap-3 bg-[#02215c] px-3.5 py-3 text-white">
@@ -144,21 +142,25 @@
                             <div class="flex flex-col gap-2">
                                 <label :for="`nama-${d.id}`" class="{{ $labelClass }}">Nama dokumen</label>
                                 <input :id="`nama-${d.id}`" type="text" required x-model="d.nama"
-                                       placeholder="Contoh : Proposal kegiatan" class="{{ $inputClass }}">
+                                       placeholder="Contoh : RPS Pemrograman Web" class="{{ $inputClass }}">
+                                <template x-if="errors[`dokumen.${i}.nama`]">
+                                    <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.nama`][0]"></p>
+                                </template>
                             </div>
                             <div class="flex flex-col gap-2">
                                 <label :for="`jenis-${d.id}`" class="{{ $labelClass }}">Jenis dokumen</label>
                                 <div class="relative">
-                                    <select :id="`jenis-${d.id}`" required x-model="d.jenis" class="{{ $selectClass }}">
+                                    <select :id="`jenis-${d.id}`" required x-model="d.id_jenis_dokumen" class="{{ $selectClass }}">
                                         <option value="">Pilih jenis dokumen</option>
-                                        <option>RPS</option>
-                                        <option>Materi Ajar</option>
-                                        <option>Soal Ujian</option>
-                                        <option>Surat Tugas</option>
-                                        <option>Lainnya</option>
+                                        <template x-for="j in opsi.jenis_dokumen" :key="j.id">
+                                            <option :value="String(j.id)" x-text="j.nama"></option>
+                                        </template>
                                     </select>
                                     {!! $chevron !!}
                                 </div>
+                                <template x-if="errors[`dokumen.${i}.id_jenis_dokumen`]">
+                                    <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.id_jenis_dokumen`][0]"></p>
+                                </template>
                             </div>
                         </div>
 
@@ -167,6 +169,9 @@
                             <input :id="`tautan-${d.id}`" type="url" required x-model="d.tautan"
                                    placeholder="https://drive.google.com/..." class="{{ $inputClass }}">
                             <p class="text-[13px] text-gray-500">Tempel tautan Google Drive, OneDrive, atau cloud lain. Pastikan akses tautan dibuka untuk yang memiliki tautan.</p>
+                            <template x-if="errors[`dokumen.${i}.tautan`]">
+                                <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.tautan`][0]"></p>
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -198,7 +203,7 @@
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('formPengajaran', (isEdit = false) => ({
-            opsi: { tahun: [], rombel: [], matkul: [] },
+            opsi: { tahun: [], rombel: [], matkul: [], jenis_dokumen: [] },
             tahun: '', prodi: '', rombel: '', matkul: '',
             editId: null,
             
@@ -229,12 +234,11 @@
                 return [m && m.label, r && `Kelas ${r.kelas}`, r && r.prodi, t && t.label].filter(Boolean).join(' · ');
             },
 
-            // ---- Dokumen pendukung (belum disimpan ke database, menunggu keputusan tim) ----
-            dokumen: [{ id: 1, nama: '', jenis: '', tautan: '' }],
+            dokumen: [{ id: 1, nama: '', id_jenis_dokumen: '', tautan: '' }],
             urutDokumen: 1,
             tambahDokumen() {
                 this.urutDokumen++;
-                this.dokumen.push({ id: this.urutDokumen, nama: '', jenis: '', tautan: '' });
+                this.dokumen.push({ id: this.urutDokumen, nama: '', id_jenis_dokumen: '', tautan: '' });
             },
             hapusDokumen(i) {
                 this.dokumen.splice(i, 1);
@@ -267,11 +271,15 @@
                     const json = await res.json();
 
                     if (json.status === 'success') {
-                        this.opsi = json.data;
+                        this.opsi = {
+                            tahun: json.data.tahun ?? [],
+                            rombel: json.data.rombel ?? [],
+                            matkul: json.data.matkul ?? [],
+                            jenis_dokumen: json.data.jenis_dokumen ?? [],
+                        };
                         this.dosenName = (json.data.dosen || 'Akun Anda') + ' (akun Anda)';
                     }
 
-                    // Jika mode Edit, ambil data pengajaran lama dari /api/v1/pengajaran/{id}
                     if (isEdit) {
                         const segments = window.location.pathname.split('/').filter(Boolean);
                         this.editId = segments[segments.length - 2];
@@ -293,7 +301,7 @@
                                 this.dokumen = jsonDetail.data.dokumen.map((d, idx) => ({
                                     id: idx + 1,
                                     nama: d.nama ?? '',
-                                    jenis: d.jenis ?? '',
+                                    id_jenis_dokumen: d.id_jenis_dokumen ? String(d.id_jenis_dokumen) : '',
                                     tautan: d.tautan ?? '',
                                 }));
                                 this.urutDokumen = this.dokumen.length;
@@ -316,7 +324,11 @@
                 const payload = {
                     id_enrollment_tingkat_kelas: this.rombel,
                     id_enrollment_mk: this.matkul,
-                    dokumen: this.dokumen
+                    dokumen: this.dokumen.map(d => ({
+                        nama: d.nama,
+                        id_jenis_dokumen: d.id_jenis_dokumen,
+                        tautan: d.tautan,
+                    })),
                 };
 
                 const url = isEdit ? `/api/v1/pengajaran/${this.editId}` : '/api/v1/pengajaran';
