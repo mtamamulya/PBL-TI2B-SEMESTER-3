@@ -7,11 +7,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Dokumen;
 use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
+use App\Models\User;
 use App\Support\ApiResponse;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DokumenSuratController extends Controller
 {
@@ -89,32 +93,85 @@ class DokumenSuratController extends Controller
             $dokumen = $kegiatan->dokumen()->findOrFail($dokumenId);
             abort_if($dokumen->buktiHistory()->exists(), 403, 'Bukti riwayat tidak dapat dihapus.');
             $dokumen->delete();
-            // Berkas fisik disimpan sebagai arsip; hanya relasi aktif yang dihapus.
         });
 
         return ApiResponse::ok(null, 'Dokumen berhasil dihapus.');
     }
 
-    public function showSurat(Request $request, int $id): JsonResponse
+    public function showSurat(Request $request, int $id): Response|JsonResponse
     {
-        $k = Kegiatan::untukUser($request->user())->with('kategori')->findOrFail($id);
-        $status = $k->timeline()->reorder()->orderByDesc('tanggal_status')->orderByDesc('id_timeline')->value('status');
+        $k = Kegiatan::untukUser($request->user())
+            ->with(['kategori', 'anggota', 'user'])
+            ->findOrFail($id);
+
+        $timelineAkhir = $k->timeline()
+            ->reorder()
+            ->orderByDesc('tanggal_status')
+            ->orderByDesc('id_timeline')
+            ->first();
+
+        $status = $timelineAkhir?->status;
+
         if (! in_array($status, ['diterima', 'selesai'], true) || ! $k->nomor_sk) {
             return ApiResponse::gagal('Surat belum diterbitkan.', 404);
         }
+
         if (! $k->kategori?->isi_surat) {
             return ApiResponse::gagal('Kategori ini belum memiliki template surat.', 404);
         }
 
-        return ApiResponse::ok([
-            'id_kegiatan' => $id,
-            'nama_kegiatan' => $k->nama_kegiatan,
-            'nomor_sk' => $k->nomor_sk,
-            'tanggal_sk' => $k->tanggal_sk?->toDateString(),
-            'template_surat' => $k->kategori->isi_surat,
-            'lampiran_peserta' => (bool) $k->kategori->lampiran_peserta,
-            'dokumen' => $k->dokumen()->where('is_lampiran', true)->get()->map($this->bentuk(...)),
+        $lampiranDokumen = $k->dokumen()
+            ->with('jenisDokumen')
+            ->where('is_lampiran', true)
+            ->get();
+
+        $ttdBase64 = $this->ambilTtdBase64($k, $timelineAkhir);
+
+        $pdf = Pdf::loadView('backend_kel3.pdf.surat_final', [
+            'kegiatan' => $k,
+            'kategori' => $k->kategori,
+            'lampiranDokumen' => $lampiranDokumen,
+            'ttdBase64' => $ttdBase64,
+        ])->setPaper('a4', 'portrait');
+
+        $namaFile = 'Surat-' . Str::slug($k->nama_kegiatan ?: 'kegiatan-' . $k->getKey()) . '.pdf';
+
+        // Default langsung ter-download (.pdf); tambahkan ?preview=1 jika ingin buka inline di browser
+        if ($request->boolean('preview')) {
+            return $pdf->stream($namaFile);
+        }
+
+        return $pdf->download($namaFile);
+    }
+
+    private function ambilTtdBase64(Kegiatan $kegiatan, mixed $timelineAkhir): ?string
+    {
+        $kandidatPaths = array_filter([
+            $timelineAkhir?->id_user ? User::find($timelineAkhir->id_user)?->tanda_tangan_path : null,
+            User::whereNotNull('tanda_tangan_path')->where('tanda_tangan_path', '!=', '')->value('tanda_tangan_path'),
+            $kegiatan->user?->tanda_tangan_path,
         ]);
+
+        foreach ($kandidatPaths as $rawPath) {
+            $cleanPath = ltrim((string) preg_replace('#^/?storage/#', '', $rawPath), '/');
+
+            $lokasi = [
+                Storage::disk('public')->path($cleanPath),
+                public_path('storage/' . $cleanPath),
+                public_path(ltrim((string) $rawPath, '/')),
+            ];
+
+            foreach ($lokasi as $fullPath) {
+                if (is_file($fullPath)) {
+                    $mime = mime_content_type($fullPath) ?: 'image/png';
+                    $data = base64_encode((string) file_get_contents($fullPath));
+
+                    return "data:{$mime};base64,{$data}";
+                }
+            }
+        }
+
+        return null;
     }
 
     private function dapatDiubah(Request $request, int $id): Kegiatan
