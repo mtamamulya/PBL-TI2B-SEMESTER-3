@@ -74,6 +74,9 @@ tags:
   - name: Berita
     description: Pengelolaan berita prodi (baca publik, tulis admin dan kaprodi, tinjau khusus admin).
 
+  - name: Kegiatan Admin Kel1
+    description: Data Kegiatan untuk admin dan kaprodi (Kelompok 1). Baca, tambah, hapus kegiatan berstatus diterima.
+
   - name: Prestasi
     description: Baca daftar dan detail prestasi untuk kebutuhan tampilan Admin dan Kaprodi.
 
@@ -1266,6 +1269,156 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '422':
           $ref: '#/components/responses/ValidasiGagal'
+  /admin/kegiatan/ringkasan:
+    get:
+      tags: [Kegiatan Admin Kel1]
+      summary: Ringkasan jumlah kegiatan (kartu tab)
+      description: Peran **admin** atau **kaprodi**. Hanya kegiatan dengan status terkini `diterima`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Jumlah per tab, daftar tahun, dan daftar kategori.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KegiatanAdminRingkasanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+
+  /admin/kegiatan:
+    get:
+      tags: [Kegiatan Admin Kel1]
+      summary: Daftar Data Kegiatan (berhalaman)
+      description: |
+        Peran **admin** atau **kaprodi**. Hanya kegiatan berstatus terkini `diterima`.
+        Tab ditentukan dari peran akun pembuat kegiatan (prodi = admin/kaprodi, dosen, mahasiswa).
+        Bawaan 100 per halaman, maksimal 200.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jenis
+          in: query
+          description: Tab yang dipilih. Kosong = semua.
+          schema:
+            type: string
+            enum: [prodi, dosen, mahasiswa]
+        - name: id_kategori
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          description: Cari pada nama kegiatan atau pengaju.
+          schema:
+            type: string
+            maxLength: 100
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KegiatanAdminListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Kegiatan Admin Kel1]
+      summary: Tambah kegiatan (langsung berstatus diterima)
+      description: |
+        Peran **admin** atau **kaprodi**. Dikirim sebagai multipart/form-data.
+        Karena multipart tidak mendukung larik bersarang, kirim dengan kunci kurung siku:
+        `anggota[0]=dosen:5`, `dokumen[0][nama]`, `dokumen[0][file]`.
+        Pemilik kegiatan: Kegiatan Prodi = akun pembuat; Kegiatan Dosen = dosen pertama di `anggota`;
+        Kegiatan Mahasiswa = mahasiswa pertama di `anggota` (422 bila tidak ada).
+        Isian `penyelenggara`, `tanggal_mulai`, `tanggal_selesai` yang tidak dimiliki kategorinya
+        dilewati dan dilaporkan di `peringatan`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/KegiatanAdminInput'
+      responses:
+        '201':
+          description: Kegiatan dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KegiatanAdminDetailResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /admin/kegiatan/{id}:
+    get:
+      tags: [Kegiatan Admin Kel1]
+      summary: Detail kegiatan (anggota, dokumen, riwayat)
+      description: Peran **admin** atau **kaprodi**. Hanya kegiatan berstatus terkini `diterima`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail kegiatan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KegiatanAdminDetailResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    delete:
+      tags: [Kegiatan Admin Kel1]
+      summary: Hapus kegiatan
+      description: Khusus peran **admin** (kaprodi mendapat 403). Gagal 409 bila masih dipakai data lain.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Kegiatan dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Kegiatan masih dipakai data lain (mis. prestasi).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalatUmum'
+
   /pengajuan-mahasiswa:
     get:
       tags:
@@ -1398,6 +1551,52 @@ components:
                           type: object
         '401':
           $ref: '#/components/responses/TidakLogin'
+
+  /berita/gambar-konten:
+    post:
+      tags: [Berita]
+      summary: Unggah gambar dokumentasi untuk disisipkan di dalam isi berita
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [gambar]
+              properties:
+                gambar:
+                  type: string
+                  format: binary
+                  description: Gambar JPG, PNG, atau WebP maksimal 5 MB.
+      responses:
+        '201':
+          description: Gambar konten berhasil diunggah.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                      url:
+                        type: string
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
 
   /berita/{id}:
     get:
@@ -1683,6 +1882,73 @@ components:
         '422':
           $ref: '#/components/responses/ValidasiGagal'
 
+  /admin/prestasi/rekap:
+    get:
+      tags: [Admin Prestasi]
+      summary: Rekap prestasi untuk daftar kaprodi dan laporan PDF/Excel (berhalaman)
+      description: |
+        Peran **admin** atau **kaprodi**. Baris sudah matang (nama, kategori, pemilik, tipe, tingkat, capaian,
+        tanggal, tahun, semester). Tahun dan semester mengikuti tanggal selesai (Ganjil bila bulan 9-2, Genap bila 3-8).
+        Bawaan 100 per halaman, maksimal 200.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jenis
+          in: query
+          description: Saring tipe pemilik prestasi. Kosong = semua.
+          schema:
+            type: string
+            enum: [dosen, mahasiswa]
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Rekap prestasi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: integer}
+                        nama: {type: string}
+                        kategori: {type: string}
+                        pemilik_prestasi: {type: string}
+                        tipe: {type: string, enum: [Dosen, Mahasiswa, '-']}
+                        tingkat: {type: string}
+                        capaian: {type: string}
+                        tanggal: {type: string, example: 17 September 2026}
+                        raw_date: {type: string, nullable: true, example: '2026-09-17'}
+                        tahun: {type: integer, nullable: true}
+                        semester: {type: string, example: Ganjil}
+                  meta:
+                    type: object
+                    properties:
+                      current_page: {type: integer}
+                      last_page: {type: integer}
+                      per_page: {type: integer}
+                      total: {type: integer}
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
   /admin/prestasi/opsi:
     get:
       tags: [Admin Prestasi]
@@ -1940,6 +2206,151 @@ components:
 
   schemas:
 
+    KegiatanAdminBaris:
+      type: object
+      properties:
+        id: {type: string, example: '12'}
+        jenis: {type: string, enum: [prodi, dosen, mahasiswa]}
+        nama: {type: string, example: Pelatihan Keamanan Siber}
+        id_kategori: {type: integer}
+        kategori: {type: string}
+        pengaju: {type: string, description: Email akun pembuat untuk prodi; nama dosen/mahasiswa untuk lainnya.}
+        tanggal: {type: string, example: 5 Maret 2026}
+        raw_date: {type: string, nullable: true, example: '2026-03-05'}
+        tahun: {type: integer, nullable: true}
+        status: {type: string, example: Disetujui}
+        semester: {type: string, enum: [Ganjil, Genap]}
+        tingkat: {type: integer, nullable: true}
+        kelas: {type: string}
+
+    KegiatanAdminDetail:
+      allOf:
+        - $ref: '#/components/schemas/KegiatanAdminBaris'
+        - type: object
+          properties:
+            nomor_sk: {type: string, nullable: true}
+            tanggal_sk: {type: string, nullable: true}
+            isian:
+              type: array
+              items:
+                type: object
+                properties:
+                  input: {type: string}
+                  isian: {type: string}
+            anggota:
+              type: array
+              items:
+                type: object
+                properties:
+                  id_user: {type: integer}
+                  nama: {type: string}
+                  tipe: {type: string, enum: [dosen, mahasiswa]}
+                  peran: {type: string, enum: [ketua, anggota]}
+                  status: {type: string}
+                  pengaju: {type: boolean}
+            dokumen:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: integer}
+                  nama: {type: string}
+                  kategori: {type: string}
+                  tipe: {type: string}
+                  lampiran: {type: boolean}
+                  url: {type: string, nullable: true}
+            riwayat:
+              type: array
+              items:
+                type: object
+                properties:
+                  status: {type: string}
+                  tanggal: {type: string}
+                  keterangan: {type: string, nullable: true}
+
+    KegiatanAdminDetailResponse:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/KegiatanAdminDetail'
+        peringatan:
+          type: array
+          description: Hanya pada POST; isian yang dilewati karena tidak ada di kategori.
+          items: {type: string}
+
+    KegiatanAdminListResponse:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        message: {type: string}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KegiatanAdminBaris'
+        meta:
+          type: object
+          properties:
+            current_page: {type: integer}
+            last_page: {type: integer}
+            per_page: {type: integer}
+            total: {type: integer}
+
+    KegiatanAdminRingkasanResponse:
+      type: object
+      properties:
+        success: {type: boolean, example: true}
+        message: {type: string}
+        data:
+          type: object
+          properties:
+            jumlah:
+              type: object
+              properties:
+                semua: {type: integer}
+                prodi: {type: integer}
+                dosen: {type: integer}
+                mahasiswa: {type: integer}
+            tahun:
+              type: array
+              items: {type: integer}
+            kategori:
+              type: array
+              items:
+                type: object
+
+    KegiatanAdminInput:
+      type: object
+      required: [jenis_kegiatan, nama_kegiatan, penyelenggara, tanggal_mulai, tanggal_selesai, anggota]
+      properties:
+        jenis_kegiatan:
+          type: string
+          enum: [Kegiatan Prodi, Kegiatan Dosen, Kegiatan Mahasiswa]
+        id_kategori: {type: integer, description: Isi salah satu dari id_kategori atau kategori.}
+        kategori: {type: string, description: Nama kategori.}
+        nama_kegiatan: {type: string}
+        penyelenggara: {type: string}
+        tanggal_mulai: {type: string, format: date}
+        tanggal_selesai: {type: string, format: date}
+        anggota:
+          type: array
+          minItems: 1
+          description: 'Bentuk `dosen:ID` atau `mahasiswa:ID`; kirim sebagai anggota[0], anggota[1], dst.'
+          items: {type: string, example: 'dosen:5'}
+        dokumen:
+          type: array
+          description: 'Kirim sebagai dokumen[0][nama], dokumen[0][file], dokumen[0][jenis] atau [id_jenis_dokumen], [keterangan], [tautan].'
+          items:
+            type: object
+            properties:
+              nama: {type: string}
+              file: {type: string, format: binary}
+              jenis: {type: string}
+              id_jenis_dokumen: {type: integer}
+              keterangan: {type: string}
+              tautan: {type: string}
+
     AdminPrestasiTampilan:
       type: object
       description: Objek siap tampil untuk Blade Admin; kunci sama dengan formatRow controller sebelumnya.
@@ -2156,8 +2567,33 @@ components:
                 type: string
             capaianList:
               type: array
+              description: Saran capaian standar dan nilai historis; input manual tetap diperbolehkan.
               items:
                 type: string
+            saranIsian:
+              type: object
+              description: Pilihan autocomplete dari maksimal 300 prestasi terbaru; masing-masing maksimal 60 nilai unik.
+              properties:
+                nama_lomba:
+                  type: array
+                  items:
+                    type: string
+                penyelenggara:
+                  type: array
+                  items:
+                    type: string
+                lokasi:
+                  type: array
+                  items:
+                    type: string
+                dosen:
+                  type: array
+                  items:
+                    type: string
+                kategori:
+                  type: array
+                  items:
+                    type: string
             jenisList:
               type: array
               items:
@@ -2262,7 +2698,8 @@ components:
           enum: [Kabupaten/Kota, Provinsi, Nasional, Internasional]
         capaian:
           type: string
-          enum: [Juara 1, Juara 2, Juara 3, Harapan 1, Harapan 2, Harapan 3, Finalis, Peserta]
+          maxLength: 255
+          description: Capaian juara atau penghargaan khusus; boleh diisi manual di luar saran standar.
         jenis:
           type: string
           enum: [Akademik, Nonakademik]

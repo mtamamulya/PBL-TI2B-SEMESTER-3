@@ -38,13 +38,40 @@ class KaprodiPrestasiController extends Controller
         return view('kaprodi.prestasi-detail', compact('prestasi', 'modelAsli'));
     }
 
+    /**
+     * Daftar untuk tabel: dari API rekap (admin dan kaprodi), semua halaman.
+     * Memakai sumber yang sama dengan laporan PDF/Excel dan halaman Prestasi admin, jadi tipe, pemilik, dan semester akurat.
+     */
     private function daftar(): array
     {
-        $hasil = ApiClient::pengguna()->get('/prestasi', ['per_page' => 100]);
+        $baris = [];
+        $halaman = 1;
 
-        return collect($hasil['data'] ?? [])
-            ->map(fn (array $item) => $this->bentukBaris($item))
-            ->all();
+        do {
+            $hasil = ApiClient::pengguna()->get('/admin/prestasi/rekap', ['per_page' => 200, 'page' => $halaman]);
+
+            foreach ($hasil['data'] ?? [] as $r) {
+                if (! is_array($r)) {
+                    continue;
+                }
+
+                $baris[] = [
+                    'id' => $r['id'] ?? null,
+                    'nama' => $r['nama'] ?? '-',
+                    'kategori' => $r['kategori'] ?? '-',
+                    'pengunggah' => $r['pemilik_prestasi'] ?? '-',
+                    'tipe' => $r['tipe'] ?? '-',
+                    'tanggal' => $r['tanggal'] ?? '-',
+                    'raw_date' => $r['raw_date'] ?? null,
+                    'semester' => $r['semester'] ?? '-',
+                ];
+            }
+
+            $terakhir = max(1, (int) ($hasil['meta']['last_page'] ?? 1));
+            $halaman++;
+        } while ($halaman <= $terakhir && $halaman <= 50);
+
+        return $baris;
     }
 
     /** @param array<string, mixed> $item */

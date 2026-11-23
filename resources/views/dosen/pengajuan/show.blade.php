@@ -3,14 +3,9 @@
 @section('title', 'Detail Pengajuan')
 
 @php
-    // DATA TIRUAN. $id berasal dari alamat (/pengajuan/dosen/{id} atau /pengajuan/mahasiswa/{id}).
-    // Nanti diganti data pengajuan dari controller / database oleh tim backend.
-    // $asal diisi dari route: 'dosen' (Tinjau di Pengajuan Dosen) atau 'mahasiswa' (Tinjau di Pengajuan Mahasiswa).
     $asal  = $asal ?? 'mahasiswa';
     $dosen = $asal === 'dosen';
 
-    // Contoh data. Urutannya sama dengan daftar di halaman Pengajuan (id 1–6), jadi tombol Tinjau
-    // di baris ke-3 membuka contoh "Direvisi", baris ke-4 contoh "Ditolak", dst.
     $contohDosen = [
         1 => ['nama' => 'Penyuluhan Literasi Digital', 'pengaju' => 'Filda Huwani Dewi',  'kategori' => 'Pengabdian', 'status' => 'Diajukan', 'catatan' => null],
         2 => ['nama' => 'Seminar Nasional AI',         'pengaju' => 'Angga Wahyu Wibowo', 'kategori' => 'Pengabdian', 'status' => 'Direview', 'catatan' => null],
@@ -29,17 +24,16 @@
     ];
     $cd      = ($dosen ? $contohDosen : $contohMhs)[max(1, min(6, (int) ($id ?? 5)))];
     $status  = $cd['status'];
-    $catatan = $cd['catatan'];   // catatan revisi / alasan penolakan
+    $catatan = $cd['catatan'];
     $pengaju = $cd['pengaju'];
 
-    // Siapa yang meninjau: admin (untuk pengajuan dosen) atau dosen pembimbing (untuk pengajuan mahasiswa).
     $peninjau        = $dosen ? 'Admin' : 'Kuwat Santoso';
     $judulKeputusan  = $dosen ? 'Keputusan Admin' : 'Keputusan Anda';
 
-    $bisaRevisi   = $dosen && $status === 'Direvisi';                          // dosen unggah dokumen perbaikan lalu ajukan kembali
-    $bisaPutuskan = ! $dosen && in_array($status, ['Diajukan', 'Direview']);  // dosen pembimbing memutuskan pengajuan mahasiswa
+    $bisaRevisi   = $dosen && $status === 'Direvisi';
+    $bisaPutuskan = ! $dosen && in_array($status, ['Diajukan', 'Direview']);
     $interaktif   = $bisaRevisi || $bisaPutuskan;
-    $infoDiganti  = $dosen && $status === 'Direvisi';                          // kartu Informasi diganti kartu Keputusan Admin
+    $infoDiganti  = $dosen && $status === 'Direvisi';
 
     $info = [
         'nama'          => $cd['nama'],
@@ -54,7 +48,6 @@
         $info['pembimbing'] = 'Kuwat Santoso';
     }
 
-    // Riwayat status, dari yang paling awal. tipe: biru | oranye | merah | hijau
     $w = '12 Agustus 2026 · 09.14';
     $riwayat = [['judul' => 'Diajukan', 'tipe' => 'biru', 'waktu' => $w, 'oleh' => $pengaju, 'catatan' => 'Pengajuan kegiatan beserta proposal', 'saatIni' => false]];
     if ($status !== 'Diajukan') {
@@ -87,7 +80,6 @@
     ];
     $warnaJudul = ['biru' => 'text-gray-900', 'hijau' => 'text-lime-600', 'oranye' => 'text-orange-800', 'merah' => 'text-red-600'];
 
-    // Warna badge status di kartu Informasi Kegiatan
     $badge = [
         'Diajukan' => 'border-blue-200 bg-blue-100 text-blue-700',
         'Direview' => 'border-blue-200 bg-blue-100 text-blue-700',
@@ -115,16 +107,14 @@
     </div>
 
     <div class="grid grid-cols-1 gap-5 rounded-lg bg-white p-4.5 shadow-sm lg:grid-cols-2 lg:items-start"
-         @if ($interaktif) x-data="tinjauan(@js($status), @js($pengaju), @js($peninjau))" @endif>
+         x-data="tinjauan(@js($status), @js($pengaju), @js($peninjau), @js($id ?? 1))">
 
-        {{-- KIRI: RIWAYAT STATUS --}}
         <section class="{{ $cardClass }}" aria-labelledby="h-riwayat">
             <h2 id="h-riwayat" class="text-xl font-semibold">Riwayat Status</h2>
 
             <ol>
                 @foreach ($riwayat as $r)
                     <li class="flex gap-3">
-                        {{-- ikon + garis penghubung --}}
                         <div class="flex flex-col items-center">
                             <span class="flex size-8 shrink-0 items-center justify-center rounded-full {{ $ikon[$r['tipe']] }}">
                                 @if ($r['tipe'] === 'oranye')
@@ -161,7 +151,6 @@
                 @endforeach
 
                 @if ($interaktif)
-                    {{-- Langkah baru yang muncul setelah dosen mengambil keputusan / mengajukan kembali (simulasi) --}}
                     <li x-show="kembali" x-cloak class="flex gap-3">
                         <div class="flex flex-col items-center">
                             <span class="flex size-8 shrink-0 items-center justify-center rounded-full text-white" :class="entri.ikonBg">
@@ -184,11 +173,9 @@
             </ol>
         </section>
 
-        {{-- KANAN --}}
         <div class="flex flex-col gap-5">
 
             @if ($bisaPutuskan)
-                {{-- Dosen pembimbing memutuskan pengajuan mahasiswa. Tombol hanya simulasi: nanti backend menyimpan keputusan. --}}
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan">
                     <h2 id="h-keputusan" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
 
@@ -220,8 +207,6 @@
             @endif
 
             @if ($status === 'Direvisi')
-                {{-- Direvisi: tampilkan catatan revisi (hanya dibaca, tanpa tombol). Untuk pengajuan dosen, kartu ini
-                     menggantikan kartu Informasi Kegiatan. --}}
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
                     <div class="flex flex-col gap-2 px-4 pb-3">
@@ -236,12 +221,10 @@
             @endif
 
             @if ($bisaRevisi)
-                {{-- Unggah dokumen perbaikan lalu ajukan kembali. Hanya simulasi: nanti backend menyimpan file dan mengubah status. --}}
                 <section class="{{ $cardClass }}" aria-labelledby="h-perbaikan">
                     <h2 id="h-perbaikan" class="text-xl font-semibold">Dokumen Perbaikan</h2>
 
                     <div x-show="!kembali" class="flex flex-col gap-4 px-4 pb-3">
-                        {{-- label dibuat relative supaya jendela pilih file tidak menggeser halaman --}}
                         <label class="relative flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center hover:bg-gray-100 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
                             <svg class="size-7 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14"/></svg>
                             <span class="text-[15px] font-medium">Pilih file dari perangkat</span>
@@ -282,7 +265,6 @@
             @endif
 
             @if ($status === 'Ditolak')
-                {{-- Ditolak: tampilkan alasan penolakan --}}
                 <section class="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-4" aria-labelledby="h-tolak">
                     <h2 id="h-tolak" class="flex items-center gap-2 text-xl font-semibold text-red-700">
                         <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>
@@ -293,8 +275,6 @@
             @endif
 
             @unless ($infoDiganti)
-                {{-- Tombol "Tandai selesai" hanya simulasi dan hanya ada kalau pengajuan sudah Diterima / Selesai.
-                     Nanti backend yang mengubah status. --}}
                 <section class="{{ $cardClass }}" aria-labelledby="h-info"
                          x-data="{ selesai: @js($status === 'Selesai') }">
                     <div class="flex items-center justify-between gap-3">
@@ -338,21 +318,39 @@
                 <h2 id="h-dok" class="text-xl font-semibold">Dokumentasi Terlampir</h2>
 
                 <ul class="flex flex-col">
-                    @foreach ($dokumen as $d)
-                        <li class="flex items-center justify-between gap-3 py-2.5 {{ $loop->last ? '' : 'border-b border-gray-200' }}">
-                            <div class="flex min-w-0 flex-col gap-1">
-                                <span class="truncate text-lg font-medium" title="{{ $d['file'] }}">{{ $d['file'] }}</span>
-                                <span class="text-[15px] text-gray-400">{{ $d['jenis'] }} · {{ $d['ukuran'] }}</span>
-                            </div>
-                            <a href="{{ $d['url'] }}" download="{{ $d['file'] }}" aria-label="Unduh {{ $d['file'] }}"
-                               class="flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-white hover:bg-blue-700">
-                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5"/></svg>
-                            </a>
-                        </li>
-                    @endforeach
+                    <template x-if="daftarDokumen.length > 0">
+                        <template x-for="(doc, index) in daftarDokumen" :key="index">
+                            <li class="flex items-center justify-between gap-3 py-2.5 border-b border-gray-200 last:border-b-0">
+                                <div class="flex min-w-0 flex-col gap-1">
+                                    <span class="truncate text-lg font-medium" x-text="doc.nama_file" :title="doc.nama_file"></span>
+                                    <span class="text-[15px] text-gray-400" x-text="doc.jenis_dokumen"></span>
+                                </div>
+                                <a :href="doc.tautan || '#'" :download="doc.nama_file" :aria-label="`Unduh ${doc.nama_file}`"
+                                   class="flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-white hover:bg-blue-700">
+                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5"/></svg>
+                                </a>
+                            </li>
+                        </template>
+                    </template>
+
+                    <template x-if="daftarDokumen.length === 0">
+                        <div>
+                            @foreach ($dokumen as $d)
+                                <li class="flex items-center justify-between gap-3 py-2.5 {{ $loop->last ? '' : 'border-b border-gray-200' }}">
+                                    <div class="flex min-w-0 flex-col gap-1">
+                                        <span class="truncate text-lg font-medium" title="{{ $d['file'] }}">{{ $d['file'] }}</span>
+                                        <span class="text-[15px] text-gray-400">{{ $d['jenis'] }} · {{ $d['ukuran'] }}</span>
+                                    </div>
+                                    <a href="{{ $d['url'] }}" download="{{ $d['file'] }}" aria-label="Unduh {{ $d['file'] }}"
+                                       class="flex size-10 shrink-0 items-center justify-center rounded-md bg-brand text-white hover:bg-blue-700">
+                                        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v13M6.5 11.5L12 17l5.5-5.5"/></svg>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </div>
+                    </template>
 
                     @if ($bisaRevisi)
-                        {{-- dokumen perbaikan yang baru diajukan --}}
                         <template x-for="f in (kembali ? baru : [])" :key="f.id">
                             <li class="flex items-center justify-between gap-3 border-t border-gray-200 py-2.5">
                                 <div class="flex min-w-0 flex-col gap-1">
@@ -372,22 +370,41 @@
 
 @endsection
 
-@if ($interaktif)
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        // Satu komponen untuk dua keadaan:
-        //  - dosen pembimbing memutuskan pengajuan mahasiswa (putuskan)
-        //  - dosen mengunggah dokumen perbaikan lalu mengajukan kembali (pilih, hapus, ajukan)
-        // Semuanya simulasi tampilan. Nanti backend yang menyimpan data.
-        Alpine.data('tinjauan', (status, pengaju, peninjau) => ({
+        Alpine.data('tinjauan', (status, pengaju, peninjau, pengajuanId) => ({
             statusSekarang: status,
             catatan: '',
             galat: '',
-            kembali: false,   // true setelah ada langkah baru di riwayat
+            kembali: false,
             entri: {},
             baru: [],
+            daftarDokumen: [],
             nomor: 0,
+
+            init() {
+                this.ambilDokumen();
+            },
+
+            ambilDokumen() {
+                console.log("ID Pengajuan saat ini:", pengajuanId);
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/dokumen`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                })
+                .then(response => response.json())
+                .then(result => {
+                    // Diperbaiki menggunakan result.success (menyesuaikan format backend Laravel)
+                    if (result.success && Array.isArray(result.data)) {
+                        this.daftarDokumen = result.data;
+                    }
+                })
+                .catch(error => console.error('Error mengambil dokumen:', error));
+            },
 
             warnaStatus: {
                 Diajukan: 'border-blue-200 bg-blue-100 text-blue-700',
@@ -414,7 +431,6 @@
                 this.kembali = true;
             },
 
-            // Dosen pembimbing: Setujui / Minta revisi / Tolak
             putuskan(hasil) {
                 if (hasil !== 'Diterima' && this.catatan.trim() === '') {
                     this.galat = 'Catatan wajib diisi jika meminta revisi atau menolak.';
@@ -433,13 +449,13 @@
                 this.$dispatch('tampil-alert', { tipe: pesan[0], judul: pesan[1] });
             },
 
-            // Dosen: unggah dokumen perbaikan
             pilih(e) {
                 this.galat = '';
                 for (const f of e.target.files) {
                     if (f.size > 5 * 1024 * 1024) { this.galat = `${f.name} lebih dari 5 MB.`; continue; }
                     const kb = f.size / 1024;
                     this.baru.push({
+                        fileObj: f,
                         id: ++this.nomor, nama: f.name, jenis: 'Proposal',
                         ukuran: kb >= 1024 ? (kb / 1024).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(kb)) + ' KB',
                     });
@@ -450,11 +466,36 @@
             ajukan() {
                 if (this.baru.length === 0) { this.galat = 'Pilih minimal satu dokumen perbaikan.'; return; }
                 this.galat = '';
-                this.tambahRiwayat('Diajukan kembali', 'biru', pengaju, `Dokumen perbaikan: ${this.baru.length} file`);
-                this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
+
+                const formData = new FormData();
+                formData.append('jenis_dokumen', this.baru[0].jenis);
+                this.baru.forEach(item => formData.append('files[]', item.fileObj));
+                formData.append('ajukan_kembali', '1');
+
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/dokumen`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(result => {
+                    // Diperbaiki menggunakan result.success
+                    if (result.success) {
+                        this.tambahRiwayat('Diajukan kembali', 'biru', pengaju, `Dokumen perbaikan: ${this.baru.length} file`);
+                        this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
+                        this.ambilDokumen();
+                        this.statusSekarang = 'Diajukan';
+                        this.baru = [];
+                    } else {
+                        this.galat = result.message || 'Pengajuan gagal disimpan.';
+                    }
+                })
+                .catch(() => { this.galat = 'Tidak dapat menghubungi server.'; });
             },
         }));
     });
 </script>
 @endpush
-@endif

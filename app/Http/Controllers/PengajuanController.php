@@ -6,6 +6,7 @@ use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
+use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
 {
+    use PanggilApiWeb;
+
     private const KEY = 'pengajuan.items';
 
     private const DELETED_KEY = 'pengajuan.deleted';
@@ -117,7 +120,7 @@ class PengajuanController extends Controller
                 'submitted_at' => '2026-04-08T08:45:00+07:00',
                 'category' => 'Pengabdian',
                 'title' => 'Seminar Nasional Teknologi Terapan 2026',
-                'organizer' => 'Politeknik Negeri Semarang',
+                'organizer' => 'Politeiknik Negeri Semarang',
                 'location' => 'Semarang',
                 'start_date' => '2026-04-27',
                 'end_date' => '2026-04-27',
@@ -536,6 +539,7 @@ class PengajuanController extends Controller
                     'start_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
                     'end_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
                     'description' => $detail['item']->deskripsi ?? '',
+                    'advisor' => $detail['item']->dosen_pendamping ?? '',
                     'participation' => 'Individu',
                     'level' => 'Nasional',
                     'organizer' => '-',
@@ -565,25 +569,6 @@ class PengajuanController extends Controller
         $kegiatan = Kegiatan::with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
             ->findOrFail($id);
 
-        $timelines = $kegiatan->timeline;
-        $latestTimeline = $timelines->last();
-        $statusLabel = $this->mapStatusLabel($latestTimeline?->status);
-        $categoryName = $kegiatan->kategori?->nama_kategori ?? 'Kegiatan';
-        $submittedAt = $timelines->first()?->tanggal_status
-            ?? $kegiatan->created_at
-            ?? now();
-
-        $row = [
-            'id' => $kegiatan->id_kegiatan,
-            'title' => $kegiatan->nama_kegiatan,
-            'category' => $categoryName,
-            'type' => $this->typeFor($categoryName),
-            'status' => $statusLabel,
-            'submitted_at' => Carbon::parse($submittedAt),
-            'editable' => in_array($statusLabel, self::EDITABLE, true),
-            'review_note' => $latestTimeline?->catatan_revisi,
-        ];
-
         $student = $this->studentProfile($kegiatan->user);
 
         $actorMap = [
@@ -604,23 +589,107 @@ class PengajuanController extends Controller
             'selesai' => 'Dokumen diterbitkan dan proses pengajuan ditutup.',
         ];
 
-        $steps = $timelines->isNotEmpty()
-            ? $timelines->map(function (Timeline $t) use ($actorMap, $defaultNoteMap) {
-                $statusKey = strtolower($t->status);
+        // Panggil API khusus jalur Mahasiswa: GET /api/v1/mahasiswa/timeline
+        $apiKegiatan = null;
+        try {
+            if (session('api_token')) {
+                $responsApi = $this->apiGet('mahasiswa/timeline', [
+                    'id_kegiatan' => $id,
+                    'per_page' => 1,
+                ]);
+                $apiKegiatan = $responsApi['data'][0] ?? null;
+            } elseif (Auth::check()) {
+                $userLogin = Auth::user();
+                $guardAsli = auth()->getDefaultDriver();
+                $requestAsli = request();
+                $tokenUji = $userLogin->createToken('web-timeline-mahasiswa');
+
+                $apiReq = Request::create('/api/v1/mahasiswa/timeline', 'GET', [
+                    'id_kegiatan' => $id,
+                    'per_page' => 1,
+                ]);
+                $apiReq->headers->set('Accept', 'application/json');
+                $apiReq->headers->set('Authorization', 'Bearer '.$tokenUji->plainTextToken);
+
+                auth()->forgetGuards();
+
+                try {
+                    $resApi = app()->handle($apiReq);
+                    $badanApi = json_decode((string) $resApi->getContent(), true);
+                    $apiKegiatan = $badanApi['data'][0] ?? null;
+                } finally {
+                    $tokenUji->accessToken->delete();
+                    app()->instance('request', $requestAsli);
+                    auth()->forgetGuards();
+                    auth()->shouldUse($guardAsli);
+                    auth()->guard($guardAsli)->setUser($userLogin);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback ke database lokal jika dibuka tanpa api_token sesi
+        }
+
+        if (is_array($apiKegiatan) && ! empty($apiKegiatan['timeline'])) {
+            $apiTimelines = collect($apiKegiatan['timeline']);
+            $latestApi = $apiTimelines->last();
+
+            $statusLabel = $this->mapStatusLabel($apiKegiatan['status'] ?? ($latestApi['status'] ?? 'diajukan'));
+            $submittedAt = $apiTimelines->first()['tanggal_status'] ?? $kegiatan->created_at ?? now();
+            $reviewNote = $latestApi['catatan_revisi'] ?? null;
+
+            $steps = $apiTimelines->map(function (array $t) use ($actorMap, $defaultNoteMap) {
+                $statusKey = strtolower((string) ($t['status'] ?? 'diajukan'));
 
                 return [
-                    'title' => ucfirst($statusKey),
-                    'at' => Carbon::parse($t->tanggal_status ?? $t->created_at),
+                    'title' => $t['label_status'] ?? $this->mapStatusLabel($statusKey),
+                    'at' => Carbon::parse($t['tanggal_status'] ?? now())->setTimezone('Asia/Jakarta'),
                     'actor' => $actorMap[$statusKey] ?? 'Tim administrasi',
-                    'note' => $t->catatan_revisi ?: ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
+                    'note' => ! empty($t['catatan_revisi'])
+                        ? $t['catatan_revisi']
+                        : ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
                 ];
-            })
-            : collect([[
-                'title' => 'Diajukan',
-                'at' => Carbon::parse($submittedAt),
-                'actor' => $student['name'],
-                'note' => 'Pengajuan dikirim untuk ditinjau.',
-            ]]);
+            });
+        } else {
+            // Fallback lokal agar halaman & test tetap berjalan normal
+            $timelines = $kegiatan->timeline;
+            $latestTimeline = $timelines->last();
+            $statusLabel = $this->mapStatusLabel($latestTimeline?->status);
+            $submittedAt = $timelines->first()?->tanggal_status ?? $kegiatan->created_at ?? now();
+            $reviewNote = $latestTimeline?->catatan_revisi;
+
+            $steps = $timelines->isNotEmpty()
+                ? $timelines->map(function (Timeline $t) use ($actorMap, $defaultNoteMap) {
+                    $statusKey = strtolower($t->status);
+
+                    return [
+                        'title' => $this->mapStatusLabel($statusKey),
+                        'at' => Carbon::parse($t->tanggal_status ?? $t->created_at)->setTimezone('Asia/Jakarta'),
+                        'actor' => $actorMap[$statusKey] ?? 'Tim administrasi',
+                        'note' => $t->catatan_revisi ?: ($defaultNoteMap[$statusKey] ?? 'Status pengajuan diperbarui.'),
+                    ];
+                })
+                : collect([[
+                    'title' => 'Diajukan',
+                    'at' => Carbon::parse($submittedAt)->setTimezone('Asia/Jakarta'),
+                    'actor' => $student['name'],
+                    'note' => 'Pengajuan dikirim untuk ditinjau.',
+                ]]);
+        }
+
+        $categoryName = $apiKegiatan['kategori'] ?? ($kegiatan->kategori?->nama_kategori ?? 'Kegiatan');
+
+        $row = [
+            'id' => $kegiatan->id_kegiatan,
+            'title' => $apiKegiatan['nama_kegiatan'] ?? $kegiatan->nama_kegiatan,
+            'category' => $categoryName,
+            'type' => $this->typeFor($categoryName),
+            'status' => $statusLabel,
+            'submitted_at' => Carbon::parse($submittedAt)->setTimezone('Asia/Jakarta'),
+            'editable' => in_array($statusLabel, self::EDITABLE, true),
+            'review_note' => $reviewNote,
+            'nomor_sk' => $apiKegiatan['nomor_sk'] ?? null,
+            'tanggal_sk' => $apiKegiatan['tanggal_sk'] ?? null,
+        ];
 
         $files = $kegiatan->dokumen->map(function ($doc) {
             $path = $doc->path ?? $doc->file_path ?? $doc->url ?? null;
@@ -709,6 +778,7 @@ class PengajuanController extends Controller
                 'role' => ['required', 'string', 'max:255'],
                 'organizer' => ['required', 'string', 'max:255'],
                 'duration_months' => ['required', 'integer', 'min:1', 'max:60'],
+                'advisor' => ['nullable', 'string', 'max:255'],
             ],
             'Pengabdian' => [
                 'title' => ['required', 'string', 'max:255'],
@@ -796,6 +866,7 @@ class PengajuanController extends Controller
                 'id_kategori' => $kategori->id_kategori,
                 'id_user' => $idUser,
                 'nama_kegiatan' => $data['title'],
+                'dosen_pendamping' => $data['category'] === 'Magang' ? ($data['advisor'] ?? null) : null,
                 'lokasi' => $data['location'] ?? null,
                 'deskripsi' => $data['description'] ?? null,
                 'tanggal_mulai' => $data['start_date'] ?? null,
@@ -853,9 +924,20 @@ class PengajuanController extends Controller
                 ->where('nama_kategori', 'like', '%'.$request->input('category').'%')
                 ->first();
 
+            $namaKegiatan = $request->input('title') ?? $request->input('nama_kegiatan');
+            if ($request->input('category') === 'Magang') {
+                $magangData = $request->validate([
+                    'role' => ['required', 'string', 'max:255'],
+                    'organizer' => ['required', 'string', 'max:255'],
+                    'advisor' => ['nullable', 'string', 'max:255'],
+                ]);
+                $namaKegiatan = 'Magang '.$magangData['role'].' di '.$magangData['organizer'];
+            }
+
             $request->merge([
                 'id_kategori' => $kategori?->id_kategori,
-                'nama_kegiatan' => $request->input('title') ?? $request->input('nama_kegiatan'),
+                'nama_kegiatan' => $namaKegiatan,
+                'dosen_pendamping' => $request->input('category') === 'Magang' ? $request->input('advisor') : null,
             ]);
 
             $backend->apiUpdate($request, $id);

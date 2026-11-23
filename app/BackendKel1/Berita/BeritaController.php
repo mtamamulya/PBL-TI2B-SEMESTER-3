@@ -42,6 +42,29 @@ class BeritaController extends Controller
         ]);
     }
 
+    public function uploadGambarKonten(Request $request): JsonResponse
+    {
+        if ($this->bukanPengelola($request)) {
+            return ApiResponse::gagal('Hanya admin atau kaprodi yang boleh mengunggah gambar berita.', 403);
+        }
+
+        $request->validate([
+            'gambar' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+        ], [
+            'gambar.required' => 'Berkas gambar wajib dipilih.',
+            'gambar.image' => 'Berkas harus berupa gambar.',
+            'gambar.mimes' => 'Format gambar harus JPG, PNG, atau WebP.',
+            'gambar.max' => 'Ukuran gambar maksimal 5 MB.',
+        ]);
+
+        $path = $request->file('gambar')->store('berita/konten', 'public');
+
+        return ApiResponse::ok([
+            'path' => $path,
+            'url' => asset('storage/'.$path),
+        ], 'Gambar konten berhasil diunggah.', 201);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $request->validate([
@@ -93,12 +116,18 @@ class BeritaController extends Controller
             ->orderByDesc('tanggal_publish')
             ->limit(4)
             ->get()
-            ->map(fn (Berita $item) => [
-                'id_berita' => $item->id_berita,
-                'judul_berita' => $item->judul_berita,
-                'sampul' => $item->sampul,
-                'tanggal_publish' => $item->tanggal_publish?->toIso8601String(),
-            ])
+            ->map(function (Berita $item) {
+                $eks = $item->sampul ? strtolower(pathinfo($item->sampul, PATHINFO_EXTENSION)) : '';
+
+                return [
+                    'id_berita' => $item->id_berita,
+                    'judul_berita' => $item->judul_berita,
+                    'sampul' => $item->sampul,
+                    'sampul_url' => $item->sampul ? asset('storage/'.$item->sampul) : null,
+                    'is_gambar' => in_array($eks, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true),
+                    'tanggal_publish' => $item->tanggal_publish?->toIso8601String(),
+                ];
+            })
             ->all();
 
         $data = self::bentuk($berita);
@@ -128,7 +157,7 @@ class BeritaController extends Controller
             'id_kegiatan' => $idKegiatan,
             'id_kategori' => $idKategori,
             'judul_berita' => $data['judul'],
-            'isi_berita' => $data['isi'],
+            'isi_berita' => self::bersihkanHtml($data['isi']),
             'status' => $status,
             'tanggal_publish' => $status === 'publish' ? now() : null,
             'sampul' => $sampulPath,
@@ -165,7 +194,7 @@ class BeritaController extends Controller
         $berita->id_kegiatan = $idKegiatan;
         $berita->id_kategori = $idKategori;
         $berita->judul_berita = $data['judul'];
-        $berita->isi_berita = $data['isi'];
+        $berita->isi_berita = self::bersihkanHtml($data['isi']);
         $berita->status = $status;
 
         if ($status === 'publish' && ! $berita->tanggal_publish) {
@@ -238,6 +267,12 @@ class BeritaController extends Controller
             Storage::disk('public')->delete($berita->sampul);
         }
 
+        if (preg_match_all('#/storage/(berita/konten/[^"\'\s>]+)#i', (string) $berita->isi_berita, $matches)) {
+            foreach (array_unique($matches[1]) as $kontenPath) {
+                Storage::disk('public')->delete($kontenPath);
+            }
+        }
+
         $berita->delete();
 
         return ApiResponse::ok(null, 'Berita berhasil dihapus.');
@@ -265,6 +300,16 @@ class BeritaController extends Controller
             'nama_kategori' => $b->kategori?->nama_kategori ?? $b->kegiatan?->kategori?->nama_kategori,
             'created_at' => $b->created_at?->toIso8601String(),
         ];
+    }
+
+    public static function bersihkanHtml(string $html): string
+    {
+        $allowed = '<p><br><h2><h3><h4><strong><b><em><i><u><s><ul><ol><li><blockquote><a><figure><img><figcaption><table><thead><tbody><tr><th><td>';
+        $clean = strip_tags($html, $allowed);
+        $clean = preg_replace('/\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/(href|src)\s*=\s*(["\'])\s*javascript:[^"\']*\2/i', '$1=$2#$2', $clean) ?? $clean;
+
+        return trim($clean);
     }
 
     private function bukanPengelola(Request $request): bool

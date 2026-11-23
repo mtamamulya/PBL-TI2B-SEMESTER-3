@@ -23,8 +23,7 @@ return [
             'children' => [
                 ['label' => 'Kurikulum TRK', 'route' => 'kaprodi.kurikulum.trk', 'url' => 'kurikulum/trk'],
                 ['label' => 'Mata Kuliah', 'route' => 'kaprodi.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
-                ['label' => 'Tahun Akademik', 'url' => '/kaprodi/kurikulum/tahun-akademik', 'route' => 'kaprodi.kurikulum.tahun-akademik'],
-            ]],
+                ['label' => 'Tahun Akademik', 'route' => 'kaprodi.kurikulum.tahun-akademik', 'url' => 'kurikulum/tahun-akademik'],            ]],
 
         ['label' => 'Data Dosen', 'route' => 'kaprodi.dosen', 'url' => 'dosen',
             'icon' => '<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'],

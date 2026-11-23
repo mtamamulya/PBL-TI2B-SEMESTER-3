@@ -177,4 +177,9 @@ class MahasiswaStore
     {
         return null;
     }
+
+    public function sinkronisasiKelas(): ?array
+    {
+        return null;
+    }
 }

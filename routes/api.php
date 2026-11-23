@@ -14,6 +14,11 @@ Route::get('/ping', function () {
     ], 200);
 });
 
+/*
+|--------------------------------------------------------------------------
+| Integrasi dengan Kelompok 1 (Endpoint Kontrak)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('integrasi')
     ->middleware('auth:sanctum')
     ->group(function () {});
