@@ -1552,6 +1552,52 @@ components:
         '401':
           $ref: '#/components/responses/TidakLogin'
 
+  /berita/gambar-konten:
+    post:
+      tags: [Berita]
+      summary: Unggah gambar dokumentasi untuk disisipkan di dalam isi berita
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [gambar]
+              properties:
+                gambar:
+                  type: string
+                  format: binary
+                  description: Gambar JPG, PNG, atau WebP maksimal 5 MB.
+      responses:
+        '201':
+          description: Gambar konten berhasil diunggah.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                      url:
+                        type: string
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
   /berita/{id}:
     get:
       tags: [Berita]

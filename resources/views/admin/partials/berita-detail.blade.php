@@ -1,8 +1,6 @@
 {{--
     resources/views/admin/partials/berita-detail.blade.php
     Isi detail berita, dipakai admin DAN kaprodi (bedanya hanya $prefix: 'admin' | 'kaprodi').
-    Panel Tinjau & Verifikasi hanya muncul untuk admin saat status berita 'Pengajuan'.
-    Variabel: $prefix, $berita, $paragraf, $foto, $hariTanggal, $tanggalPendek, $waktuBaca, $terkait.
 --}}
 @php
     $badgeMap = [
@@ -21,12 +19,30 @@
     ];
     $urlEdit = \Illuminate\Support\Facades\Route::has($prefix.'.berita.edit')
         ? route($prefix.'.berita.edit', $berita['id']) : null;
+    $urlHapus = \Illuminate\Support\Facades\Route::has($prefix.'.berita.destroy')
+        ? route($prefix.'.berita.destroy', $berita['id']) : null;
     $urlTinjau = ($prefix === 'admin' && \Illuminate\Support\Facades\Route::has('admin.berita.tinjau'))
         ? route('admin.berita.tinjau', $berita['id']) : null;
     $showRoute = $prefix.'.berita.show';
     $catatanRevisi = $berita['catatan_revisi'] ?? null;
     $oldAksi = old('aksi');
 @endphp
+
+<style>
+    .berita-konten p { margin-bottom: 1.25rem; text-align: justify; }
+    .berita-konten h2 { font-size: 1.5rem; font-weight: 700; color: #071E38; margin: 1.5rem 0 0.75rem; }
+    .berita-konten h3 { font-size: 1.25rem; font-weight: 700; color: #071E38; margin: 1.25rem 0 0.5rem; }
+    .berita-konten h4 { font-size: 1.1rem; font-weight: 600; color: #071E38; margin: 1rem 0 0.5rem; }
+    .berita-konten ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .berita-konten ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .berita-konten li { margin-bottom: 0.35rem; }
+    .berita-konten blockquote { border-left: 4px solid #2277FF; background: #F8FAFC; padding: 0.875rem 1.25rem; border-radius: 0 0.5rem 0.5rem 0; color: #334155; margin: 1.25rem 0; }
+    .berita-konten a { color: #2277FF; text-decoration: underline; }
+    .berita-konten figure.image { margin: 1.5rem auto; text-align: center; }
+    .berita-konten figure.image img,
+    .berita-konten img { max-width: 100%; height: auto; border-radius: 0.75rem; margin: 1rem auto; display: block; border: 1px solid #E5E7EB; }
+    .berita-konten figure.image figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: #64758A; font-style: italic; }
+</style>
 
 <div class="flex flex-col gap-9">
     @if (session('status'))
@@ -44,18 +60,24 @@
     {{-- Judul + aksi --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <h1 class="max-w-[900px] text-[26px] font-semibold leading-[38px] tracking-[-0.2px]">{{ $berita['judul'] }}</h1>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
             <span class="inline-flex rounded-md border px-2.5 py-1 text-sm font-medium {{ $statusCls }}">{{ $berita['status'] }}</span>
             @if ($urlEdit)
-                <a href="{{ $urlEdit }}" class="flex items-center gap-1.5 rounded-md bg-[#FBE5CB] px-3 py-1.5 text-sm font-medium text-[#C77700]">
+                <a href="{{ $urlEdit }}" class="flex items-center gap-1.5 rounded-md bg-[#FBE5CB] px-3 py-1.5 text-sm font-medium text-[#C77700] hover:bg-[#F8D9B5]">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.828 2.828 0 10-4-4L4 16v4M13.5 6.5l4 4"/></svg>
                     Ubah
                 </a>
             @endif
+            @if ($urlHapus)
+                <button type="button" id="btn-buka-hapus-detail" class="flex cursor-pointer items-center gap-1.5 rounded-md bg-[#FEE2E2] px-3 py-1.5 text-sm font-medium text-[#DC2626] hover:bg-[#FECACA]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/></svg>
+                    Hapus
+                </button>
+            @endif
         </div>
     </div>
 
-    {{-- Catatan revisi / alasan penolakan (tampil jika status Revisi atau Ditolak) --}}
+    {{-- Catatan revisi / alasan penolakan --}}
     @if (in_array($berita['status'], ['Revisi', 'Ditolak'], true) && $catatanRevisi)
         <div class="rounded-[10px] border {{ $berita['status'] === 'Ditolak' ? 'border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]' : 'border-[#FDE047] bg-[#FEFCE8] text-[#854D0E]' }} px-5 py-4">
             <div class="text-sm font-semibold">
@@ -117,60 +139,6 @@
                 </div>
             </form>
         </div>
-
-        <script>
-        (function () {
-            var form = document.getElementById('form-tinjau-berita');
-            var aksiInput = document.getElementById('tinjau-aksi');
-            var wrap = document.getElementById('tinjau-catatan-wrap');
-            var label = document.getElementById('tinjau-catatan-label');
-            var textarea = document.getElementById('catatan_revisi');
-            var submitBtn = document.getElementById('tinjau-submit');
-            var cancelBtn = document.getElementById('tinjau-batal');
-
-            if (!form) return;
-
-            form.querySelectorAll('[data-tinjau-btn]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    var aksi = btn.getAttribute('data-tinjau-btn');
-                    aksiInput.value = aksi;
-
-                    if (aksi === 'terima') {
-                        textarea.removeAttribute('required');
-                        form.submit();
-                        return;
-                    }
-
-                    wrap.classList.remove('hidden');
-                    wrap.classList.add('flex');
-                    textarea.setAttribute('required', 'required');
-
-                    if (aksi === 'tolak') {
-                        label.textContent = 'Alasan Penolakan *';
-                        textarea.placeholder = 'Tuliskan alasan mengapa berita ini ditolak...';
-                        submitBtn.textContent = 'Konfirmasi Tolak Berita';
-                        submitBtn.className = 'cursor-pointer rounded-md bg-[#DC2626] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#B91C1C]';
-                    } else {
-                        label.textContent = 'Catatan Revisi *';
-                        textarea.placeholder = 'Tuliskan bagian berita yang perlu diperbaiki...';
-                        submitBtn.textContent = 'Kirim Permintaan Revisi';
-                        submitBtn.className = 'cursor-pointer rounded-md bg-[#CA8A04] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#A16207]';
-                    }
-
-                    textarea.focus();
-                });
-            });
-
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', function () {
-                    aksiInput.value = '';
-                    textarea.removeAttribute('required');
-                    wrap.classList.add('hidden');
-                    wrap.classList.remove('flex');
-                });
-            }
-        })();
-        </script>
     @endif
 
     {{-- Meta penulis --}}
@@ -190,7 +158,7 @@
 
     <div class="flex flex-col items-start gap-9 xl:flex-row">
 
-        {{-- Artikel --}}
+        {{-- Artikel (Rich Text + Foto Dokumentasi) --}}
         <article class="flex min-w-0 flex-1 flex-col gap-[25px]">
             <div class="flex h-[240px] w-full items-center justify-center overflow-hidden rounded-lg bg-[#F3F4F6] md:h-[420px]">
                 @if ($foto)
@@ -200,10 +168,14 @@
                 @endif
             </div>
 
-            <div class="flex flex-col gap-6 text-justify text-lg font-medium leading-[30px]">
-                @foreach ($paragraf as $p)
-                    <p>{{ $p }}</p>
-                @endforeach
+            <div class="berita-konten text-lg font-normal leading-[30px] text-[#1C2024]">
+                @if (! empty($isiHtml))
+                    {!! $isiHtml !!}
+                @else
+                    @foreach ($paragraf as $p)
+                        <p>{{ $p }}</p>
+                    @endforeach
+                @endif
             </div>
         </article>
 
@@ -227,7 +199,11 @@
                     @forelse ($terkait as $t)
                         <a href="{{ route($showRoute, $t['id']) }}" class="flex items-center gap-[11px] overflow-hidden">
                             <div class="flex h-[72px] w-[110px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#F3F4F6] text-[#A8A8A8]">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11"/><path d="M8 8l4 0"/><path d="M8 12l4 0"/><path d="M8 16l4 0"/></svg>
+                                @if (! empty($t['foto']))
+                                    <img src="{{ $t['foto'] }}" alt="{{ $t['judul'] }}" class="h-full w-full object-cover">
+                                @else
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11"/><path d="M8 8l4 0"/><path d="M8 12l4 0"/><path d="M8 16l4 0"/></svg>
+                                @endif
                             </div>
                             <div class="flex min-w-0 flex-col gap-1">
                                 <div class="line-clamp-2 text-base font-bold leading-[22px] tracking-[-0.18px] text-[#071E38]">{{ $t['judul'] }}</div>
@@ -243,3 +219,96 @@
         </aside>
     </div>
 </div>
+
+{{-- Modal Konfirmasi Hapus Berita --}}
+@if ($urlHapus)
+    <div id="modal-hapus-detail" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-[#071E38]">Hapus Berita?</h3>
+            <p class="mt-2 text-sm text-[#64758A]">
+                Berita <strong class="text-[#111827]">"{{ $berita['judul'] }}"</strong> akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <form method="POST" action="{{ $urlHapus }}" class="mt-5 flex items-center justify-end gap-3">
+                @csrf
+                @method('DELETE')
+                <button type="button" id="btn-batal-hapus-detail" class="cursor-pointer rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#55555C] hover:bg-[#F9FAFB]">
+                    Batal
+                </button>
+                <button type="submit" class="cursor-pointer rounded-lg bg-[#DC2626] px-4 py-2 text-sm font-medium text-white hover:bg-[#B91C1C]">
+                    Ya, Hapus
+                </button>
+            </form>
+        </div>
+    </div>
+@endif
+
+<script>
+(function () {
+    // Modal hapus detail
+    var btnHapus = document.getElementById('btn-buka-hapus-detail');
+    var modalHapus = document.getElementById('modal-hapus-detail');
+    var btnBatalHapus = document.getElementById('btn-batal-hapus-detail');
+
+    if (btnHapus && modalHapus && btnBatalHapus) {
+        btnHapus.addEventListener('click', function () {
+            modalHapus.classList.remove('hidden');
+            modalHapus.classList.add('flex');
+        });
+        btnBatalHapus.addEventListener('click', function () {
+            modalHapus.classList.add('hidden');
+            modalHapus.classList.remove('flex');
+        });
+    }
+
+    // Panel tinjau admin
+    var form = document.getElementById('form-tinjau-berita');
+    if (!form) return;
+
+    var aksiInput = document.getElementById('tinjau-aksi');
+    var wrap = document.getElementById('tinjau-catatan-wrap');
+    var label = document.getElementById('tinjau-catatan-label');
+    var textarea = document.getElementById('catatan_revisi');
+    var submitBtn = document.getElementById('tinjau-submit');
+    var cancelBtn = document.getElementById('tinjau-batal');
+
+    form.querySelectorAll('[data-tinjau-btn]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var aksi = btn.getAttribute('data-tinjau-btn');
+            aksiInput.value = aksi;
+
+            if (aksi === 'terima') {
+                textarea.removeAttribute('required');
+                form.submit();
+                return;
+            }
+
+            wrap.classList.remove('hidden');
+            wrap.classList.add('flex');
+            textarea.setAttribute('required', 'required');
+
+            if (aksi === 'tolak') {
+                label.textContent = 'Alasan Penolakan *';
+                textarea.placeholder = 'Tuliskan alasan mengapa berita ini ditolak...';
+                submitBtn.textContent = 'Konfirmasi Tolak Berita';
+                submitBtn.className = 'cursor-pointer rounded-md bg-[#DC2626] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#B91C1C]';
+            } else {
+                label.textContent = 'Catatan Revisi *';
+                textarea.placeholder = 'Tuliskan bagian berita yang perlu diperbaiki...';
+                submitBtn.textContent = 'Kirim Permintaan Revisi';
+                submitBtn.className = 'cursor-pointer rounded-md bg-[#CA8A04] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#A16207]';
+            }
+
+            textarea.focus();
+        });
+    });
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function () {
+            aksiInput.value = '';
+            textarea.removeAttribute('required');
+            wrap.classList.add('hidden');
+            wrap.classList.remove('flex');
+        });
+    }
+})();
+</script>

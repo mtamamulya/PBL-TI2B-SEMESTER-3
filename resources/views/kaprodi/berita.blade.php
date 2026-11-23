@@ -175,6 +175,26 @@
             </table>
         </div>
     </div>
+
+    {{-- Modal Konfirmasi Hapus Berita --}}
+    <div id="modal-hapus-berita" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-[#071E38]">Hapus Berita?</h3>
+            <p class="mt-2 text-sm text-[#64758A]">
+                Berita <strong id="hapus-judul-berita" class="text-[#111827]"></strong> akan dihapus secara permanen beserta foto sampulnya. Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <form id="form-hapus-berita" method="POST" action="" class="mt-5 flex items-center justify-end gap-3">
+                @csrf
+                @method('DELETE')
+                <button type="button" id="batal-hapus-berita" class="cursor-pointer rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#55555C] hover:bg-[#F9FAFB]">
+                    Batal
+                </button>
+                <button type="submit" class="cursor-pointer rounded-lg bg-[#DC2626] px-4 py-2 text-sm font-medium text-white hover:bg-[#B91C1C]">
+                    Ya, Hapus
+                </button>
+            </form>
+        </div>
+    </div>
 </main>
 @endsection
 
@@ -193,6 +213,9 @@
 
     var URL_VIEW = @js(\Illuminate\Support\Facades\Route::has('kaprodi.berita.show') ? route('kaprodi.berita.show', ['id' => '__ID__']) : null);
     var URL_EDIT = @js(\Illuminate\Support\Facades\Route::has('kaprodi.berita.edit') ? route('kaprodi.berita.edit', ['id' => '__ID__']) : null);
+    // Ganti 'admin.berita.destroy' menjadi 'kaprodi.berita.destroy' pada file kaprodi/berita.blade.php
+    var URL_DEL = @js(\Illuminate\Support\Facades\Route::has('kaprodi.berita.destroy') ? route('kaprodi.berita.destroy', ['id' => '__ID__']) : null);
+    var I_TRASH = svg('<path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>', 20, 1.5);
 
     var $ = function (id) { return document.getElementById(id); };
     var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
@@ -252,11 +275,16 @@
             {
                 data: null, orderable: false, searchable: false,
                 render: function (d, type, r) {
-                    var id = esc(r.id), tombol;
-                    tombol =
-                        '<button type="button" title="Lihat" aria-label="Lihat" data-act="view" data-id="' + id + '" class="rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] hover:bg-[#BBD2F6] cursor-pointer">' + I_EYE + '</button>' +
-                        '<button type="button" title="Ubah" aria-label="Ubah" data-act="edit" data-id="' + id + '" class="rounded-md bg-[#FBE5CB] p-1.5 text-[#FFAA49] hover:bg-[#F8D9B5] cursor-pointer">' + I_EDIT + '</button>';
-                    return '<div class="flex items-center gap-3">' + tombol + '</div>';
+                    var id = esc(r.id);
+                    var btnHapus = URL_DEL
+                    ? '<button type="button" title="Hapus" aria-label="Hapus" data-act="del" data-id="' + id + '" data-judul="' + esc(r.judul) + '" class="rounded-md bg-[#FEE2E2] p-1.5 text-[#DC2626] hover:bg-[#FECACA] cursor-pointer">' + I_TRASH + '</button>'
+                    : '';
+                    var tombol =
+                    '<button type="button" title="Lihat" aria-label="Lihat" data-act="view" data-id="' + id + '" class="rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] hover:bg-[#BBD2F6] cursor-pointer">' + I_EYE + '</button>' +
+                    '<button type="button" title="Ubah" aria-label="Ubah" data-act="edit" data-id="' + id + '" class="rounded-md bg-[#FBE5CB] p-1.5 text-[#FFAA49] hover:bg-[#F8D9B5] cursor-pointer">' + I_EDIT + '</button>' +
+                    btnHapus;
+                    
+                    return '<div class="flex items-center gap-2">' + tombol + '</div>';
                 }
             }
         ],
@@ -299,11 +327,26 @@
     $('fKegiatan').addEventListener('change', function (e) { filter.kegiatan = e.target.value; table.draw(); });
 
     /* ---------- Aksi: lihat / ubah -> halaman detail / edit (aktif bila route-nya ada) ---------- */
+    var modalHapus = $('modal-hapus-berita');
+    var formHapus = $('form-hapus-berita');
+    var judulHapus = $('hapus-judul-berita');
+    
+    $('batal-hapus-berita').addEventListener('click', function () {
+        modalHapus.classList.add('hidden');
+        modalHapus.classList.remove('flex');
+    });
+
     $('tabel').addEventListener('click', function (e) {
         var b = e.target.closest('button[data-act]'); if (!b) return;
         var id = encodeURIComponent(b.dataset.id);
         if (b.dataset.act === 'view' && URL_VIEW) window.location.href = URL_VIEW.replace('__ID__', id);
         if (b.dataset.act === 'edit' && URL_EDIT) window.location.href = URL_EDIT.replace('__ID__', id);
+        if (b.dataset.act === 'del' && URL_DEL) {
+            formHapus.action = URL_DEL.replace('__ID__', id);
+            judulHapus.textContent = '"' + (b.dataset.judul || '') + '"';
+            modalHapus.classList.remove('hidden');
+            modalHapus.classList.add('flex');
+        }
     });
 })();
 </script>
