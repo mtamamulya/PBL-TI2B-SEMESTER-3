@@ -19,6 +19,7 @@ class TahunAkademikController extends Controller
     {
         $response = Http::acceptJson()->get($this->apiUrl('/tahun-akademik'));
         $list = $response->json('data') ?? [];
+
         $aktif = collect($list)->first(function ($item) {
             return in_array(strtolower((string) ($item['status'] ?? '')), ['1', 'true', 'aktif'], true);
         });
