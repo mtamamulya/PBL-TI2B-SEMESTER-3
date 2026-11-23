@@ -44,7 +44,7 @@ class MahasiswaControllerTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertViewIs('mahasiswa.mahasiswa.mata-kuliah');
-        $response->assertSee('Kecerdasan Buatan');
+        $response->assertViewHas('pesanKosong', 'Belum ada data untuk ditampilkan');
     }
 
     public function test_tab_katalog_dan_riwayat_bisa_diakses(): void
@@ -54,12 +54,14 @@ class MahasiswaControllerTest extends TestCase
         $this->actingAs($user)
             ->get('/mahasiswa/mata-kuliah/katalog')
             ->assertStatus(200)
-            ->assertViewIs('mahasiswa.mahasiswa.mata-kuliah');
+            ->assertViewIs('mahasiswa.mahasiswa.mata-kuliah')
+            ->assertViewHas('pesanKosong', 'Belum ada data untuk ditampilkan');
 
         $this->actingAs($user)
             ->get('/mahasiswa/mata-kuliah/riwayat')
             ->assertStatus(200)
-            ->assertViewIs('mahasiswa.mahasiswa.mata-kuliah');
+            ->assertViewIs('mahasiswa.mahasiswa.mata-kuliah')
+            ->assertViewHas('pesanKosong', 'Belum ada data untuk ditampilkan');
     }
 
     public function test_filter_pencarian_mata_kuliah_berjalan(): void
@@ -69,6 +71,7 @@ class MahasiswaControllerTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertViewIs('mahasiswa.mahasiswa.mata-kuliah');
+        $response->assertViewHas('pesanKosong', 'Belum ada data untuk ditampilkan');
     }
 
     public function test_tab_tidak_valid_mengembalikan_404(): void

@@ -21,7 +21,7 @@ class PengajuanController extends Controller
     {
         // Mengambil id_user dari tabel users
         $idUser = (int) $request->user()->getKey();
-        $filterStatus = $request->query('status');
+        $filterStatus = $request->query('status'); // diajukan, direview, direvisi, ditolak, diterima, selesai
         $search = $request->query('search');
 
         // HAPUS ->whereHas('timeline') agar kegiatan yang belum diajukan (draft) tetap tampil di front end
@@ -34,6 +34,7 @@ class PengajuanController extends Controller
             });
         }
 
+        // Filter pencarian judul kegiatan (sesuai UI search bar)
         if (! empty($search)) {
             $query->where('nama_kegiatan', 'like', "%{$search}%"); // Sesuai dengan nama_kegiatan[cite: 7]
         }
