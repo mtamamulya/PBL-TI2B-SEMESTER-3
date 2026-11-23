@@ -9,7 +9,7 @@ Route::get('/ping', function () {
         'data' => [
             'status' => 'ok',
             'service' => 'sikap-kelompok3',
-            'time' => now()->toISOString(),
+            'time' => now()->toIso8601String(),
         ],
     ], 200);
 });

@@ -19,7 +19,7 @@ class PasswordResetOtp extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Kode OTP pemulihan akun SIKAP');
+        return new Envelope(subject: 'Kode OTP pemulihan akun Repositori Kegiatan Prodi');
     }
 
     public function content(): Content
