@@ -10,10 +10,15 @@ use Illuminate\Validation\ValidationException;
 class AlurPengajuan
 {
     public const STATUS_DIAJUKAN = 'diajukan';
+
     public const STATUS_DIREVIEW = 'direview';
+
     public const STATUS_DIREVISI = 'direvisi';
+
     public const STATUS_DITOLAK = 'ditolak';
+
     public const STATUS_DITERIMA = 'diterima';
+
     public const STATUS_SELESAI = 'selesai';
 
     public function ajukanBaru(int $idKegiatan, int $idUser): Timeline
@@ -68,7 +73,7 @@ class AlurPengajuan
                 'id_kegiatan' => $kegiatan->id_kegiatan,
                 'status' => self::STATUS_DIAJUKAN,
                 'tanggal_status' => now(),
-                'catatan_revisi' => $catatan, 
+                'catatan_revisi' => $catatan,
             ]);
         });
     }
@@ -76,7 +81,7 @@ class AlurPengajuan
     private function validasiKepemilikan(Kegiatan $kegiatan, int $idUser): void
     {
         // Mencocokkan id_user yang sedang login dengan id_user pembuat di tabel kegiatan[cite: 7]
-        if ((int) $kegiatan->id_user !== $idUser) { 
+        if ((int) $kegiatan->id_user !== $idUser) {
             abort(403, 'Anda tidak memiliki akses untuk mengajukan kegiatan ini.');
         }
     }

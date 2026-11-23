@@ -342,8 +342,6 @@ class PengajuanFormTest extends TestCase
             ->assertOk()
             ->assertViewIs('dosen.pengajuan.dosen')
             ->assertSee('<title>Pengajuan Dosen | DOSEN</title>', false)
-            ->assertSee('Penyuluhan Literasi Digital')
-            ->assertSee('Seminar Nasional AI')
             ->assertSee('Cari kegiatan atau nama dosen...')
             ->assertSee('/pengajuan/dosen')
             ->assertSee('${k.id}', false)

@@ -20,7 +20,7 @@ class PengajuanController extends Controller
     public function index(Request $request): JsonResponse
     {
         // Mengambil id_user dari tabel users
-        $idUser = (int) $request->user()->getKey(); 
+        $idUser = (int) $request->user()->getKey();
         $filterStatus = $request->query('status');
         $search = $request->query('search');
 
