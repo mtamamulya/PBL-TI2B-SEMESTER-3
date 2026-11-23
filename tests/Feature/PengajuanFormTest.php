@@ -197,7 +197,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Dosen Pendamping')
             ->assertSee('Masukkan nama dosen pendamping');
 
-        $this->post(route('pengajuan.store'), [
+        $response = $this->post(route('pengajuan.store'), [
             'category' => 'Magang',
             'organizer' => 'Perusahaan',
             'role' => 'Developer',
@@ -206,24 +206,22 @@ class PengajuanFormTest extends TestCase
             'location' => 'Semarang',
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
-        ])->assertRedirect(route('pengajuan.show', 101))
-            ->assertSessionHas('pengajuan.items.0.data.advisor', 'Kuwat Santoso');
+        ]);
+        $activityId = DB::table('kegiatan')
+            ->where('dosen_pendamping', 'Kuwat Santoso')
+            ->orderByDesc('id_kegiatan')
+            ->value('id_kegiatan');
+
+        $this->assertNotNull($activityId);
+        $response->assertRedirect(route('pengajuan.show', $activityId));
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => $activityId,
+            'dosen_pendamping' => 'Kuwat Santoso',
+        ]);
     }
 
     public function test_database_magang_submission_persists_and_displays_the_advisor(): void
     {
-        $jenis = DB::table('jenis_kegiatan')->insertGetId([
-            'nama_jenis_kegiatan' => 'Kegiatan Mahasiswa',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        DB::table('kategori')->insert([
-            'id_jenis_kegiatan' => $jenis,
-            'nama_kategori' => 'Magang',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
         $response = $this->post(route('pengajuan.store'), [
             'category' => 'Magang',
             'organizer' => 'Perusahaan',
