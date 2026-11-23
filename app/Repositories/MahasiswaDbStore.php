@@ -319,4 +319,17 @@ class MahasiswaDbStore extends MahasiswaStore
 
         return true;
     }
+
+    public function sinkronisasiKelas(): ?array
+    {
+        $ta = $this->penempatan->tahunAkademikAktif();
+        if (! $ta) {
+            return null;
+        }
+
+        $ringkasan = $this->penempatan->buatUntukSemester((int) $ta->id_tahun_akademik);
+        $ringkasan['tahun_akademik'] = $ta->tahun_akademik;
+
+        return $ringkasan;
+    }
 }

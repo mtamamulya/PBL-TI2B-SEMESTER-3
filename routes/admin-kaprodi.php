@@ -301,6 +301,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.dashboard',
         'kaprodi.kurikulum.trk',
         'kaprodi.kurikulum.mata-kuliah',
+        'kaprodi.kurikulum.tahun-akademik',
         'kaprodi.dosen',
         'kaprodi.mahasiswa',
         'kaprodi.kegiatan.index',

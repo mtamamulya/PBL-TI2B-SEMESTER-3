@@ -96,7 +96,27 @@ class LandingMahasiswaController extends Controller
 
     public function buatKelasSemester(): RedirectResponse
     {
-        $hasil = ApiClient::pengguna()->post('/mahasiswa/sinkronisasi-kelas');
+        try {
+            $hasil = ApiClient::pengguna()->post('/mahasiswa/sinkronisasi-kelas');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $pesan = collect($e->errors())->flatten()->first() ?: $e->getMessage();
+
+            return back()->with('error', $pesan ?: 'Validasi sinkronisasi kelas gagal.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $pesan = trim($e->getMessage());
+
+            return back()->with('error', 'HTTP ' . $e->getStatusCode() . ': ' . ($pesan !== '' ? $pesan : 'Akses ditolak atau endpoint API bermasalah (cek token / port 8001).'));
+        } catch (\Throwable $e) {
+            $pesan = trim($e->getMessage());
+
+            return back()->with('error', get_class($e) . ': ' . ($pesan !== '' ? $pesan : 'Terjadi kesalahan tanpa pesan.'));
+        }
+
+        if (! ($hasil['success'] ?? false)) {
+            $pesan = trim((string) ($hasil['message'] ?? ''));
+
+            return back()->with('error', $pesan !== '' ? $pesan : 'Gagal menjalankan sinkronisasi kelas (respons API: ' . json_encode($hasil) . ').');
+        }
 
         return back()->with('status', $hasil['message'] ?? 'Sinkronisasi kelas selesai.');
     }
