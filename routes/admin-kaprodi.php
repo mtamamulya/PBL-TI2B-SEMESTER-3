@@ -36,16 +36,15 @@ use App\Http\Controllers\KaprodiProfilController;
 // ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiTandaTanganController;
 use App\Http\Controllers\KategoriKegiatanController;
-use App\Http\Controllers\KegiatanDosenController;
 use App\Http\Controllers\KegiatanHapusController;
 use App\Http\Controllers\KegiatanLaporanController;
-use App\Http\Controllers\KegiatanMahasiswaController;
 use App\Http\Controllers\KurikulumController;
 use App\Http\Controllers\LandingDashboardController;
 use App\Http\Controllers\LandingMahasiswaController;
 use App\Http\Controllers\MataKuliahController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
+use App\Http\Controllers\PrestasiLaporanController;
 use App\Http\Controllers\PublicBeritaController;
 use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
@@ -75,6 +74,10 @@ Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->name
 Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->name('password.kirim-ulang');
 Route::post('/lupa-sandi/ubah-email', [PemulihanController::class, 'ubahEmail'])->name('password.ubah-email');
 Route::post('/lupa-sandi/sandi', [PemulihanController::class, 'simpan'])->name('password.simpan');
+Route::post('/lupa-sandi/email', [PemulihanController::class, 'kirimOtp'])->middleware('throttle:5,1')->name('password.email');
+Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->middleware('throttle:10,1')->name('password.otp');
+Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->middleware('throttle:5,1')->name('password.kirim-ulang');
+Route::get('/lupa-sandi/email', fn () => redirect()->route('password.request'));
 
 // ---------- Admin (dijaga AdminOnly) ----------
 Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
@@ -128,9 +131,10 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/kegiatan', [AdminKegiatanController::class, 'index'])->name('admin.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('admin.kegiatan.create');
     Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('admin.kegiatan.store');
+    // Nama lama untuk tautan/breadcrumb lama; daftar kegiatan kini satu halaman bertab (sama seperti sisi kaprodi).
+    Route::redirect('/kegiatan/dosen', '/admin/kegiatan?tab=dosen')->name('admin.kegiatan.dosen');
+    Route::redirect('/kegiatan/mahasiswa', '/admin/kegiatan?tab=mahasiswa')->name('admin.kegiatan.mahasiswa');
 
-    Route::get('/kegiatan/mahasiswa', [KegiatanMahasiswaController::class, 'index'])->name('admin.kegiatan.mahasiswa');
-    Route::get('/kegiatan/dosen', [KegiatanDosenController::class, 'index'])->name('admin.kegiatan.dosen');
     Route::get('/kegiatan/dosen/laporan', [KegiatanLaporanController::class, 'dosen'])->name('admin.kegiatan.dosen.laporan');
     Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.laporan');
     Route::get('/kegiatan/prodi/laporan', [KegiatanLaporanController::class, 'prodi'])->name('admin.kegiatan.prodi.laporan');
@@ -175,6 +179,10 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     // Prestasi
     Route::get('/prestasi', [AdminPrestasiController::class, 'index'])->name('admin.prestasi');
     Route::get('/prestasi/tambah', [AdminPrestasiController::class, 'create'])->name('admin.prestasi.create');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('admin.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('admin.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('admin.prestasi.mahasiswa.laporan');
     Route::post('/prestasi', [AdminPrestasiController::class, 'store'])->name('admin.prestasi.store');
     Route::get('/prestasi/{id}', [AdminPrestasiController::class, 'show'])->name('admin.prestasi.show');
     Route::get('/prestasi/{id}/edit', [AdminPrestasiController::class, 'edit'])->name('admin.prestasi.edit');
@@ -273,6 +281,10 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/profil', [KaprodiProfilController::class, 'index'])->name('kaprodi.profil');
 
     Route::get('/prestasi', [KaprodiPrestasiController::class, 'index'])->name('kaprodi.prestasi');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('kaprodi.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('kaprodi.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('kaprodi.prestasi.mahasiswa.laporan');
     Route::get('/prestasi/{id}', [KaprodiPrestasiController::class, 'show'])->name('kaprodi.prestasi.show');
 
     Route::get('/pengajuan/{id}/tanda-tangan', [KaprodiPengajuanController::class, 'ttdSurat'])->name('kaprodi.pengajuan.ttd');

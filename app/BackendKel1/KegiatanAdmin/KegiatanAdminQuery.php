@@ -4,6 +4,7 @@ namespace App\BackendKel1\KegiatanAdmin;
 
 use App\Models\Kegiatan;
 use App\Models\User;
+use App\Support\LinkFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
@@ -98,6 +99,14 @@ class KegiatanAdminQuery
 
     public static function detail(Kegiatan $k): array
     {
+        $k->loadMissing([
+            'detail.isianKategori',
+            'anggota.user.dosen',
+            'anggota.user.mahasiswa',
+            'dokumen.jenisDokumen',
+            'timeline',
+        ]);
+
         return self::baris($k) + [
             'nomor_sk' => $k->nomor_sk,
             'tanggal_sk' => $k->tanggal_sk?->toDateString(),
@@ -105,6 +114,37 @@ class KegiatanAdminQuery
                 'input' => $d->isianKategori?->input,
                 'isian' => $d->isian,
             ])->values()->all(),
+            'anggota' => $k->anggota->map(fn ($a) => [
+                'id_user' => $a->id_user,
+                'nama' => $a->user?->dosen?->nama ?? $a->user?->mahasiswa?->nama ?? $a->user?->email ?? '-',
+                'tipe' => self::jenisDariRole($a->user?->id_role),
+                'peran' => $a->peran,
+                'status' => ucfirst((string) $a->peran),
+                'pengaju' => (int) $a->id_user === (int) $k->id_user,
+            ])->values()->all(),
+            'dokumen' => $k->dokumen->map(fn ($d) => [
+                'id' => $d->id_dokumen,
+                'nama' => $d->nama_file,
+                'kategori' => $d->jenisDokumen?->nama_jenis_dokumen ?? '-',
+                'tipe' => $d->tipe_dokumen,
+                'lampiran' => (bool) $d->is_lampiran,
+                'url' => self::urlDokumen($d->link_dokumen),
+            ])->values()->all(),
+            'riwayat' => $k->timeline->map(fn ($t) => [
+                'status' => ucfirst((string) $t->status),
+                'tanggal' => $t->tanggal_status?->copy()->locale('id')->translatedFormat('j F Y'),
+                'keterangan' => $t->catatan_revisi,
+            ])->values()->all(),
         ];
+    }
+
+    /** Tautan luar dipakai apa adanya; berkas unggahan diubah ke URL publik. */
+    private static function urlDokumen(?string $link): ?string
+    {
+        if (! $link) {
+            return null;
+        }
+
+        return preg_match('#^https?://#i', $link) ? $link : LinkFile::url($link);
     }
 }

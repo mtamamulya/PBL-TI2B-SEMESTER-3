@@ -66,6 +66,22 @@ class KegiatanAdminController extends Controller
             : ApiResponse::gagal('Kegiatan tidak ditemukan.', 404);
     }
 
+    /** Tambah kegiatan (admin & kaprodi): langsung berstatus diterima. Lihat KegiatanAdminSimpan untuk aturan pemilik/tab. */
+    public function store(Request $request, KegiatanAdminSimpan $simpan): JsonResponse
+    {
+        $request->merge(KegiatanAdminSimpan::normalisasi($request->input()));
+        $data = $request->validate(KegiatanAdminSimpan::aturan());
+
+        $hasil = $simpan->simpan($data, $request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kegiatan berhasil ditambahkan.',
+            'data' => KegiatanAdminQuery::detail(KegiatanAdminQuery::dasar()->findOrFail($hasil['kegiatan']->id_kegiatan)),
+            'peringatan' => $hasil['peringatan'],
+        ], 201);
+    }
+
     public function destroy(Request $request, int $id): JsonResponse
     {
         if ((int) $request->user()?->id_role !== 1) {
