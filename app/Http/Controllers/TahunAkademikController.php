@@ -24,10 +24,11 @@ class TahunAkademikController extends Controller
             return in_array(strtolower((string) ($item['status'] ?? '')), ['1', 'true', 'aktif'], true);
         });
 
-        return view('admin.tahun-akademik', [
+        $isAdmin = request()->routeIs('admin.*');
+
+        return view($isAdmin ? 'admin.tahun-akademik' : 'kaprodi.tahun-akademik', [
             'tahunAkademikList' => $list,
             'tahunAkademikAktif' => $aktif,
-            'isAdmin' => $this->isAdmin($request),
         ]);
     }
 

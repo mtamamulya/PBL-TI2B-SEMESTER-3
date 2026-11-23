@@ -5,7 +5,6 @@
 @section('content')
 <link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
 <style>
-    /* ---------- Kotak tabel (selaras dengan dosen.blade.php) ---------- */
     #tabel-wrap .dt-layout-row { margin: 0; }
     #tabel-wrap .dt-layout-row.dt-layout-table {
         border: 1px solid rgb(0 0 47 / .15);
@@ -42,7 +41,6 @@
     #tabel.dataTable > thead > tr > th:first-child,
     #tabel.dataTable > tbody > tr > td:first-child:not(.dt-empty) { padding-left: 20px; }
 
-    /* ---------- Paginasi: di tengah bawah, tombol kotak 32px ---------- */
     #tabel-wrap .dt-layout-row:not(.dt-layout-table) { padding: 24px 0 0; justify-content: center; }
     #tabel-wrap .dt-layout-row:not(.dt-layout-table) .dt-layout-cell { width: 100%; padding: 0; display: flex; justify-content: center; }
     #tabel-wrap .dt-paging nav { display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -87,7 +85,6 @@
     #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
     #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
 
-    /* ---------- Modal konfirmasi simpan (selaras dengan dosen & mahasiswa) ---------- */
     #modalKonfirmasiTA { position: fixed; inset: 0; margin: auto; height: fit-content; width: 400px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
     #modalKonfirmasiTA::backdrop { background: rgb(10 10 10 / .45); }
     #modalKonfirmasiTA[open] { animation: modalMasuk .15s ease-out; }
@@ -113,13 +110,10 @@
         return `${this.semester} ${this.tahunAjaran}`;
     }
 }">
-    {{-- Header & Breadcrumb --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="mt-[6px] text-[32px] font-bold leading-10 tracking-[-0.3px]">Tahun Akademik</h1>
-            <x-admin.breadcrumb :items="$isAdmin
-                ? [['Dashboard', 'admin.dashboard'], ['Kurikulum', 'admin.kurikulum.trk'], ['Tahun Akademik']]
-                : [['Dashboard', 'kaprodi.dashboard'], ['Kurikulum', 'kaprodi.kurikulum.trk'], ['Tahun Akademik']]" />
+            <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Kurikulum', 'admin.kurikulum.trk'], ['Tahun Akademik']]" />
         </div>
 
         @if($tahunAkademikAktif)
@@ -130,7 +124,6 @@
         @endif
     </div>
 
-    {{-- Alert Sukses / Error --}}
     @if (session('status'))
         <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">
             {{ session('status') }}
@@ -147,50 +140,48 @@
         </div>
     @endif
 
-    <div class="mt-6 grid grid-cols-1 items-start gap-6 {{ $isAdmin ? 'lg:grid-cols-12' : '' }}">
-        {{-- Form Tambah Tahun Akademik (Khusus Admin; Kaprodi Read-Only) --}}
-        @if($isAdmin)
-            <section class="rounded-lg bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] lg:col-span-4">
-                <h2 class="text-base font-semibold text-[#1C2024]">Tambah Tahun Akademik</h2>
-                <p class="mt-1 text-xs text-[#55555C]">
-                    Periode baru otomatis aktif dan menonaktifkan periode sebelumnya.
-                </p>
+    <div class="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        {{-- Form Tambah Tahun Akademik --}}
+        <section class="rounded-lg bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] lg:col-span-4">
+            <h2 class="text-base font-semibold text-[#1C2024]">Tambah Tahun Akademik</h2>
+            <p class="mt-1 text-xs text-[#55555C]">
+                Periode baru otomatis aktif dan menonaktifkan periode sebelumnya.
+            </p>
 
-                <form id="formTahunAkademik" action="{{ route('admin.kurikulum.tahun-akademik.store') }}" method="POST" class="mt-4 space-y-4">
-                    @csrf
+            <form id="formTahunAkademik" action="{{ route('admin.kurikulum.tahun-akademik.store') }}" method="POST" class="mt-4 space-y-4">
+                @csrf
 
-                    <div>
-                        <label for="semester" class="block text-sm font-medium text-[#1C2024]">Semester</label>
-                        <select id="semester" name="semester" x-model="semester"
-                                class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none focus:border-[#1F73FF]">
-                            <option value="Ganjil">Ganjil</option>
-                            <option value="Genap">Genap</option>
-                        </select>
-                    </div>
+                <div>
+                    <label for="semester" class="block text-sm font-medium text-[#1C2024]">Semester</label>
+                    <select id="semester" name="semester" x-model="semester"
+                            class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none focus:border-[#1F73FF]">
+                        <option value="Ganjil">Ganjil</option>
+                        <option value="Genap">Genap</option>
+                    </select>
+                </div>
 
-                    <div>
-                        <label for="tahun_ajaran" class="block text-sm font-medium text-[#1C2024]">Tahun Ajaran</label>
-                        <input type="text" id="tahun_ajaran" name="tahun_ajaran" x-model="tahunAjaran"
-                               placeholder="2026/2027"
-                               class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none placeholder:text-[#B3B3B8] focus:border-[#1F73FF]"
-                               required>
-                        <p class="mt-1 text-xs text-[#8A8A90]">Format: YYYY/YYYY (contoh: 2026/2027 atau 2027/2028)</p>
-                    </div>
+                <div>
+                    <label for="tahun_ajaran" class="block text-sm font-medium text-[#1C2024]">Tahun Ajaran</label>
+                    <input type="text" id="tahun_ajaran" name="tahun_ajaran" x-model="tahunAjaran"
+                           placeholder="2026/2027"
+                           class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none placeholder:text-[#B3B3B8] focus:border-[#1F73FF]"
+                           required>
+                    <p class="mt-1 text-xs text-[#8A8A90]">Format: YYYY/YYYY (contoh: 2026/2027 atau 2027/2028)</p>
+                </div>
 
-                    <div class="rounded-md bg-[#F9F9FC] px-3.5 py-2.5 text-xs text-[#55555C]">
-                        Pratinjau: <strong class="text-[#1C2024]" x-text="previewLabel"></strong>
-                    </div>
+                <div class="rounded-md bg-[#F9F9FC] px-3.5 py-2.5 text-xs text-[#55555C]">
+                    Pratinjau: <strong class="text-[#1C2024]" x-text="previewLabel"></strong>
+                </div>
 
-                    <button type="button" id="btnBukaModalTA"
-                            class="h-10 w-full cursor-pointer rounded-md bg-[#1F73FF] px-4 text-sm font-medium text-white transition hover:bg-[#1A66E0]">
-                        Simpan &amp; Aktifkan
-                    </button>
-                </form>
-            </section>
-        @endif
+                <button type="button" id="btnBukaModalTA"
+                        class="h-10 w-full cursor-pointer rounded-md bg-[#1F73FF] px-4 text-sm font-medium text-white transition hover:bg-[#1A66E0]">
+                    Simpan &amp; Aktifkan
+                </button>
+            </form>
+        </section>
 
         {{-- Daftar Riwayat Tahun Akademik --}}
-        <section class="rounded-lg bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] {{ $isAdmin ? 'lg:col-span-8' : '' }}">
+        <section class="rounded-lg bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] lg:col-span-8">
             <div class="flex items-center justify-between gap-2">
                 <div>
                     <h2 class="text-base font-semibold text-[#1C2024]">Daftar Tahun Akademik</h2>
@@ -214,8 +205,6 @@
     </div>
 </main>
 
-{{-- Modal Konfirmasi Simpan & Aktifkan Tahun Akademik --}}
-@if($isAdmin)
 <dialog id="modalKonfirmasiTA" aria-labelledby="modalTAJudul" aria-describedby="modalTATeks">
     <div class="modal-kartu">
         <div class="modal-ikon-biru">
@@ -237,7 +226,6 @@
         </div>
     </div>
 </dialog>
-@endif
 @endsection
 
 @push('scripts')
@@ -294,7 +282,6 @@
     table.on('draw.dt', togglePager);
     togglePager();
 
-    // ---------- Modal Konfirmasi Tambah Tahun Akademik ----------
     var form = document.getElementById('formTahunAkademik');
     var btnBuka = document.getElementById('btnBukaModalTA');
     var modal = document.getElementById('modalKonfirmasiTA');
@@ -317,19 +304,12 @@
             }
         });
 
-        btnBatal.addEventListener('click', function () {
-            modal.close();
-        });
-
-        modal.addEventListener('click', function (e) {
-            if (e.target === modal) modal.close();
-        });
-
+        btnBatal.addEventListener('click', function () { modal.close(); });
+        modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
         modal.addEventListener('close', function () {
             btnYa.disabled = false;
             btnYa.textContent = 'Ya, Simpan & Aktifkan';
         });
-
         btnYa.addEventListener('click', function () {
             btnYa.disabled = true;
             btnYa.textContent = 'Menyimpan...';
