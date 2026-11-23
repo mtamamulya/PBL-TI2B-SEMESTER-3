@@ -3,8 +3,8 @@
 namespace Tests\Feature\BackendKel2;
 
 use App\BackendKel2\Dokumen\JenisDokumenBaku;
-use Database\Seeders\JenisDokumenSeeder;
 use App\Models\JenisDokumen;
+use Database\Seeders\JenisDokumenSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
