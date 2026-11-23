@@ -1,6 +1,7 @@
 <?php
 
 use App\BackendKel3\Dashboard\DosenDashboardController;
+use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
@@ -131,4 +132,3 @@ Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id)
 
 require __DIR__.'/admin-kaprodi.php';
 require __DIR__.'/api-docs.php';
-require base_path('app/BackendKel3/Dashboard/routes.php');

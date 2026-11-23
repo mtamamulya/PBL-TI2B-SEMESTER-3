@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EnrollmentKelasMataKuliah;
 use App\Models\Kegiatan;
 use App\Models\TahunAkademik;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,22 +22,21 @@ class DashboardApiController extends Controller
             ? TahunAkademik::find((int) $request->query('tahun_akademik'))
             : TahunAkademik::where('status', true)->first();
 
-        $queryKegiatan = method_exists(Kegiatan::class, 'scopeUntukUser') && $user
-            ? Kegiatan::untukUser($user->id_user)
-            : Kegiatan::where('id_user', $user?->id_user ?? 0);
+        // Kirim object $user (bukan $user->id_user)
+        $semuaKegiatan = Kegiatan::untukUser($user)
+            ->with([
+                'kategori.jenisKegiatan',
+                'timeline' => fn ($q) => $q->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
+            ])
+            ->get()
+            ->map(function ($item) {
+                $latest = $item->timeline->first();
+                $item->status_terakhir = strtolower((string) ($latest?->status ?? 'diajukan'));
+                $item->tanggal_status_terakhir = $latest?->tanggal_status ?? $item->created_at;
 
-        $semuaKegiatan = $queryKegiatan->with([
-            'kategori.jenisKegiatan',
-            'timeline' => fn ($q) => $q->orderByDesc('tanggal_status')->orderByDesc('id_timeline'),
-        ])->get()->map(function ($item) {
-            $latest = $item->timeline->first();
-            $item->status_terakhir = $latest?->status ?? 'diajukan';
-            $item->tanggal_status_terakhir = $latest?->tanggal_status ?? $item->created_at;
+                return $item;
+            });
 
-            return $item;
-        });
-
-        // Grafik per tahun
         $tahunSekarang = (int) now()->year;
         $grafikPerTahun = [];
         for ($tahun = $tahunSekarang - 4; $tahun <= $tahunSekarang; $tahun++) {
@@ -53,7 +53,6 @@ class DashboardApiController extends Controller
             }
         }
 
-        // Jumlah penugasan mengajar
         $jumlahPengajaran = $dosen
             ? EnrollmentKelasMataKuliah::where('id_dosen', $dosen->id_dosen)
                 ->when($tahunAktif, fn ($q) => $q->whereHas(
@@ -72,7 +71,7 @@ class DashboardApiController extends Controller
         )->count();
 
         $pengajuanMenunggu = $semuaKegiatan
-            ->whereIn('status_terakhir', ['diajukan', 'direview', 'direvisi'])
+            ->whereIn('status_terakhir', ['diajukan', 'direview', 'direvisi', 'revisi'])
             ->values()
             ->map(fn ($item) => [
                 'id_kegiatan' => $item->id_kegiatan,
@@ -83,20 +82,17 @@ class DashboardApiController extends Controller
                 'detail_url' => route('dosen.kegiatan.show', $item->id_kegiatan),
             ]);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => [
-                'tahun_akademik' => $tahunAktif?->tahun_akademik,
-                'ringkasan' => [
-                    'penugasan_mengajar' => $jumlahPengajaran,
-                    'penelitian' => $jumlahPenelitian,
-                    'pengabdian' => $jumlahPengabdian,
-                    'pengajuan_menunggu' => $pengajuanMenunggu->count(),
-                    'total_kegiatan' => $semuaKegiatan->count(),
-                ],
-                'daftar_menunggu' => $pengajuanMenunggu,
-                'grafik_per_tahun' => $grafikPerTahun,
+        return ApiResponse::success([
+            'tahun_akademik' => $tahunAktif?->tahun_akademik,
+            'ringkasan' => [
+                'penugasan_mengajar' => $jumlahPengajaran,
+                'penelitian' => $jumlahPenelitian,
+                'pengabdian' => $jumlahPengabdian,
+                'pengajuan_menunggu' => $pengajuanMenunggu->count(),
+                'total_kegiatan' => $semuaKegiatan->count(),
             ],
-        ]);
+            'daftar_menunggu' => $pengajuanMenunggu,
+            'grafik_per_tahun' => $grafikPerTahun,
+        ], 'Data dashboard dosen berhasil dimuat.');
     }
 }

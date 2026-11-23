@@ -31,6 +31,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/prestasi/{id}', [PrestasiController::class, 'show']);
     Route::put('/prestasi/{id}', [PrestasiController::class, 'update']);
     Route::delete('/prestasi/{id}', [PrestasiController::class, 'destroy']);
-    Route::get('/dashboard', [DashboardApiController::class, 'index']);
-    Route::get('/notifikasi', [NotifikasiController::class, 'index']);
 });
