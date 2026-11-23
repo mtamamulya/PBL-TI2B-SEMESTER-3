@@ -1,20 +1,17 @@
 {{--
     resources/views/admin/mahasiswa-detail.blade.php
-    Detail mahasiswa. Tab Riwayat (enrollment / kegiatan diikuti) berganti tanpa memuat ulang halaman.
-    Data dari MahasiswaController@show (sementara data contoh).
+    Detail mahasiswa -> data dikirim oleh MahasiswaController@show via ApiClient.
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Detail Mahasiswa')
 
 @php
-    // Ambil email dari array $identity bawaan controller
-    $emailAkun = $identity[0][1] ?? '-';
-
-    // Hapus grup "Identitas dan akun", sisakan Informasi akademik saja
-    $groups = [
-        ['title' => 'Informasi akademik', 'items' => $academic],
-    ];
+    $mhsId     = $mahasiswa['id'] ?? request()->route('id');
+    $mahasiswa = $mahasiswa ?? [];
+    $academic  = $academic ?? [];
+    $history   = $history ?? [];
+    $kegiatan  = $kegiatan ?? [];
 
     $tag        = 'inline-flex items-center rounded-lg border border-[#AAC8F8] bg-[#CDDEF9] px-2 py-0.5 text-xs font-medium leading-4 tracking-[-0.12px] text-[#2277FF]';
     $cardShadow = 'shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]';
@@ -35,11 +32,11 @@
             <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Detail Mahasiswa</h1>
             <div class="text-2xl font-medium leading-[30px] tracking-[-0.15px] text-[#A8A8A8]">Dashboard / Mahasiswa / Detail</div>
         </div>
-        <a href="{{ route('admin.mahasiswa') }}" class="flex items-center justify-center gap-1 rounded-md bg-[#CDDEF9] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#2277FF] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+        <a href="{{ route('admin.mahasiswa', [], false) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#CDDEF9] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#2277FF] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6" /></svg>
             Kembali
         </a>
-        <a href="{{ route('admin.mahasiswa.edit', $mahasiswa['id']) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+        <a href="{{ route('admin.mahasiswa.edit', ['id' => $mhsId], false) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg>
             Edit Mahasiswa
         </a>
@@ -52,38 +49,38 @@
     {{-- Profil + informasi --}}
     <section class="flex flex-col gap-[42px] rounded-lg bg-white px-4 pb-6 pt-4">
         <div class="flex items-center gap-6">
-            @if(!empty($mahasiswa['foto']))
-                <img src="{{ Storage::disk('public')->url($mahasiswa['foto']) }}" alt="Foto {{ $mahasiswa['nama'] }}" class="size-16 shrink-0 rounded-full object-cover border border-gray-200">
-            @else
-                <div class="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#D9D9D9] text-2xl font-semibold text-[#6B6B6B]" aria-hidden="true">{{ mb_strtoupper(mb_substr($mahasiswa['nama'], 0, 1)) }}</div>
-            @endif
+            <div>
+                @if (! empty($fotoUrl))
+                    <img src="{{ $fotoUrl }}" alt="Foto {{ $mahasiswa['nama'] ?? '' }}" class="size-16 shrink-0 rounded-full border border-gray-200 object-cover">
+                @else
+                    <div class="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#D9D9D9] text-2xl font-semibold text-[#6B6B6B]" aria-hidden="true">{{ mb_strtoupper(mb_substr($mahasiswa['nama'] ?? 'M', 0, 1)) }}</div>
+                @endif
+            </div>
             <div class="flex flex-col gap-1">
                 <div class="flex flex-wrap items-center gap-3">
-                    <div class="text-xl font-semibold leading-6">{{ $mahasiswa['nama'] }}</div>
+                    <div class="text-xl font-semibold leading-6">{{ $mahasiswa['nama'] ?? '-' }}</div>
                     <span @class([
                         'rounded-lg border px-2 py-0.5 text-xs font-medium leading-4 tracking-[-0.12px]',
-                        'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]' => $mahasiswa['status'] === 'Aktif',
-                        'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]' => $mahasiswa['status'] === 'Cuti',
-                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'], ['Aktif', 'Cuti']),
-                    ])>{{ $mahasiswa['status'] }}</span>
+                        'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]' => ($mahasiswa['status'] ?? '') === 'Aktif',
+                        'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]' => ($mahasiswa['status'] ?? '') === 'Cuti',
+                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'] ?? '', ['Aktif', 'Cuti']),
+                    ])>{{ $mahasiswa['status'] ?? '-' }}</span>
                 </div>
-                <div class="text-base font-medium tracking-[-0.18px] text-[#A8A8A8]">NIM {{ $mahasiswa['nim'] }}</div>
+                <div class="text-base font-medium tracking-[-0.18px] text-[#A8A8A8]">NIM {{ $mahasiswa['nim'] ?? '-' }}</div>
             </div>
         </div>
 
-        @foreach ($groups as $g)
-            <div class="flex w-full flex-col gap-3">
-                <div class="text-base font-medium text-[#2E2E2E]">{{ $g['title'] }}</div>
-                <div class="flex flex-col gap-6 rounded-lg bg-[rgba(34,119,255,0.06)] p-5 sm:flex-row sm:items-center sm:justify-between">
-                    @foreach ($g['items'] as [$k, $v])
-                        <div class="flex flex-col gap-1.5">
-                            <div class="text-base font-medium text-[#A8A8A8]">{{ $k }}</div>
-                            <div class="whitespace-nowrap text-base font-semibold text-[#2E2E2E]">{{ $v }}</div>
-                        </div>
-                    @endforeach
-                </div>
+        <div class="flex w-full flex-col gap-3">
+            <div class="text-base font-medium text-[#2E2E2E]">Informasi akademik</div>
+            <div class="flex flex-col gap-6 rounded-lg bg-[rgba(34,119,255,0.06)] p-5 sm:flex-row sm:items-center sm:justify-between">
+                @foreach ($academic as [$k, $v])
+                    <div class="flex flex-col gap-1.5">
+                        <div class="text-base font-medium text-[#A8A8A8]">{{ $k }}</div>
+                        <div class="whitespace-nowrap text-base font-semibold text-[#2E2E2E]">{{ $v }}</div>
+                    </div>
+                @endforeach
             </div>
-        @endforeach
+        </div>
     </section>
 
     {{-- Riwayat --}}

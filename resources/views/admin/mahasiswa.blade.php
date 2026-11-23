@@ -1,17 +1,15 @@
 {{--
     resources/views/admin/mahasiswa.blade.php
     Daftar mahasiswa: cari, filter tingkat & status, paginasi.
-    Aksi: lihat detail dan tombol ubah status aktif/nonaktif (modal konfirmasi -> PATCH lewat form + CSRF).
+    Data dikirim oleh MahasiswaController@index via ApiClient.
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Data Mahasiswa')
 
 @section('content')
-{{-- CSS DataTables + penyesuaian tampilan (disamakan dengan Data Dosen) --}}
 <link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
 <style>
-    /* ---------- Kotak tabel ---------- */
     #tabel-wrap .dt-layout-row { margin: 0; }
     #tabel-wrap .dt-layout-row.dt-layout-table {
         border: 1px solid rgb(0 0 47 / .15);
@@ -52,7 +50,6 @@
     #tabel.dataTable > thead > tr > th:first-child,
     #tabel.dataTable > tbody > tr > td:first-child:not(.dt-empty) { padding-left: 20px; }
 
-    /* ---------- Paginasi ---------- */
     #tabel-wrap .dt-layout-row:not(.dt-layout-table) { padding: 24px 0 0; justify-content: center; }
     #tabel-wrap .dt-layout-row:not(.dt-layout-table) .dt-layout-cell { width: 100%; padding: 0; display: flex; justify-content: center; }
     #tabel-wrap .dt-paging nav { display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -97,7 +94,6 @@
     #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
     #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
 
-    /* ---------- Modal Konfirmasi (Disamakan 100% dengan Dosen) ---------- */
     #modalStatus, #modalSinkron { position: fixed; inset: 0; margin: auto; height: fit-content; width: 380px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
     #modalStatus::backdrop, #modalSinkron::backdrop { background: rgb(10 10 10 / .45); }
     #modalStatus[open], #modalSinkron[open] { animation: modalMasuk .15s ease-out; }
@@ -110,7 +106,6 @@
     .modal-judul { font-size: 18px; font-weight: 700; line-height: 24px; color: #0A0A0A; }
     .modal-teks { margin-top: 8px; font-size: 14px; line-height: 20px; color: #55555C; }
     .modal-teks strong { font-weight: 600; color: #0A0A0A; word-break: break-word; }
-    .modal-error { margin-top: 12px; font-size: 13px; color: #E5484D; }
     
     .modal-aksi { display: flex; gap: 12px; margin-top: 24px; }
     .modal-btn { flex: 1; height: 40px; border: 1px solid transparent; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
@@ -125,12 +120,10 @@
     .modal-btn-sinkron:hover { background: #059669; }
     .modal-btn-sinkron:disabled { opacity: .7; cursor: not-allowed; }
 
-    /* Varian "aktifkan" (biru/hijau); bawaan = "nonaktifkan" (merah) */
     #modalStatus[data-mode="aktif"] .modal-ikon { background: #DDF3D0; color: #3A8A1E; }
     #modalStatus[data-mode="aktif"] .modal-btn-ya { background: #2277FF; }
     #modalStatus[data-mode="aktif"] .modal-btn-ya:hover { background: #1A66E0; }
 
-    /* ---------- Tombol ubah status (krem panah putar oranye) ---------- */
     .btn-status { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: #FBE5CB; color: #FFAA49; cursor: pointer; transition: background .15s; }
     .btn-status:hover { background: #F8D9B5; }
     .btn-status:focus-visible { outline: 2px solid #FFAA49; outline-offset: 2px; }
@@ -148,7 +141,7 @@
                 Sinkronisasi Kelas
             </button>
 
-            <a id="btnAdd" href="{{ \Illuminate\Support\Facades\Route::has('admin.mahasiswa.create') ? route('admin.mahasiswa.create') : '#' }}" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-[#1F73FF] px-4 text-[15px] font-medium text-white shadow hover:bg-[#1A66E0]">
+            <a id="btnAdd" href="{{ \Illuminate\Support\Facades\Route::has('admin.mahasiswa.create') ? route('admin.mahasiswa.create', [], false) : '#' }}" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-[#1F73FF] px-4 text-[15px] font-medium text-white shadow hover:bg-[#1A66E0]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
                 Tambah Mahasiswa
             </a>
@@ -158,11 +151,8 @@
     @if (session('status'))
         <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('status') }}</div>
     @endif
-    @if (session('success'))
-        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('success') }}</div>
-    @endif
     @if (session('error'))
-        <div class="mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="status">{{ session('error') }}</div>
+        <div class="mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="alert">{{ session('error') }}</div>
     @endif
 
     <section class="mt-6 rounded-lg bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
@@ -186,7 +176,7 @@
                 <select id="fStatus" class="h-10 w-full cursor-pointer appearance-none rounded-md border border-[#E4E4E7] bg-white px-4 pr-9 text-sm outline-none focus:border-[#1F73FF]">
                     <option value="all">Semua Status</option>
                     <option value="Aktif">Aktif</option>
-                    <option value="Nonaktif">Nonaktif</option>
+                    <option value="Non-aktif">Nonaktif</option>
                 </select>
                 <svg class="pointer-events-none absolute right-3 top-[11px]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
             </div>
@@ -210,12 +200,17 @@
     </section>
 </main>
 
-{{-- Form tersembunyi untuk proses sinkronisasi --}}
+{{-- Form tersembunyi untuk ubah status & sinkronisasi --}}
+<form id="formStatus" method="POST" style="display: none;">
+    @csrf
+    @method('PATCH')
+</form>
+
 <form id="formSinkron" action="{{ route('admin.mahasiswa.buat-kelas') }}" method="POST" style="display: none;">
     @csrf
 </form>
 
-{{-- Modal konfirmasi aktifkan / nonaktifkan (persis seperti Dosen) --}}
+{{-- Modal konfirmasi aktifkan / nonaktifkan --}}
 <dialog id="modalStatus" data-mode="nonaktif" aria-labelledby="modalStatusJudul" aria-describedby="modalStatusTeks">
     <div class="modal-kartu">
         <div class="modal-ikon">
@@ -223,7 +218,6 @@
         </div>
         <h2 id="modalStatusJudul" class="modal-judul">Nonaktifkan mahasiswa?</h2>
         <p id="modalStatusTeks" class="modal-teks"><strong id="modalStatusNama"></strong> <span id="modalStatusSuffix"></span></p>
-        <p id="modalStatusError" class="modal-error" hidden></p>
         <div class="modal-aksi">
             <button type="button" id="modalStatusBatal" class="modal-btn modal-btn-batal">Batal</button>
             <button type="button" id="modalStatusYa" class="modal-btn modal-btn-ya">Nonaktifkan</button>
@@ -253,20 +247,10 @@
 <script>
 (function () {
     var data = @json($students);
-    var URL_DETAIL = @js(route('admin.mahasiswa.show', ['id' => '__ID__']));
-    
-    // Cek route dengan aman agar JS tidak error bila nama route di backend berbeda
-    var URL_STATUS = @js(
-        \Illuminate\Support\Facades\Route::has('admin.mahasiswa.toggle-status') 
-            ? route('admin.mahasiswa.toggle-status', ['id' => '__ID__']) 
-            : (\Illuminate\Support\Facades\Route::has('admin.mahasiswa.status') 
-                ? route('admin.mahasiswa.status', ['id' => '__ID__']) 
-                : null)
-    );
-    var CSRF = @json(csrf_token());
+    var URL_DETAIL = @js(route('admin.mahasiswa.show', ['id' => '__ID__'], false));
+    var URL_STATUS = @js(route('admin.mahasiswa.toggle-status', ['id' => '__ID__'], false));
 
     var $ = function (id) { return document.getElementById(id); };
-
     var filter = { level: 'all', status: 'all' };
 
     function esc(s) {
@@ -284,8 +268,8 @@
 
     DataTable.ext.search.push(function (settings, searchData, dataIndex, r) {
         if (settings.nTable.id !== 'tabel') return true;
-        var st = String(r.status).toLowerCase();
-        var fSt = String(filter.status).toLowerCase();
+        var st = String(r.status).toLowerCase().replace('-', '');
+        var fSt = String(filter.status).toLowerCase().replace('-', '');
         return (filter.level === 'all' || r.level === filter.level) &&
                (filter.status === 'all' || st === fSt);
     });
@@ -349,17 +333,13 @@
     $('fLevel').addEventListener('change', function (e) { filter.level = e.target.value; table.draw(); });
     $('fStatus').addEventListener('change', function (e) { filter.status = e.target.value; table.draw(); });
 
-    // ---------- Logika Ubah Status (Aktif / Nonaktif) ----------
-    var modal = $('modalStatus'), btnYa = $('modalStatusYa'), pesanError = $('modalStatusError');
+    // ---------- Modal Ubah Status ----------
+    var modal = $('modalStatus'), btnYa = $('modalStatusYa'), formStatus = $('formStatus');
     var idStatus = null;
 
-    function kirimStatus(id) {
-        var f = document.createElement('form');
-        f.method = 'POST';
-        f.action = URL_STATUS.replace('__ID__', encodeURIComponent(id));
-        f.innerHTML = '<input type="hidden" name="_token" value="' + CSRF + '"><input type="hidden" name="_method" value="PATCH">';
-        document.body.appendChild(f);
-        f.submit();
+    function submitStatus(id) {
+        formStatus.action = URL_STATUS.replace('__ID__', encodeURIComponent(id));
+        formStatus.submit();
     }
 
     $('tabel').addEventListener('click', function (e) {
@@ -375,7 +355,7 @@
             var nonaktifkan = !!r && (r.status === 'Aktif' || r.status === 'aktif' || r.status == 1);
             var nama = r ? r.name : '';
             if (typeof modal.showModal !== 'function') {
-                if (URL_STATUS && confirm((nonaktifkan ? 'Nonaktifkan' : 'Aktifkan') + ' mahasiswa "' + nama + '"?')) kirimStatus(idStatus);
+                if (confirm((nonaktifkan ? 'Nonaktifkan' : 'Aktifkan') + ' mahasiswa "' + nama + '"?')) submitStatus(idStatus);
                 return;
             }
             modal.dataset.mode = nonaktifkan ? 'nonaktif' : 'aktif';
@@ -385,7 +365,6 @@
                 ? 'tidak dapat melakukan login ke sistem. Data mahasiswa tetap tersimpan.'
                 : 'dapat kembali melakukan login ke sistem.';
             btnYa.textContent = nonaktifkan ? 'Nonaktifkan' : 'Aktifkan';
-            pesanError.hidden = true;
             modal.showModal();
         }
     });
@@ -393,44 +372,42 @@
     $('modalStatusBatal').addEventListener('click', function () { modal.close(); });
     modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
     modal.addEventListener('close', function () { idStatus = null; btnYa.disabled = false; });
-    
+
     btnYa.addEventListener('click', function () {
         if (!idStatus) return;
-        if (!URL_STATUS) {
-            pesanError.textContent = 'Fitur ini belum tersedia: route status mahasiswa belum terdaftar di web.php.';
-            pesanError.hidden = false;
-            btnYa.disabled = false;
-            return;
-        }
         btnYa.disabled = true;
         btnYa.textContent = 'Memproses...';
-        kirimStatus(idStatus);
+        submitStatus(idStatus);
     });
 
-    // ---------- Logika Modal Sinkronisasi ----------
+    // ---------- Modal Sinkronisasi ----------
     var modalSinkron = $('modalSinkron');
     var btnSinkron = $('btnSinkron');
     var btnYaSinkron = $('modalSinkronYa');
-    var formSinkron = $('formSinkron');
 
-    btnSinkron.addEventListener('click', function() {
-        if (typeof modalSinkron.showModal === 'function') {
-            modalSinkron.showModal();
-        } else {
-            if(confirm('Sinkronkan penempatan kelas semua mahasiswa aktif untuk semester ini?')) {
-                formSinkron.submit();
+    if (btnSinkron) {
+        btnSinkron.addEventListener('click', function () {
+            if (modalSinkron && typeof modalSinkron.showModal === 'function') {
+                modalSinkron.showModal();
+            } else if (confirm('Sinkronkan penempatan kelas semua mahasiswa aktif untuk semester ini?')) {
+                $('formSinkron').submit();
             }
-        }
-    });
+        });
+    }
 
-    $('modalSinkronBatal').addEventListener('click', function () { modalSinkron.close(); });
-    modalSinkron.addEventListener('click', function (e) { if (e.target === modalSinkron) modalSinkron.close(); });
-    
-    btnYaSinkron.addEventListener('click', function () {
-        btnYaSinkron.disabled = true;
-        btnYaSinkron.textContent = 'Menyinkronkan...';
-        formSinkron.submit();
-    });
+    if ($('modalSinkronBatal')) {
+        $('modalSinkronBatal').addEventListener('click', function () { modalSinkron.close(); });
+    }
+    if (modalSinkron) {
+        modalSinkron.addEventListener('click', function (e) { if (e.target === modalSinkron) modalSinkron.close(); });
+    }
+    if (btnYaSinkron) {
+        btnYaSinkron.addEventListener('click', function () {
+            btnYaSinkron.disabled = true;
+            btnYaSinkron.textContent = 'Menyinkronkan...';
+            $('formSinkron').submit();
+        });
+    }
 })();
 </script>
 @endpush

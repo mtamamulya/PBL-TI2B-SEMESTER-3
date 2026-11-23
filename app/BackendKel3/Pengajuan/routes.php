@@ -1,3 +1,11 @@
 <?php
 
-// Daftarkan endpoint Pengajuan di sini. Prefix /api/v1/dosen berasal dari router Kelompok 3.
+use App\BackendKel3\Pengajuan\PengajuanController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('pengajuan')->group(function () {
+    Route::get('/', [PengajuanController::class, 'index']);
+    Route::get('/{id}/timeline', [PengajuanController::class, 'timeline']);
+    Route::post('/{id}/ajukan', [PengajuanController::class, 'ajukan']);
+    Route::post('/{id}/ajukan-ulang', [PengajuanController::class, 'ajukanUlang']);
+});

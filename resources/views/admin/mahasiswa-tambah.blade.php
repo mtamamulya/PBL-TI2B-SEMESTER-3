@@ -1,7 +1,6 @@
 {{--
     resources/views/admin/mahasiswa-tambah.blade.php
-    Form tambah mahasiswa -> POST /admin/mahasiswa (MahasiswaController@store).
-    Nilai terisi ulang otomatis (old) bila validasi gagal.
+    Form tambah mahasiswa -> POST /admin/mahasiswa (MahasiswaController@store via ApiClient).
 --}}
 @extends('layouts.admin')
 
@@ -19,9 +18,23 @@
 @section('content')
 <main class="flex flex-col gap-8 px-4 py-8 lg:px-6">
     <div class="flex flex-col gap-2">
-        <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mahasiswa</h1>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Tambah Mahasiswa</h1>
+            <a href="{{ route('admin.impor.form', ['jenis' => 'mahasiswa']) }}" class="rounded-md border border-[#2277FF] px-4 py-2 text-base font-medium text-[#2277FF]">Import dari Excel</a>
+        </div>
         <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Data Mahasiswa', 'admin.mahasiswa'], ['Tambah']]" />
     </div>
+
+    @if ($errors->any())
+        <div class="rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="alert">
+            <p class="font-semibold">Gagal menyimpan data mahasiswa:</p>
+            <ul class="mt-1 list-inside list-disc">
+                @foreach ($errors->all() as $err)
+                    <li>{{ $err }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('admin.mahasiswa.store') }}" class="flex flex-col gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
         @csrf
@@ -36,12 +49,12 @@
                 <div class="flex flex-col gap-4 md:flex-row">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nama" class="{{ $label }}">Nama lengkap<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nama" name="nama" required value="{{ old('nama') }}" class="{{ $field }}">
+                        <input id="nama" name="nama" required value="{{ old('nama') }}" placeholder="Contoh: Galih Virgi Pramudya" class="{{ $field }}">
                         @error('nama') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nim" class="{{ $label }}">NIM<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nim" name="nim" required value="{{ old('nim') }}" class="{{ $field }}">
+                        <input id="nim" name="nim" required value="{{ old('nim') }}" placeholder="Contoh: 4.33.25.1.09" class="{{ $field }}">
                         @error('nim') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                 </div>
@@ -94,8 +107,8 @@
                 <div class="flex flex-col gap-4 md:flex-row">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="email" class="{{ $label }}">Email akun<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="email" name="email" type="email" required value="{{ old('email') }}" class="{{ $field }}">
-                        <div class="{{ $hint }}">Email harus unik dan dipakai untuk login.</div>
+                        <input id="email" name="email" type="email" required value="{{ old('email') }}" placeholder="nama@mhs.polines.ac.id" class="{{ $field }}">
+                        <div class="{{ $hint }}">Email harus unik menggunakan domain @mhs.polines.ac.id.</div>
                         @error('email') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="hidden flex-1 md:block"></div>
@@ -113,11 +126,8 @@
 
         {{-- Tombol --}}
         <div class="flex flex-wrap items-center gap-4">
-            <a href="{{ route('admin.mahasiswa') }}" class="rounded-md bg-[#FF3F3F] cursor-pointer px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
-            <button type="submit" class="cursor-pointer rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)] disabled:opacity-60">Simpan</button>
-            @if ($errors->any())
-                <span class="text-sm text-[#FF3F3F]">Gagal menyimpan. Periksa kembali isian di atas.</span>
-            @endif
+            <a href="{{ route('admin.mahasiswa') }}" class="cursor-pointer rounded-md bg-[#FF3F3F] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
+            <button type="submit" class="cursor-pointer rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Simpan</button>
         </div>
     </form>
 </main>

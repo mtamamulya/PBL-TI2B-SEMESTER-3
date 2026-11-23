@@ -34,6 +34,7 @@ return [
             'children' => [
                 ['label' => 'Kurikulum TRK', 'route' => 'admin.kurikulum.trk', 'url' => 'kurikulum/trk'],
                 ['label' => 'Mata Kuliah', 'route' => 'admin.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
+                ['label' => 'Tahun Akademik', 'url' => '/admin/kurikulum/tahun-akademik', 'route' => 'admin.kurikulum.tahun-akademik'],
             ]],
 
         ['label' => 'Data Dosen', 'route' => 'admin.dosen', 'url' => 'dosen',

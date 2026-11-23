@@ -32,8 +32,8 @@ use App\Http\Controllers\KaprodiMahasiswaController;
 use App\Http\Controllers\KaprodiMataKuliahController;
 use App\Http\Controllers\KaprodiPengajuanController;
 use App\Http\Controllers\KaprodiPrestasiController;
-// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiProfilController;
+// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiTandaTanganController;
 use App\Http\Controllers\KategoriKegiatanController;
 use App\Http\Controllers\KegiatanDosenController;
@@ -47,6 +47,7 @@ use App\Http\Controllers\MataKuliahController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PublicBeritaController;
+use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\KaprodiOnly;
 use Illuminate\Support\Facades\Route;
@@ -98,6 +99,12 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('kurikulum/mata-kuliah/tambah', [AdminMataKuliahController::class, 'create'])->name('admin.kurikulum.mata-kuliah.create');
     Route::post('kurikulum/mata-kuliah', [AdminMataKuliahController::class, 'store'])->name('admin.kurikulum.mata-kuliah.store');
 
+    // Tahun Akademik (Admin: Lihat & Tambah)
+    Route::get('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'index'])
+        ->name('admin.kurikulum.tahun-akademik');
+    Route::post('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'store'])
+        ->name('admin.kurikulum.tahun-akademik.store');
+
     // Data Dosen
     Route::get('/dosen', [DosenController::class, 'index'])->name('admin.dosen');
     Route::get('dosen/tambah', [DosenController::class, 'create'])->name('admin.dosen.create');
@@ -114,6 +121,8 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/mahasiswa/{id}', [LandingMahasiswaController::class, 'show'])->name('admin.mahasiswa.show');
     Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
     Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
+    Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+    Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
     Route::get('/kegiatan', [AdminKegiatanController::class, 'index'])->name('admin.kegiatan.index');
@@ -152,6 +161,8 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::post('berita', [AdminBeritaController::class, 'store'])->name('admin.berita.store');
     Route::get('berita/{id}/edit', [AdminBeritaController::class, 'edit'])->name('admin.berita.edit');
     Route::put('berita/{id}', [AdminBeritaController::class, 'update'])->name('admin.berita.update');
+    Route::patch('berita/{id}/tinjau', [AdminBeritaController::class, 'tinjau'])->name('admin.berita.tinjau');
+    Route::delete('berita/{id}', [AdminBeritaController::class, 'destroy'])->name('admin.berita.destroy');
 
     // Pengajuan
     Route::get('/pengajuan', [AdminPengajuanController::class, 'index'])->name('admin.pengajuan');
@@ -221,6 +232,8 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/kurikulum/mata-kuliah/{id}/edit', [KaprodiMataKuliahController::class, 'edit'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.edit');
     Route::put('/kurikulum/mata-kuliah/{id}', [KaprodiMataKuliahController::class, 'update'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.update');
     Route::delete('/kurikulum/mata-kuliah/{id}', [KaprodiMataKuliahController::class, 'destroy'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.destroy');
+    // Tahun Akademik (Kaprodi: Read-Only, hanya GET)
+    Route::get('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'index'])->name('kaprodi.kurikulum.tahun-akademik');
 
     Route::get('/dosen', [KaprodiDosenController::class, 'index'])->name('kaprodi.dosen');
     Route::get('/mahasiswa', [KaprodiMahasiswaController::class, 'index'])->name('kaprodi.mahasiswa');
@@ -245,6 +258,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::post('berita', [KaprodiBeritaController::class, 'store'])->name('kaprodi.berita.store');
     Route::get('berita/{id}/edit', [KaprodiBeritaController::class, 'edit'])->name('kaprodi.berita.edit');
     Route::put('berita/{id}', [KaprodiBeritaController::class, 'update'])->name('kaprodi.berita.update');
+    Route::delete('berita/{id}', [KaprodiBeritaController::class, 'destroy'])->name('kaprodi.berita.destroy');
 
     Route::get('/kegiatan/kategori-kegiatan', [KaprodiKategoriKegiatanController::class, 'index'])->name('kaprodi.kegiatan.kategori-kegiatan');
     Route::get('/kegiatan/jenis-dokumen', [KaprodiJenisDokumenController::class, 'index'])->name('kaprodi.kegiatan.jenis-dokumen');

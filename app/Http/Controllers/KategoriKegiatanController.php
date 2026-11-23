@@ -2,116 +2,236 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\KategoriKegiatanStore;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class KategoriKegiatanController extends Controller
 {
-    public function __construct(private KategoriKegiatanStore $store) {}
-
     public function index()
     {
+        try {
+            $hasil = ApiClient::pengguna()->get('/kategori-kegiatan', ['per_page' => 100]);
+            $daftar = $hasil['data'] ?? [];
+            // Respons paginasi bisa berbentuk data.data; ambil daftar barisnya
+            if (isset($daftar['data']) && is_array($daftar['data'])) {
+                $daftar = $daftar['data'];
+            }
+            $rows = array_values(array_map(fn (array $item) => $this->bentukBaris($item), $daftar));
+            $jenis = $this->daftarJenis();
+            $apiError = null;
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat daftar kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
+            $rows = [];
+            $jenis = [];
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
+        }
+
         return view('admin.kategori-kegiatan', [
-            'rows' => $this->store->all(),
-            'jenis' => KategoriKegiatanStore::JENIS,
+            'rows' => $rows,
+            'jenis' => $jenis,
+            'apiError' => $apiError,
         ]);
     }
 
-    /** Halaman tambah: form di kiri, pratinjau surat di kanan. */
     public function create()
     {
+        try {
+            $jenis = $this->daftarJenis();
+            $apiError = null;
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
+            $jenis = [];
+            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
+        }
+
         return view('admin.kategori-kegiatan-form', [
             'row' => null,
-            'jenis' => KategoriKegiatanStore::JENIS,
+            'jenis' => $jenis,
+            'tipeIsian' => $this->daftarTipeIsian(),
+            'apiError' => $apiError,
         ]);
     }
 
-    /** Halaman edit: halaman yang sama, form terisi data kategori. */
-    public function edit(string $id)
+    public function edit(int $id)
     {
-        $row = collect($this->store->all())->first(fn ($r) => (string) $r['id'] === (string) $id);
+        try {
+            $res = ApiClient::pengguna()->get('/kategori-kegiatan/'.$id);
+            $item = $this->bentukBaris($res['data'] ?? []);
+            $jenis = $this->daftarJenis();
+            $apiError = null;
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
 
-        abort_if(! $row, 404);
+            \Log::error('Gagal memuat form edit kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
+
+            return redirect()
+                ->route('admin.kegiatan.kategori-kegiatan')
+                ->with('error', 'Gagal mengambil data dari API: '.$e->getMessage());
+        }
 
         return view('admin.kategori-kegiatan-form', [
-            'row' => $row,
-            'jenis' => KategoriKegiatanStore::JENIS,
+            'row' => $item,
+            'jenis' => $jenis,
+            'tipeIsian' => $this->daftarTipeIsian(),
+            'apiError' => $apiError,
         ]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $data = $this->validasi($request);
+        try {
+            $hasil = ApiClient::pengguna()->post('/kategori-kegiatan', $this->payloadApi($request));
 
-        if ($this->store->exists($data['name'], $data['jenis'])) {
-            return $this->duplikat();
+            return response()->json([
+                'ok' => true,
+                'row' => $this->bentukBaris($hasil['data'] ?? []),
+            ]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            return $this->responsGagal($e);
         }
-
-        $row = $this->store->create(
-            $data['name'],
-            $data['jenis'],
-            $data['description'] ?? null,
-            $data['isi_surat'] ?? null
-        );
-
-        return response()->json(['ok' => true, 'row' => $row]);
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $data = $this->validasi($request);
+        try {
+            $hasil = ApiClient::pengguna()->put('/kategori-kegiatan/'.$id, $this->payloadApi($request));
 
-        if ($this->store->exists($data['name'], $data['jenis'], $id)) {
-            return $this->duplikat();
+            return response()->json([
+                'ok' => true,
+                'row' => $this->bentukBaris($hasil['data'] ?? []),
+            ]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            return $this->responsGagal($e);
         }
-
-        $row = $this->store->update(
-            $id,
-            $data['name'],
-            $data['jenis'],
-            $data['description'] ?? null,
-            $data['isi_surat'] ?? null
-        );
-
-        if (! $row) {
-            return response()->json(['message' => 'Data tidak ditemukan.'], 404);
-        }
-
-        return response()->json(['ok' => true, 'row' => $row]);
     }
 
     public function destroy(string $id): JsonResponse
     {
-        if (! $this->store->delete($id)) {
-            return response()->json(['message' => 'Data tidak ditemukan.'], 404);
-        }
+        try {
+            ApiClient::pengguna()->delete('/kategori-kegiatan/'.$id);
 
-        return response()->json(['ok' => true]);
+            return response()->json(['ok' => true]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            return $this->responsGagal($e);
+        }
     }
 
-    private function validasi(Request $request): array
+    private function payloadApi(Request $request): array
     {
-        if (! $request->has('isi_surat') && $request->has('template_surat')) {
-            $request->merge(['isi_surat' => $request->input('template_surat')]);
+        $payload = [
+            'jenis' => $request->input('jenis'),
+            'id_jenis_kegiatan' => $request->input('id_jenis_kegiatan'),
+            'nama_kategori' => $request->input('nama_kategori', $request->input('name')),
+            'deskripsi' => $request->input('deskripsi', $request->input('description')),
+            'kebutuhan' => $request->input('kebutuhan', 'surat'),
+            'isi_surat' => $request->input('isi_surat', $request->input('template_surat')),
+        ];
+
+        if ($request->has('lampiran_peserta')) {
+            $payload['lampiran_peserta'] = $request->boolean('lampiran_peserta');
         }
 
-        return $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'jenis' => ['required', Rule::in(KategoriKegiatanStore::JENIS)],
-            'description' => ['nullable', 'string', 'max:255'],
-            'isi_surat' => ['nullable', 'string'],
-        ], [
-            'name.required' => 'Nama kategori wajib diisi.',
-            'name.max' => 'Nama kategori maksimal 100 karakter.',
-            'jenis.required' => 'Jenis kegiatan wajib dipilih.',
-            'jenis.in' => 'Jenis kegiatan tidak valid.',
+        // Bentuk isian dari form sudah sama dengan API; cukup disaring field-nya.
+        // jumlah_isian selalu dikirim: 1 = satu isian, 0 = lebih dari satu.
+        if ($request->has('isian')) {
+            $payload['isian'] = array_values(array_map(function ($item) {
+                $item = is_array($item) ? $item : [];
+                $baris = [
+                    'input' => trim((string) ($item['input'] ?? '')),
+                    'jenis_input' => $item['jenis_input'] ?? 'teks',
+                    'wajib' => filter_var($item['wajib'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'jumlah_isian' => filter_var($item['jumlah_isian'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                ];
+                if (! empty($item['id_isian_kategori'])) {
+                    $baris['id_isian_kategori'] = (int) $item['id_isian_kategori'];
+                }
+
+                return $baris;
+            }, (array) $request->input('isian', [])));
+        }
+
+        $payload = array_filter($payload, fn ($v) => $v !== null);
+
+        // Template/keterangan yang dikosongkan harus ikut terkirim agar bisa dihapus
+        foreach (['isi_surat', 'deskripsi'] as $k) {
+            if ($request->hasAny([$k, $k === 'isi_surat' ? 'template_surat' : 'description'])) {
+                $payload[$k] ??= '';
+            }
+        }
+
+        return $payload;
+    }
+
+    private function bentukBaris(array $item): array
+    {
+        return array_merge($item, [
+            'id' => $item['id_kategori'] ?? null,
+            'name' => $item['nama_kategori'] ?? '',
+            // Nama jenis dipakai view daftar dan form edit; bentuk respons API dicoba beberapa kemungkinan
+            'jenis' => $item['jenis']
+                ?? $item['nama_jenis_kegiatan']
+                ?? (is_array($item['jenis_kegiatan'] ?? null)
+                    ? ($item['jenis_kegiatan']['nama_jenis_kegiatan'] ?? '')
+                    : ($item['jenis_kegiatan'] ?? '')),
+            'description' => $item['deskripsi'] ?? null,
+            'template_surat' => $item['isi_surat'] ?? null,
+            'isian' => $item['isian'] ?? [],
         ]);
     }
 
-    private function duplikat(): JsonResponse
+    private function daftarJenis(): array
     {
-        return response()->json(['message' => 'Nama kategori sudah ada pada jenis kegiatan ini.'], 422);
+        $hasil = ApiClient::pengguna()->get('/jenis-kegiatan');
+
+        return array_column($hasil['data'] ?? [], 'nama_jenis_kegiatan');
+    }
+
+    private function daftarTipeIsian(): array
+    {
+        try {
+            $hasil = ApiClient::pengguna()->get('/tipe-isian');
+
+            return $hasil['data'] ?? [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    private function responsGagal(ApiException $e): JsonResponse
+    {
+        $status = $e->getStatusCode();
+        if ($status < 400 || $status > 599) {
+            $status = 500;
+        }
+
+        return response()->json([
+            'ok' => false,
+            'message' => $e->getMessage(),
+            'errors' => property_exists($e, 'errors') ? $e->errors : null,
+        ], $status);
     }
 }

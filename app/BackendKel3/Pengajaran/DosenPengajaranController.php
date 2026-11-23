@@ -96,6 +96,12 @@ class DosenPengajaranController extends Controller
                 'data' => [
                     'detail' => $this->detail($item),
                     'dokumen' => $this->dokumen($item),
+                    'form' => [
+                        'tahun' => (string) $item->enrollmentTingkatKelas->id_tahun_akademik,
+                        'prodi' => $item->enrollmentTingkatKelas->prodi->jenjang.' '.$item->enrollmentTingkatKelas->prodi->nama_prodi,
+                        'rombel' => (string) $item->id_enrollment_tingkat_kelas,
+                        'matkul' => (string) $item->id_enrollment_mk,
+                    ],
                 ],
             ]);
         } catch (\Exception $e) {

@@ -201,7 +201,7 @@
                     <tr>
                         <th>Nama Prestasi</th>
                         <th>Kategori Kegiatan</th>
-                        <th>Pemilik Kegiatan</th>
+                        <th>Pemilik Prestasi</th>
                         <th>Tipe Pemilik</th>
                         <th>Selesai Kegiatan</th>
                         <th>Aksi</th>
@@ -287,7 +287,7 @@
         columns: [
             { data: 'nama',       render: TXT, className: 'truncate' },
             { data: 'kategori',   render: TXT, className: 'truncate' },
-            { data: 'pengunggah', render: TXT, className: 'truncate' },
+            { data: 'pemilik_prestasi', render: TXT, className: 'truncate' },
             {
                 data: 'tipe',
                 render: function (d, type) {
@@ -319,7 +319,7 @@
             var td = tr.children;
             td[0].title = r.nama || '';
             td[1].title = r.kategori || '';
-            td[2].title = r.pengunggah || '';
+            td[2].title = r.pemilik_prestasi || '';
             td[4].title = r.tanggal || '';
         },
         // Hanya paginasi (tengah bawah). Kotak cari, "show entries", dan info bawaan dimatikan

@@ -1,20 +1,24 @@
 {{--
     resources/views/admin/mahasiswa-edit.blade.php
-    Form edit mahasiswa -> PUT /admin/mahasiswa/{id} (MahasiswaController@update).
-    Nilai terisi ulang otomatis (old) bila validasi gagal.
-    Foto profil dikirim sebagai multipart (enctype) dan disimpan di disk 'public'.
+    Form edit mahasiswa -> PUT /admin/mahasiswa/{id} (MahasiswaController@update via ApiClient).
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Edit Mahasiswa')
 
 @php
+    $mhsId      = $mahasiswa['id'] ?? request()->route('id');
+    $mahasiswa  = $mahasiswa ?? [];
+    $tahun      = $tahun ?? range((int) date('Y'), (int) date('Y') - 9);
+    $statusAkad = $statusAkad ?? ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'];
+    $fotoUrl    = $fotoUrl ?? null;
+
     $field  = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 py-1.5 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
     $label  = 'text-base font-medium leading-[22px] tracking-[-0.18px] text-[#0A0A0A]';
     $hint   = 'text-base tracking-[-0.18px] text-[#A8A8A8]';
     $error  = 'text-sm text-[#FF3F3F]';
     $card   = 'flex flex-col gap-6 rounded-md border border-black/[0.06] bg-white px-4 pb-6 pt-4';
-    $select = 'h-10 w-full appearance-none rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none focus:border-[#2277FF]';
+    $select = 'h-10 w-full cursor-pointer appearance-none rounded-lg border border-black/[0.06] bg-white px-4 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none focus:border-[#2277FF]';
 @endphp
 
 @section('content')
@@ -24,7 +28,18 @@
         <div class="text-lg font-medium text-[#A8A8A8] lg:text-2xl lg:leading-[30px] lg:tracking-[-0.15px]">Dashboard / Data Mahasiswa / Detail / Edit</div>
     </div>
 
-    <form method="POST" action="{{ route('admin.mahasiswa.update', $mahasiswa['id']) }}" enctype="multipart/form-data" class="flex flex-col gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
+    @if ($errors->any())
+        <div class="rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="alert">
+            <p class="font-semibold">Perubahan belum disimpan. Periksa kembali isian berikut:</p>
+            <ul class="mt-1 list-inside list-disc">
+                @foreach ($errors->all() as $err)
+                    <li>{{ $err }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('admin.mahasiswa.update', ['id' => $mhsId], false) }}" enctype="multipart/form-data" class="flex flex-col gap-6 rounded-lg bg-white px-4 pb-6 pt-4">
         @csrf
         @method('PUT')
 
@@ -38,12 +53,12 @@
                 <div class="flex flex-col gap-4 md:flex-row">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nama" class="{{ $label }}">Nama lengkap<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nama" name="nama" required value="{{ old('nama', $mahasiswa['nama']) }}" class="{{ $field }}">
+                        <input id="nama" name="nama" required value="{{ old('nama', $mahasiswa['nama'] ?? '') }}" class="{{ $field }}">
                         @error('nama') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="nim" class="{{ $label }}">NIM<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="nim" name="nim" required value="{{ old('nim', $mahasiswa['nim']) }}" class="{{ $field }}">
+                        <input id="nim" name="nim" required value="{{ old('nim', $mahasiswa['nim'] ?? '') }}" class="{{ $field }}">
                         @error('nim') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                 </div>
@@ -63,7 +78,7 @@
                         <div class="relative">
                             <select id="angkatan" name="angkatan" class="{{ $select }}">
                                 @foreach ($tahun as $y)
-                                    <option value="{{ $y }}" @selected((string) old('angkatan', $mahasiswa['angkatan']) === (string) $y)>{{ $y }}</option>
+                                    <option value="{{ $y }}" @selected((string) old('angkatan', $mahasiswa['angkatan'] ?? '') === (string) $y)>{{ $y }}</option>
                                 @endforeach
                             </select>
                             <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
@@ -75,7 +90,7 @@
                         <div class="relative">
                             <select id="status" name="status" class="{{ $select }}">
                                 @foreach ($statusAkad as $s)
-                                    <option value="{{ $s }}" @selected(old('status', $mahasiswa['status']) === $s)>{{ $s }}</option>
+                                    <option value="{{ $s }}" @selected(old('status', $mahasiswa['status'] ?? '') === $s)>{{ $s }}</option>
                                 @endforeach
                             </select>
                             <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
@@ -96,8 +111,8 @@
                 <div class="flex flex-col gap-4 md:flex-row">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="email" class="{{ $label }}">Email akun<span class="text-[#FF3F3F]"> *</span></label>
-                        <input id="email" name="email" type="email" required value="{{ old('email', $mahasiswa['email']) }}" class="{{ $field }}">
-                        <div class="{{ $hint }}">Email harus unik dan dipakai untuk login.</div>
+                        <input id="email" name="email" type="email" required value="{{ old('email', $mahasiswa['email'] ?? '') }}" class="{{ $field }}">
+                        <div class="{{ $hint }}">Email harus unik menggunakan domain @mhs.polines.ac.id.</div>
                         @error('email') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                     <div class="hidden flex-1 md:block"></div>
@@ -119,7 +134,7 @@
                             <div class="relative size-[96px] shrink-0">
                                 <div class="flex size-full items-center justify-center overflow-hidden rounded-full bg-[#E4C9AE]">
                                     <img id="foto-preview" src="{{ $fotoUrl ?? '' }}" alt="Foto profil" class="size-full object-cover {{ $fotoUrl ? '' : 'hidden' }}">
-                                    <span id="foto-inisial" class="text-5xl font-bold text-[#7A4A1E] {{ $fotoUrl ? 'hidden' : '' }}">{{ mb_strtoupper(mb_substr($mahasiswa['nama'], 0, 1)) }}</span>
+                                    <span id="foto-inisial" class="text-5xl font-bold text-[#7A4A1E] {{ $fotoUrl ? 'hidden' : '' }}">{{ mb_strtoupper(mb_substr($mahasiswa['nama'] ?? 'M', 0, 1)) }}</span>
                                 </div>
                                 <label for="foto" title="Pilih foto" class="absolute bottom-0 right-0 flex size-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-[#2277FF] text-white">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg>
@@ -127,18 +142,17 @@
                                 <input id="foto" name="foto" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
                             </div>
                             <div class="flex flex-col gap-2">
-                                <div class="{{ $hint }}">
+                                <div id="foto-hint" class="{{ $hint }}">
                                     {{ $fotoUrl ? 'Klik pensil untuk mengganti foto.' : 'Belum ada foto. Klik pensil untuk memilih.' }} JPG, PNG, atau WebP, maksimal 2 MB.
                                 </div>
-                                @if ($fotoUrl)
-                                    <label class="flex items-center gap-2 text-sm text-[#2E2E2E]">
-                                        <input id="hapus_foto" type="checkbox" name="hapus_foto" value="1" @checked(old('hapus_foto')) class="size-4 accent-[#FF3F3F]">
-                                        Hapus foto saat ini
-                                    </label>
-                                @endif
+                                <label id="wrap-hapus-foto" class="{{ $fotoUrl ? 'flex' : 'hidden' }} items-center gap-2 text-sm text-[#2E2E2E]">
+                                    <input id="hapus_foto" type="checkbox" name="hapus_foto" value="1" class="size-4 accent-[#FF3F3F]">
+                                    Hapus foto saat ini
+                                </label>
                             </div>
                         </div>
-                        <p id="foto-error" class="{{ $error }}">@error('foto') {{ $message }} @enderror</p>
+                        <p id="err-foto" class="{{ $error }}" hidden></p>
+                        @error('foto') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                 </div>
             </div>
@@ -146,54 +160,58 @@
 
         {{-- Tombol --}}
         <div class="flex flex-wrap items-center gap-4">
-            <a href="{{ route('admin.mahasiswa.show', $mahasiswa['id']) }}" class="rounded-md bg-[#FF3F3F] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
-            <button type="submit" class="rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)] disabled:opacity-60">Simpan Perubahan</button>
-            @if ($errors->any())
-                <span class="text-sm text-[#FF3F3F]">Gagal menyimpan. Periksa kembali isian di atas.</span>
-            @endif
+            <a href="{{ route('admin.mahasiswa.show', ['id' => $mhsId], false) }}" class="cursor-pointer rounded-md bg-[#FF3F3F] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Batal</a>
+            <button type="submit" class="cursor-pointer rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium leading-[22px] tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">Simpan Perubahan</button>
         </div>
     </form>
 </main>
+@endsection
 
+@push('scripts')
 <script>
-(() => {
-    const input = document.getElementById('foto');
-    const preview = document.getElementById('foto-preview');
-    const inisial = document.getElementById('foto-inisial');
-    const err = document.getElementById('foto-error');
-    const hapus = document.getElementById('hapus_foto');
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+(function () {
+    var inputFoto = document.getElementById('foto');
+    var preview = document.getElementById('foto-preview');
+    var inisial = document.getElementById('foto-inisial');
+    var errFoto = document.getElementById('err-foto');
+    var hapusFoto = document.getElementById('hapus_foto');
+    var allowed = ['image/jpeg', 'image/png', 'image/webp'];
 
-    input.addEventListener('change', () => {
-        err.textContent = '';
-        const file = input.files[0];
-        if (!file) return;
+    if (inputFoto) {
+        inputFoto.addEventListener('change', function () {
+            errFoto.textContent = '';
+            errFoto.hidden = true;
+            var file = inputFoto.files[0];
+            if (!file) return;
 
-        if (!allowed.includes(file.type)) {
-            err.textContent = 'Foto harus berformat JPG, PNG, atau WebP.';
-            input.value = '';
-            return;
-        }
-        if (file.size > 2 * 1024 * 1024) {
-            err.textContent = 'Ukuran foto maksimal 2 MB.';
-            input.value = '';
-            return;
-        }
+            if (!allowed.includes(file.type)) {
+                errFoto.textContent = 'Foto harus berformat JPG, PNG, atau WebP.';
+                errFoto.hidden = false;
+                inputFoto.value = '';
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                errFoto.textContent = 'Ukuran foto maksimal 2 MB.';
+                errFoto.hidden = false;
+                inputFoto.value = '';
+                return;
+            }
 
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('hidden');
-        inisial.classList.add('hidden');
-        if (hapus) hapus.checked = false;
-    });
+            preview.src = URL.createObjectURL(file);
+            preview.classList.remove('hidden');
+            inisial.classList.add('hidden');
+            if (hapusFoto) hapusFoto.checked = false;
+        });
+    }
 
-    if (hapus) {
-        hapus.addEventListener('change', () => {
-            if (!hapus.checked) return;
-            input.value = '';
+    if (hapusFoto) {
+        hapusFoto.addEventListener('change', function () {
+            if (!hapusFoto.checked) return;
+            inputFoto.value = '';
             preview.classList.add('hidden');
             inisial.classList.remove('hidden');
         });
     }
 })();
 </script>
-@endsection
+@endpush

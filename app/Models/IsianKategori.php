@@ -25,8 +25,8 @@ class IsianKategori extends Model
     protected static function booted(): void
     {
         static::saving(function (self $field) {
-            if ($field->jumlah_isian !== null && $field->jumlah_isian < 1) {
-                throw ValidationException::withMessages(['jumlah_isian' => 'Batas jawaban minimal satu, atau NULL untuk tanpa batas.']);
+            if ($field->jumlah_isian !== null && $field->jumlah_isian < 0) {
+                throw ValidationException::withMessages(['jumlah_isian' => 'Jumlah isian minimal 0 (0 atau NULL untuk banyak isian, 1 untuk satu isian).']);
             }
             if ($field->exists && ($field->isDirty('id_kategori') || $field->isDirty('jenis_input')) && $field->detailKegiatan()->exists()) {
                 throw ValidationException::withMessages(['id_kategori' => 'Kategori dan jenis isian yang sudah dijawab tidak dapat diubah.']);
