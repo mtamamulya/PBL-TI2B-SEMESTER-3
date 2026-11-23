@@ -165,6 +165,7 @@ class AdminPrestasiApiTest extends TestCase
                     'pemilikList',
                     'tingkatList',
                     'capaianList',
+                    'saranIsian',
                     'jenisList',
                     'jenisDokList',
                     'daftarMahasiswa',
@@ -173,6 +174,19 @@ class AdminPrestasiApiTest extends TestCase
                     'jenisDokumenOptions',
                 ],
             ]);
+    }
+
+    public function test_opsi_autocomplete_menggunakan_data_prestasi_sebelumnya(): void
+    {
+        $this->buatPrestasi();
+
+        $this->sebagai()
+            ->getJson(self::API.'/opsi')
+            ->assertOk()
+            ->assertJsonPath('data.saranIsian.nama_lomba.0', 'Lomba Pemrograman')
+            ->assertJsonPath('data.saranIsian.penyelenggara.0', 'Politeknik')
+            ->assertJsonPath('data.saranIsian.lokasi.0', 'Semarang')
+            ->assertJsonPath('data.capaianList.6', 'Juara Umum');
     }
 
     public function test_post_mewajibkan_login(): void
@@ -265,6 +279,34 @@ class AdminPrestasiApiTest extends TestCase
                 ],
             ],
         ];
+    }
+
+    public function test_admin_dapat_menyimpan_capaian_khusus(): void
+    {
+        $pemilik = $this->pengguna('mahasiswa');
+        $payload = $this->payloadUpdate($pemilik->id_user);
+        $payload['capaian'] = 'Best Innovation Award';
+
+        $this->sebagai()
+            ->postJson(self::API, $payload)
+            ->assertCreated();
+
+        $this->assertDatabaseHas('prestasi', [
+            'id_user' => $pemilik->id_user,
+            'capaian' => 'Best Innovation Award',
+        ]);
+    }
+
+    public function test_capaian_khusus_terlalu_panjang_ditolak(): void
+    {
+        $pemilik = $this->pengguna('mahasiswa');
+        $payload = $this->payloadUpdate($pemilik->id_user);
+        $payload['capaian'] = str_repeat('A', 256);
+
+        $this->sebagai()
+            ->postJson(self::API, $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['capaian']);
     }
 
     public function test_update_mewajibkan_login(): void

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel1\Berita\BeritaController;
 use App\Support\ApiClient;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -67,6 +68,27 @@ class AdminBeritaController extends Controller
         return redirect()->route('admin.berita')->with('status', $hasil['message'] ?? 'Berita berhasil disimpan.');
     }
 
+    public function uploadGambarKonten(Request $request)
+    {
+        $request->validate([
+            'upload' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+        ]);
+
+        try {
+            $hasil = ApiClient::pengguna()->post('/berita/gambar-konten', [], [
+                'gambar' => $request->file('upload'),
+            ]);
+
+            return response()->json([
+                'url' => $hasil['data']['url'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => ['message' => $e->getMessage() ?: 'Gagal mengunggah gambar konten.'],
+            ], 422);
+        }
+    }
+
     public function show(string $id)
     {
         $hasil = ApiClient::pengguna()->get('/berita/'.$id);
@@ -94,13 +116,22 @@ class AdminBeritaController extends Controller
             $terkait[] = [
                 'id' => $t['id_berita'],
                 'judul' => $t['judul_berita'],
+                'foto' => ($t['is_gambar'] ?? false) ? ($t['sampul_url'] ?? null) : null,
                 'tanggal' => ! empty($t['tanggal_publish']) ? Carbon::parse($t['tanggal_publish'])->locale('id')->translatedFormat('d F Y') : '-',
             ];
         }
 
-        return view('admin.berita-detail', [
+        $isiMentah = (string) ($berita['isi'] ?? '');
+        $isiHtml = BeritaController::bersihkanHtml($isiMentah);
+        if ($isiHtml !== '' && ! preg_match('/<(p|h[2-4]|ul|ol|blockquote|figure|table)\b/i', $isiHtml)) {
+            $baris = array_values(array_filter(preg_split('/\R{1,}/', trim(strip_tags($isiMentah)))));
+            $isiHtml = implode('', array_map(fn ($p) => '<p>'.e($p).'</p>', $baris));
+        }
+
+        return view('admin.berita-detail', [ // ganti 'kaprodi.berita-detail' pada KaprodiBeritaController
             'berita' => $berita,
-            'paragraf' => array_values(array_filter(preg_split('/\R{1,}/', trim($berita['isi'])))),
+            'isiHtml' => $isiHtml,
+            'paragraf' => array_values(array_filter(preg_split('/\R{1,}/', trim(strip_tags($isiMentah))))),
             'foto' => $isGambar ? $sampulUrl : null,
             'hariTanggal' => $tanggal ? $tanggal->translatedFormat('l, j F Y') : '-',
             'tanggalPendek' => $tanggal ? $tanggal->format('d/m/Y') : '-',

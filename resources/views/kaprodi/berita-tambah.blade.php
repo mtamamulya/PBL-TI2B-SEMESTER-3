@@ -14,13 +14,13 @@
     </div>
 
     @include('admin.partials.berita-form', [
-        'batal' => route('kaprodi.berita'),
         'action' => route('kaprodi.berita.store'),
         'method' => 'POST',
         'berita' => null,
         'kategori' => $kategori,
         'kegiatanList' => $kegiatanList,
-        'max' => 1000,
+        'max' => 5000,
+        'batal' => route('kaprodi.berita'),
     ])
 </main>
 @endsection
