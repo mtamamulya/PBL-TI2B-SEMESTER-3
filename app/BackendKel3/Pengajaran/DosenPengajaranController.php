@@ -3,11 +3,15 @@
 namespace App\BackendKel3\Pengajaran;
 
 use App\Http\Controllers\Controller;
+use App\Models\Dokumen;
 use App\Models\EnrollmentKelasMataKuliah;
 use App\Models\EnrollmentMataKuliah;
 use App\Models\EnrollmentTingkatKelas;
+use App\Models\JenisDokumen;
+use App\Models\Pengajaran;
 use App\Models\TahunAkademik;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DosenPengajaranController extends Controller
@@ -69,7 +73,18 @@ class DosenPengajaranController extends Controller
 
         try {
             $data = $this->validasi($request, (int) $dosen->id_dosen);
-            $item = EnrollmentKelasMataKuliah::create($data + ['id_dosen' => $dosen->id_dosen]);
+
+            $item = DB::transaction(function () use ($data, $dosen) {
+                $created = EnrollmentKelasMataKuliah::create([
+                    'id_enrollment_tingkat_kelas' => $data['id_enrollment_tingkat_kelas'],
+                    'id_enrollment_mk' => $data['id_enrollment_mk'],
+                    'id_dosen' => $dosen->id_dosen,
+                ]);
+
+                $this->simpanDokumen($created, $data['dokumen'] ?? []);
+
+                return $created;
+            });
 
             return response()->json([
                 'status' => 'success',
@@ -115,7 +130,14 @@ class DosenPengajaranController extends Controller
             $item = $this->milikDosen($request, $id);
             $data = $this->validasi($request, (int) $item->id_dosen, $item);
 
-            $item->update($data);
+            DB::transaction(function () use ($item, $data) {
+                $item->update([
+                    'id_enrollment_tingkat_kelas' => $data['id_enrollment_tingkat_kelas'],
+                    'id_enrollment_mk' => $data['id_enrollment_mk'],
+                ]);
+
+                $this->simpanDokumen($item, $data['dokumen'] ?? []);
+            });
 
             return response()->json([
                 'status' => 'success',
@@ -135,7 +157,7 @@ class DosenPengajaranController extends Controller
     }
 
     // =================================================================
-    // FUNGSI HELPER (Dikembalikan seperti semula)
+    // FUNGSI HELPER
     // =================================================================
 
     private function dosenLogin(Request $request)
@@ -165,11 +187,20 @@ class DosenPengajaranController extends Controller
         $data = $request->validate([
             'id_enrollment_tingkat_kelas' => ['required', 'integer', 'exists:enrollment_tingkat_kelas,id_enrollment_tingkat_kelas'],
             'id_enrollment_mk' => ['required', 'integer', 'exists:enrollment_mata_kuliah,id_enrollment_mk'],
+            'dokumen' => ['nullable', 'array'],
+            'dokumen.*.nama' => ['required', 'string', 'max:255'],
+            'dokumen.*.id_jenis_dokumen' => ['required', 'integer', 'exists:jenis_dokumen,id_jenis_dokumen'],
+            'dokumen.*.tautan' => ['required', 'url', 'max:255'],
         ], [
             'id_enrollment_tingkat_kelas.required' => 'Kelas wajib dipilih.',
             'id_enrollment_tingkat_kelas.exists' => 'Kelas yang dipilih tidak ditemukan.',
             'id_enrollment_mk.required' => 'Mata kuliah wajib dipilih.',
             'id_enrollment_mk.exists' => 'Mata kuliah yang dipilih tidak ditemukan.',
+            'dokumen.*.nama.required' => 'Nama dokumen wajib diisi.',
+            'dokumen.*.id_jenis_dokumen.required' => 'Jenis dokumen wajib dipilih.',
+            'dokumen.*.id_jenis_dokumen.exists' => 'Jenis dokumen tidak valid.',
+            'dokumen.*.tautan.required' => 'Tautan dokumen wajib diisi.',
+            'dokumen.*.tautan.url' => 'Format tautan dokumen harus berupa URL yang valid (contoh: https://...).',
         ]);
 
         $rombel = EnrollmentTingkatKelas::findOrFail($data['id_enrollment_tingkat_kelas']);
@@ -220,6 +251,11 @@ class DosenPengajaranController extends Controller
                     'ta' => $m->id_tahun_akademik,
                     'label' => $m->mataKuliah->nama_mk.' ('.$m->mataKuliah->kode_mk.')',
                 ])->sortBy('label')->values()->all(),
+            'jenis_dokumen' => JenisDokumen::orderBy('nama_jenis_dokumen')->get()
+                ->map(fn (JenisDokumen $j) => [
+                    'id' => $j->id_jenis_dokumen,
+                    'nama' => $j->nama_jenis_dokumen,
+                ])->all(),
         ];
     }
 
@@ -259,12 +295,41 @@ class DosenPengajaranController extends Controller
     private function dokumen(EnrollmentKelasMataKuliah $item): array
     {
         return $item->pengajaran
+            ->filter(fn ($p) => $p->dokumen !== null)
             ->map(fn ($p) => [
+                'id_dokumen' => $p->dokumen->id_dokumen,
+                'id_jenis_dokumen' => $p->dokumen->id_jenis_dokumen,
                 'nama' => $p->dokumen->nama_file,
                 'jenis' => $p->dokumen->jenisDokumen?->nama_jenis_dokumen ?? '-',
                 'keterangan' => '',
                 'tautan' => $p->dokumen->link_dokumen,
-            ])->all();
+            ])->values()->all();
+    }
+
+    private function simpanDokumen(EnrollmentKelasMataKuliah $item, array $daftarDokumen): void
+    {
+        $lama = Pengajaran::where('id_enrollment_kelas_mk', $item->getKey())->get();
+        $dokumenIds = $lama->pluck('id_dokumen')->filter()->all();
+
+        Pengajaran::where('id_enrollment_kelas_mk', $item->getKey())->delete();
+        if (! empty($dokumenIds)) {
+            Dokumen::whereIn('id_dokumen', $dokumenIds)->delete();
+        }
+
+        foreach ($daftarDokumen as $doc) {
+            $dokumen = Dokumen::create([
+                'id_jenis_dokumen' => $doc['id_jenis_dokumen'],
+                'nama_file' => $doc['nama'],
+                'tipe_dokumen' => 'link',
+                'link_dokumen' => $doc['tautan'],
+                'is_lampiran' => false,
+            ]);
+
+            Pengajaran::create([
+                'id_enrollment_kelas_mk' => $item->getKey(),
+                'id_dokumen' => $dokumen->id_dokumen,
+            ]);
+        }
     }
 
     private function namaKelas(EnrollmentKelasMataKuliah $item): string

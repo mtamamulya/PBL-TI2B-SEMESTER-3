@@ -21,7 +21,7 @@ class Kegiatan extends Model
 
     protected $fillable = [
         'id_kategori', 'id_user', 'id_skim', 'id_kelompok_bidang',
-        'nama_kegiatan', 'nomor_sk', 'tanggal_sk',
+        'nama_kegiatan', 'dosen_pendamping', 'nomor_sk', 'tanggal_sk',
     ];
 
     protected function casts(): array
