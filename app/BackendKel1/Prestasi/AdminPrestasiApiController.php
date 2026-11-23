@@ -114,6 +114,30 @@ class AdminPrestasiApiController extends Controller
             ->orderBy('email')
             ->get();
 
+        // Saran historis hanya untuk kemudahan input, bukan pembatas nilai.
+        $riwayat = Prestasi::query()
+            ->orderByDesc('id_prestasi')
+            ->limit(300)
+            ->get([
+                'nama_lomba', 'penyelenggara', 'lokasi',
+                'dosen_pembimbing', 'bidang_lomba', 'capaian',
+            ]);
+        $saranDariRiwayat = static fn (string $kolom): array => $riwayat
+            ->pluck($kolom)
+            ->filter(fn ($nilai) => is_string($nilai) && trim($nilai) !== '')
+            ->map(fn (string $nilai) => trim($nilai))
+            ->unique(fn (string $nilai) => mb_strtolower($nilai))
+            ->take(60)
+            ->values()
+            ->all();
+
+        $capaianStandar = [
+            'Juara 1', 'Juara 2', 'Juara 3',
+            'Harapan 1', 'Harapan 2', 'Harapan 3',
+            'Juara Umum', 'Terbaik Umum',
+            'Finalis', 'Peserta',
+        ];
+
         return ApiResponse::ok([
             'kegiatanOptions' => $kegiatan,
 
@@ -151,10 +175,18 @@ class AdminPrestasiApiController extends Controller
                 'Nasional', 'Internasional',
             ],
 
-            'capaianList' => [
-                'Juara 1', 'Juara 2', 'Juara 3',
-                'Harapan 1', 'Harapan 2', 'Harapan 3',
-                'Finalis', 'Peserta',
+            'capaianList' => collect($capaianStandar)
+                ->merge($saranDariRiwayat('capaian'))
+                ->unique(fn (string $nilai) => mb_strtolower($nilai))
+                ->values()
+                ->all(),
+
+            'saranIsian' => [
+                'nama_lomba' => $saranDariRiwayat('nama_lomba'),
+                'penyelenggara' => $saranDariRiwayat('penyelenggara'),
+                'lokasi' => $saranDariRiwayat('lokasi'),
+                'dosen' => $saranDariRiwayat('dosen_pembimbing'),
+                'kategori' => $saranDariRiwayat('bidang_lomba'),
             ],
 
             'jenisList' => ['Akademik', 'Nonakademik'],
@@ -281,7 +313,7 @@ class AdminPrestasiApiController extends Controller
             'lokasi' => ['required', 'string', 'max:150'],
             'dosen' => ['nullable', 'string', 'max:100'],
             'tingkat' => ['required', Rule::in(['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'])],
-            'capaian' => ['required', Rule::in(['Juara 1', 'Juara 2', 'Juara 3', 'Harapan 1', 'Harapan 2', 'Harapan 3', 'Finalis', 'Peserta'])],
+            'capaian' => ['required', 'string', 'max:255'],
             'jenis' => ['required', Rule::in(['Akademik', 'Nonakademik'])],
             'kategori' => ['nullable', 'string', 'max:100'],
             'tanggal_mulai' => ['required', 'date'],
