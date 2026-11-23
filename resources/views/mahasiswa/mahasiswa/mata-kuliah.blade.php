@@ -40,6 +40,15 @@
         ['tahun', 'Tahun Akademik', $tahunOptions],
     ];
 
+    $adaFilterAktif = ($filter['q'] ?? '') !== ''
+        || ($filter['semester'] ?? '') !== ''
+        || ($filter['tingkat'] ?? '') !== ''
+        || ($filter['tahun'] ?? '') !== '';
+
+    $teksKosong = $adaFilterAktif
+        ? 'Tidak ada mata kuliah yang cocok dengan filter.'
+        : ($pesanKosong ?? 'Belum ada data untuk ditampilkan');
+
     $perPage = 5;
     $totalHal = max(1, (int) ceil($n / $perPage));
     $halaman = max(1, min((int) request()->query('page', 1), $totalHal));
@@ -56,7 +65,6 @@
     $cardCls  = 'rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)] sm:p-6';
     $badgeCls = 'shrink-0 rounded-full border border-[#B8D0FA] bg-[#E8F0FE] px-3 py-1 text-xs font-medium text-[#0162DD]';
     $selCls   = 'h-10 w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white pl-3.5 pr-9 text-sm text-[#0A0A0A] outline-none transition-colors hover:border-[#C7D2E5] focus:border-[#27F]';
-    $infoIcon = '<svg class="mt-0.5 size-5 shrink-0 text-[#003385]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0-18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>';
 @endphp
 
 <div class="flex flex-col gap-6">
@@ -145,14 +153,6 @@
                 </a>
                 <button type="submit" class="sr-only">Terapkan</button>
             </form>
-        @elseif ($tab === 'katalog')
-            <div class="flex gap-3 rounded-xl bg-[#EEF4FF] px-4 py-3.5 text-[#003385]">
-                {!! $infoIcon !!}
-                <div class="flex flex-col gap-0.5">
-                    <div class="text-sm font-semibold">Katalog mata kuliah</div>
-                    <p class="text-sm leading-5">Katalog menampilkan referensi mata kuliah Tingkat 1 sampai Tingkat 4. Data ini bukan daftar paket semester yang sedang ditempuh.</p>
-                </div>
-            </div>
         @endif
 
         {{-- Tabel desktop --}}
@@ -196,7 +196,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $tampilDosen ? 5 : 4 }}" class="px-4 py-10 text-center text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</td>
+                            <td colspan="{{ $tampilDosen ? 5 : 4 }}" class="px-4 py-10 text-center text-[#6B7280]">{{ $teksKosong }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -229,7 +229,7 @@
                     </dl>
                 </article>
             @empty
-                <p class="rounded-xl border border-dashed border-[#D1D5DB] px-4 py-8 text-center text-sm text-[#6B7280]">Tidak ada mata kuliah yang cocok dengan filter.</p>
+                <p class="rounded-xl border border-dashed border-[#D1D5DB] px-4 py-8 text-center text-sm text-[#6B7280]">{{ $teksKosong }}</p>
             @endforelse
         </div>
 

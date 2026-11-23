@@ -101,7 +101,7 @@ class MahasiswaController extends Controller
 
             return [
                 'mk' => (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-'),
-                'dosen' => '',
+                'dosen' => (string) ($item['dosen_pengampu'] ?? $item['dosen'] ?? $item['nama_dosen'] ?? '-'),
                 'tingkat' => max(1, min(4, $tingkat)),
                 'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
                 'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahun),
@@ -155,62 +155,7 @@ class MahasiswaController extends Controller
                 }
             }
         } catch (\Throwable $e) {
-            // Fallback ke data lokal jika server API Kelompok 1 (port 8001) belum aktif
-        }
-
-        // Fallback otomatis jika API Kelompok 1 sedang offline / belum ada data
-        if ($rows->isEmpty() && $filter['q'] === '' && $filter['semester'] === '' && $filter['tingkat'] === '' && $filter['tahun'] === '') {
-            $arsip = collect([
-                ['Kecerdasan Buatan',  2, 'Ganjil', '2026/2027'],
-                ['Jaringan Komputer',  2, 'Ganjil', '2026/2027'],
-                ['Sistem Basis Data',  3, 'Genap',  '2025/2026'],
-                ['Internet of Things', 1, 'Genap',  '2025/2026'],
-                ['Computer Vision',    2, 'Ganjil', '2026/2027'],
-                ['Sistem Operasi',     2, 'Ganjil', '2026/2027'],
-                ['Jaringan Komputer',  2, 'Ganjil', '2025/2026'],
-                ['Sistem Basis Data',  3, 'Genap',  '2025/2026'],
-                ['Sistem Operasi',     1, 'Genap',  '2024/2025'],
-                ['Internet of Things', 2, 'Ganjil', '2026/2027'],
-            ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1], 'periode' => $r[2], 'tahun' => $r[3], 'sks' => null]);
-
-            $katalog = collect([
-                ['Algoritma dan Pemrograman', 1, 'Ganjil', 4, '2024/2025'],
-                ['Matematika Dasar', 1, 'Ganjil', 3, '2024/2025'],
-                ['Dasar Elektronika', 1, 'Ganjil', 3, '2024/2025'],
-                ['Internet of Things', 1, 'Genap', 4, '2024/2025'],
-                ['Sistem Operasi', 1, 'Genap', 4, '2024/2025'],
-                ['Kecerdasan Buatan', 2, 'Ganjil', 2, '2026/2027'],
-                ['Jaringan Komputer', 2, 'Ganjil', 4, '2025/2026'],
-                ['Computer Vision', 2, 'Ganjil', 3, '2026/2027'],
-                ['Pemrograman Web', 2, 'Genap', 4, '2025/2026'],
-                ['Mikrokontroler', 2, 'Genap', 3, '2025/2026'],
-                ['Sistem Basis Data', 3, 'Ganjil', 4, '2025/2026'],
-                ['Keamanan Jaringan', 3, 'Ganjil', 3, '2026/2027'],
-                ['Machine Learning', 3, 'Genap', 3, '2026/2027'],
-                ['Rekayasa Perangkat Lunak', 3, 'Genap', 3, '2025/2026'],
-                ['Proyek Akhir', 4, 'Ganjil', 6, '2026/2027'],
-                ['Manajemen Proyek TI', 4, 'Ganjil', 2, '2026/2027'],
-                ['Magang Industri', 4, 'Genap', 6, '2026/2027'],
-                ['Tugas Akhir', 4, 'Genap', 6, '2026/2027'],
-            ])->map(fn ($r) => [
-                'mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1],
-                'periode' => $r[2], 'sks' => $r[3], 'tahun' => $r[4],
-            ]);
-
-            $berjalan = collect([
-                ['Kecerdasan Buatan',  2, 'Ganjil', 2],
-                ['Jaringan Komputer',  2, 'Ganjil', 4],
-                ['Computer Vision',    2, 'Ganjil', 3],
-                ['Sistem Operasi',     2, 'Ganjil', 4],
-                ['Jaringan Komputer',  2, 'Ganjil', 4],
-                ['Internet of Things', 2, 'Ganjil', 4],
-            ])->map(fn ($r) => ['mk' => $r[0], 'dosen' => '', 'tingkat' => $r[1], 'periode' => $r[2], 'tahun' => $defaultTahun, 'sks' => $r[3]]);
-
-            $rows = match ($tab) {
-                'berjalan' => $berjalan,
-                'katalog' => $katalog,
-                default => $arsip,
-            };
+            // Jika API belum tersedia atau gagal, biarkan data kosong tanpa mengisi data tiruan
         }
 
         // Filter sisi server (memastikan pencarian & dropdown tetap akurat)
@@ -220,24 +165,27 @@ class MahasiswaController extends Controller
             && ($filter['tahun'] === '' || $r['tahun'] === $filter['tahun']);
 
         $rows = match ($tab) {
-            'berjalan' => $berjalan->values(),
-            'katalog' => $rows->filter($cocok)->sortBy([['tingkat', 'asc'], ['mk', 'asc']])->values(),
-            default => $rows->filter($cocok)->values(),
+            'berjalan' => $berjalan->filter($cocok)->values(),
+            'katalog' => $katalog->filter($cocok)->sortBy([['tingkat', 'asc'], ['mk', 'asc']])->values(),
+            default => $arsip->filter($cocok)->values(),
         };
 
         $tahunList = $rows->pluck('tahun')
-            ->merge([$defaultTahun, '2026/2027', '2025/2026', '2024/2025'])
+            ->merge([$defaultTahun])
             ->filter()
             ->unique()
             ->sortDesc()
             ->values()
             ->all();
 
+        $pesanKosong = $rows->isEmpty() ? 'Belum ada data untuk ditampilkan' : null;
+
         return view('mahasiswa.mahasiswa.mata-kuliah', [
             'nama' => config('mahasiswa.nama'),
             'profil' => ['nim' => config('mahasiswa.nim'), 'prodi' => config('mahasiswa.prodi')],
             'tab' => $tab,
             'rows' => $rows,
+            'pesanKosong' => $pesanKosong,
             'filter' => $filter,
             'tahunList' => $tahunList,
             'ringkasan' => [
@@ -459,16 +407,16 @@ class MahasiswaController extends Controller
                         continue;
                     }
 
-                    $punyaTautan = filled($dokumen['url'] ?? null);
+                    $punyaTaitan = filled($dokumen['url'] ?? null);
                     $punyaJenis = filled($dokumen['jenis'] ?? null);
 
-                    if ($punyaTautan && $punyaJenis) {
+                    if ($punyaTaitan && $punyaJenis) {
                         $jumlahDokumenBaru++;
                     }
 
-                    if ($punyaTautan !== $punyaJenis) {
-                        $field = $punyaTautan ? "dokumen.$index.jenis" : "dokumen.$index.url";
-                        $validator->errors()->add($field, $punyaTautan
+                    if ($punyaTaitan !== $punyaJenis) {
+                        $field = $punyaTaitan ? "dokumen.$index.jenis" : "dokumen.$index.url";
+                        $validator->errors()->add($field, $punyaTaitan
                             ? 'Pilih jenis dokumen untuk tautan ini.'
                             : 'Masukkan tautan untuk jenis dokumen ini.');
                     }
