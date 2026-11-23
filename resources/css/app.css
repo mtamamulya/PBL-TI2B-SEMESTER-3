@@ -50,6 +50,7 @@ body.dosen-shell [data-frontend-navigation] {
 body.dosen-shell .frontend-main {
     min-height: 0;
     overflow-y: auto;
+}
 
 .berita-editor .ql-toolbar.ql-snow {
     border-color: #e5e7eb;
