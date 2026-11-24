@@ -958,7 +958,7 @@ paths:
             type: string
         - name: status
           in: query
-          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Lulus`, `Non-aktif`, atau `all`).
+          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Drop Out`, `Skripsi/TA`, `Lulus`, `Meninggal Dunia`, atau `all`).
           schema:
             type: string
       responses:
@@ -1051,12 +1051,23 @@ paths:
   /mahasiswa/{id}/status:
     patch:
       tags: [Mahasiswa]
-      summary: Toggle status aktif/nonaktif mahasiswa
-      description: Khusus peran **admin**. Membalik status keaktifan akun dan status akademik mahasiswa (`Aktif` <-> `Non-aktif`) tanpa body request.
+      summary: Ubah atau toggle status akademik mahasiswa
+      description: Khusus peran **admin**. Jika body `status` dikirim, status mahasiswa diubah sesuai nilai tersebut; jika dikosongkan, membalik status antara `Aktif` dan `Cuti`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+                  example: Skripsi/TA
       responses:
         '200':
           description: Status mahasiswa berhasil diperbarui.
@@ -1070,12 +1081,14 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/MahasiswaTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
 
   /mahasiswa/sinkronisasi-kelas:
     post:
       tags: [Mahasiswa]
       summary: Sinkronisasi kelas semester mahasiswa
-      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan serta menempatkannya ke kelas yang sesuai.
+      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan, menempatkannya ke kelas yang sesuai, atau mengubah mahasiswa tingkat akhir menjadi `Skripsi/TA`.
       security:
         - bearerAuth: []
       responses:
@@ -1085,6 +1098,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          description: Tidak ada tahun akademik yang berstatus aktif.
+
+  /mahasiswa/luluskan-ta:
+    post:
+      tags: [Mahasiswa]
+      summary: Luluskan seluruh mahasiswa berstatus Skripsi/TA
+      description: Khusus peran **admin**. Mengubah status akademik seluruh mahasiswa yang sedang berstatus `Skripsi/TA` menjadi `Lulus`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Proses kelulusan mahasiswa Skripsi/TA selesai dijalankan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 3 mahasiswa berstatus Skripsi/TA berhasil diluluskan.
+                  data:
+                    type: object
+                    properties:
+                      lulus:
+                        type: integer
+                        example: 3
         '401':
           $ref: '#/components/responses/TidakLogin'
         '403':
@@ -4124,7 +4171,7 @@ components:
 
     MahasiswaCreateInput:
       type: object
-      required: [nama, nim, angkatan, status, email, password]
+      required: [nama, nim, angkatan, email, password]
       properties:
         nama:
           type: string
@@ -4142,18 +4189,9 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+          default: Aktif
           example: Aktif
-        email:
-          type: string
-          format: email
-          maxLength: 150
-          example: galih.virgi@mhs.polines.ac.id
-        password:
-          type: string
-          format: password
-          minLength: 8
-          example: password123
 
     MahasiswaUpdateInput:
       type: object
@@ -4178,7 +4216,7 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
           nullable: true
           description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
           example: Aktif
