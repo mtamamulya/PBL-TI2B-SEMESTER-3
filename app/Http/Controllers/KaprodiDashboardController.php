@@ -62,7 +62,7 @@ class KaprodiDashboardController extends Controller
 
         Carbon::setLocale('id'); // Bahasa Indonesia untuk format waktu
         $rows = $pengajuanTerbaru->map(function ($item) {
-            $item->user?->dosen?->nama ?? $item->user?->mahasiswa?->nama ?? 'Tanpa Nama';
+            $pengaju = $item->user?->dosen?->nama ?? $item->user?->mahasiswa?->nama ?? 'Tanpa Nama';
             $namaKegiatan = $item->nama_kegiatan ?? $item->nama ?? 'Tanpa Judul';
 
             return [
