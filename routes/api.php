@@ -2,8 +2,6 @@
 
 use App\Http\Controllers\Api\PrestasiController;
 use Illuminate\Support\Facades\Route;
-use App\BackendKel3\Dashboard\DashboardApiController;
-use App\BackendKel3\Dashboard\NotifikasiController;
 
 Route::get('/ping', function () {
     return response()->json([
