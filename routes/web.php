@@ -90,6 +90,12 @@ Route::get('/mahasiswa/mahasiswa/dashboard', [MahasiswaController::class, 'dashb
 Route::get('/mahasiswa/dashboard', [DashboardController::class, 'index'])
     ->middleware(MahasiswaOnly::class)
     ->name('mahasiswa.dashboard');
+
+// Route Mahasiswa dari Backend Kelompok 2
+Route::middleware([MahasiswaOnly::class])->group(function () {
+    Route::get('/mahasiswa/dashboard/data', [App\BackendKel2\Dashboard\DashboardController::class, 'mahasiswa'])->name('mahasiswa.dashboard.data');
+});
+
 Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/mata-kuliah', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'berjalan')->name('mahasiswa.mata-kuliah');
     Route::get('/mahasiswa/mata-kuliah/semester-berjalan', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'berjalan')->name('mahasiswa.mata-kuliah.berjalan');
