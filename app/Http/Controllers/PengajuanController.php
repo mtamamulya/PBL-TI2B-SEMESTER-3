@@ -14,6 +14,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\BackendKel1\KategoriKegiatan\PilihanBaku;
+use App\Models\Kategori;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 
 class PengajuanController extends Controller
 {
@@ -481,11 +485,109 @@ class PengajuanController extends Controller
         return view($view, compact('rows', 'all', 'counts', 'q', 'status', 'from', 'to'));
     }
 
+    private function dynamicCategories(?string $targetRole = null): Collection
+    {
+        try {
+            $hasil = ApiClient::pengguna()->get('/kategori-kegiatan', ['per_page' => 100]);
+            $daftar = $hasil['data'] ?? [];
+
+            if (isset($daftar['data']) && is_array($daftar['data'])) {
+                $daftar = $daftar['data'];
+            }
+
+            return collect($daftar)
+                ->map(function (array $item) {
+                    $idKategori = (int) ($item['id_kategori'] ?? 0);
+                    $jenis = (string) ($item['jenis']
+                        ?? $item['nama_jenis_kegiatan']
+                        ?? ($item['jenis_kegiatan']['nama_jenis_kegiatan'] ?? ''));
+
+                    $detail = $this->detailKategoriApi($idKategori);
+
+                    return [
+                        'id_kategori' => $idKategori,
+                        'nama_kategori' => $item['nama_kategori'] ?? '',
+                        'jenis' => $jenis,
+                        'deskripsi' => $item['deskripsi'] ?? null,
+                        'kebutuhan' => $item['kebutuhan'] ?? 'kegiatan',
+                        'lampiran_peserta' => (bool) ($detail['lampiran_peserta'] ?? $item['lampiran_peserta'] ?? false),
+                        'isian' => $detail['isian'] ?? [],
+                    ];
+                })
+                ->filter(function (array $kat) use ($targetRole) {
+                    if ($targetRole === null || $kat['jenis'] === '') {
+                        return true;
+                    }
+
+                    $jenisLower = mb_strtolower($kat['jenis']);
+
+                    return match ($targetRole) {
+                        'mahasiswa' => str_contains($jenisLower, 'mahasiswa'),
+                        'dosen' => str_contains($jenisLower, 'dosen'),
+                        default => true,
+                    };
+                })
+                ->values();
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 401) {
+                throw $e;
+            }
+
+            \Log::warning('Gagal memuat kategori kegiatan dari API: '.$e->getMessage());
+
+            return collect();
+        }
+    }
+
+    private function detailKategoriApi(int $idKategori): array
+    {
+        if ($idKategori <= 0) {
+            return [];
+        }
+
+        try {
+            $res = ApiClient::pengguna()->get('/kategori-kegiatan/'.$idKategori);
+
+            return $res['data'] ?? [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function savedDetailValues(int $idKegiatan): array
+    {
+        $rows = DB::table('detail_kegiatan')
+            ->join('isian_kategori', 'detail_kegiatan.id_isian_kategori', '=', 'isian_kategori.id_isian_kategori')
+            ->where('detail_kegiatan.id_kegiatan', $idKegiatan)
+            ->orderBy('detail_kegiatan.id_detail_kegiatan')
+            ->select(
+                'detail_kegiatan.id_isian_kategori',
+                'detail_kegiatan.isian',
+                'isian_kategori.jumlah_isian'
+            )
+            ->get();
+
+        $values = [];
+        foreach ($rows as $row) {
+            $id = (string) $row->id_isian_kategori;
+            $isMultiple = empty($row->jumlah_isian);
+
+            if ($isMultiple) {
+                $values[$id][] = $row->isian;
+            } else {
+                $values[$id] = $row->isian;
+            }
+        }
+
+        return $values;
+    }
+
     public function create()
     {
         return view('mahasiswa.pengajuan.create', [
             'item' => null,
             'advisors' => $this->advisorOptions(),
+            'categoriesData' => $this->dynamicCategories('mahasiswa'),
         ]);
     }
 
@@ -494,6 +596,7 @@ class PengajuanController extends Controller
         return view('mahasiswa.pengajuan.create', [
             'item' => null,
             'advisors' => $this->advisorOptions(),
+            'categoriesData' => $this->dynamicCategories('mahasiswa'),
             'isActivityHistory' => true,
         ]);
     }
@@ -503,58 +606,54 @@ class PengajuanController extends Controller
         return view('dosen.pengajuan.create', [
             'item' => null,
             'advisors' => $this->advisorOptions(),
+            'categoriesData' => $this->dynamicCategories('dosen'),
         ]);
     }
 
     public function edit(int $id)
     {
-        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+        $kegiatan = Kegiatan::with(['kategori', 'dokumen'])->find($id);
+        $role = request()->routeIs('pengajuan.dosen.*') ? 'dosen' : 'mahasiswa';
+
+        if ($kegiatan) {
             $backend = new PengajuanMahasiswaController;
             $detail = $backend->showDetailData($id);
-
             $row = $detail['row'];
             $status = $row['status'] ?? 'Diajukan';
 
             abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
 
-            $kategoriNama = $row['category'] ?? 'Lomba';
-            $mappedCategory = match (true) {
-                str_contains(strtolower($kategoriNama), 'volunteer') => 'Volunteer',
-                str_contains(strtolower($kategoriNama), 'magang') => 'Magang',
-                str_contains(strtolower($kategoriNama), 'pengabdian') => 'Pengabdian',
-                default => 'Lomba',
-            };
-
             $item = [
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'category' => $mappedCategory,
-                'type' => $row['type'],
+                'id' => $kegiatan->id_kegiatan,
+                'id_kategori' => $kegiatan->id_kategori,
+                'title' => $kegiatan->nama_kegiatan,
+                'category' => $kegiatan->kategori?->nama_kategori ?? 'Kegiatan',
+                'type' => $row['type'] ?? 'Kegiatan',
                 'status' => $status,
                 'submitted_at' => Carbon::parse($row['submitted_at'])->toIso8601String(),
                 'data' => [
-                    'title' => $row['title'],
-                    'category' => $mappedCategory,
-                    'location' => $detail['item']->lokasi ?? '',
-                    'start_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
-                    'end_date' => $detail['item']->tanggal_mulai ?? now()->toDateString(),
-                    'description' => $detail['item']->deskripsi ?? '',
-                    'participation' => 'Individu',
-                    'level' => 'Nasional',
-                    'organizer' => '-',
+                    'id_kategori' => $kegiatan->id_kategori,
+                    'title' => $kegiatan->nama_kegiatan,
+                    'detail' => $this->savedDetailValues($id),
                 ],
-                'documents' => [],
+                'documents' => $kegiatan->dokumen->map(fn ($doc) => [
+                    'name' => $doc->nama_file ?? $doc->nama_dokumen ?? 'Dokumen',
+                    'type' => 'Dokumentasi',
+                    'url' => $doc->link_dokumen ?? '',
+                ])->all(),
             ];
 
             return view('mahasiswa.pengajuan.create', [
                 'item' => $item,
                 'advisors' => $this->advisorOptions(),
+                'categoriesData' => $this->dynamicCategories($role),
             ]);
         }
 
         return view('mahasiswa.pengajuan.create', [
             'item' => $this->findEditable($id),
             'advisors' => $this->advisorOptions(),
+            'categoriesData' => $this->dynamicCategories($role),
         ]);
     }
 
@@ -703,17 +802,44 @@ class PengajuanController extends Controller
 
         $item = $kegiatan->toArray();
 
-        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item'));
+        $detailFields = DB::table('detail_kegiatan')
+            ->join('isian_kategori', 'detail_kegiatan.id_isian_kategori', '=', 'isian_kategori.id_isian_kategori')
+            ->where('detail_kegiatan.id_kegiatan', $id)
+            ->orderBy('detail_kegiatan.id_detail_kegiatan')
+            ->select('isian_kategori.input', 'isian_kategori.jenis_input', 'detail_kegiatan.isian')
+            ->get()
+            ->map(function ($d) {
+                $nilai = $d->isian;
+                if ($d->jenis_input === 'dosen' && is_numeric($nilai)) {
+                    $nilai = DB::table('dosen')->where('id_dosen', (int) $nilai)->value('nama') ?? $nilai;
+                }
+
+                return [
+                    'label' => $d->input,
+                    'value' => $nilai,
+                    'is_file' => $d->jenis_input === 'berkas',
+                ];
+            })
+            ->all();
+
+        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item', 'detailFields'));
     }
 
     public function destroy(int $id)
     {
         if (Kegiatan::where('id_kegiatan', $id)->exists()) {
-            $backend = new PengajuanMahasiswaController;
-            $backend->apiDestroy($id);
+            try {
+                ApiClient::pengguna()->delete('/pengajuan-mahasiswa/'.$id);
 
-            return redirect()->route('pengajuan.index')
-                ->with('success', 'Pengajuan berhasil dihapus.');
+                return redirect()->route('pengajuan.index')
+                    ->with('success', 'Pengajuan berhasil dihapus.');
+            } catch (ApiException $e) {
+                if ($e->getStatusCode() === 401) {
+                    throw $e;
+                }
+
+                return back()->with('error', 'Gagal menghapus pengajuan melalui API: '.$e->getMessage());
+            }
         }
 
         $this->find($id);
@@ -847,45 +973,161 @@ class PengajuanController extends Controller
         return $this->saveSubmission($request, 'pengajuan.dosen.show');
     }
 
-    private function saveSubmission(Request $request, string $showRoute)
+    private function validateDynamicSubmission(Request $request, bool $isUpdate = false): array
     {
-        $data = $this->validated($request);
+        $idKategori = (int) $request->input('id_kategori');
+        $kategoriApi = $this->detailKategoriApi($idKategori);
+        $isDosenRoute = $request->routeIs('pengajuan.dosen.*');
 
-        $kategori = DB::table('kategori')
-            ->where('nama_kategori', 'like', '%'.$data['category'].'%')
-            ->first()
-            ?? DB::table('kategori')->first();
+        $rules = [
+            'id_kategori' => ['required', 'integer', function ($attr, $value, $fail) use ($kategoriApi, $isDosenRoute) {
+                if (empty($kategoriApi)) {
+                    $fail('Kategori kegiatan tidak valid atau tidak ditemukan di API.');
 
-        if ($kategori) {
-            $idUser = auth()->id()
-                ?? DB::table('users')->value('id_user');
+                    return;
+                }
 
-            $apiRequest = Request::create('/api/v1/pengajuan-mahasiswa', 'POST', [
-                'id_kategori' => $kategori->id_kategori,
-                'id_user' => $idUser,
-                'nama_kegiatan' => $data['title'],
-                'lokasi' => $data['location'] ?? null,
-                'deskripsi' => $data['description'] ?? null,
-                'tanggal_mulai' => $data['start_date'] ?? null,
-            ]);
+                $jenisLower = mb_strtolower((string) ($kategoriApi['jenis']
+                    ?? $kategoriApi['jenis_kegiatan']['nama_jenis_kegiatan']
+                    ?? ''));
 
-            if ($request->hasFile('lampiran')) {
-                $apiRequest->files->set('lampiran', $request->file('lampiran'));
+                if ($jenisLower !== '') {
+                    if ($isDosenRoute && ! str_contains($jenisLower, 'dosen')) {
+                        $fail('Kategori ini bukan untuk pengajuan dosen.');
+                    }
+                    if (! $isDosenRoute && ! str_contains($jenisLower, 'mahasiswa')) {
+                        $fail('Kategori ini bukan untuk pengajuan mahasiswa.');
+                    }
+                }
+            }],
+            'title' => ['required', 'string', 'max:255'],
+            'detail' => ['nullable', 'array'],
+            'detail_files' => ['nullable', 'array'],
+            'detail_files.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'lampiran' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+        ];
+
+        $messages = [
+            'id_kategori.required' => 'Kategori kegiatan wajib dipilih.',
+            'title.required' => 'Nama / judul kegiatan wajib diisi.',
+        ];
+
+        foreach ($kategoriApi['isian'] ?? [] as $isian) {
+            $idIsian = $isian['id_isian_kategori'];
+            $label = $isian['input'] ?? 'Isian';
+            $jenisInput = $isian['jenis_input'] ?? 'teks';
+            $wajib = ! empty($isian['wajib']);
+            $isMultiple = empty($isian['jumlah_isian']);
+
+            if ($jenisInput === 'berkas') {
+                $rules["detail_files.{$idIsian}"] = [$wajib && ! $isUpdate ? 'required' : 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'];
+                $messages["detail_files.{$idIsian}.required"] = "{$label} wajib diunggah.";
+                continue;
             }
 
-            $backend = new PengajuanMahasiswaController;
-            $response = $backend->apiStore($apiRequest);
-            $result = $response->getData(true);
-
-            $newId = $result['data']['id_kegiatan'] ?? null;
-
-            if ($newId) {
-                return redirect()->route($showRoute, $newId)
-                    ->with('success', 'Pengajuan berhasil dikirim ke database.');
+            if ($isMultiple) {
+                $rules["detail.{$idIsian}"] = [$wajib ? 'required' : 'nullable', 'array', $wajib ? 'min:1' : 'min:0'];
+                $rules["detail.{$idIsian}.*"] = [$wajib ? 'required' : 'nullable', 'string', 'max:2000'];
+                $messages["detail.{$idIsian}.required"] = "{$label} wajib diisi minimal satu.";
+                $messages["detail.{$idIsian}.*.required"] = "Semua baris {$label} wajib diisi.";
+            } else {
+                $typeRule = match ($jenisInput) {
+                    'angka' => ['numeric'],
+                    'tanggal' => ['date'],
+                    default => ['string', 'max:2000'],
+                };
+                $rules["detail.{$idIsian}"] = array_merge([$wajib ? 'required' : 'nullable'], $typeRule);
+                $messages["detail.{$idIsian}.required"] = "{$label} wajib diisi.";
             }
         }
 
-        // Fallback ke session saat tabel kategori masih kosong (misalnya di environment testing)
+        $validated = $request->validate($rules, $messages);
+
+        $detail = $validated['detail'] ?? [];
+        if ($request->hasFile('detail_files')) {
+            foreach ($request->file('detail_files') as $idIsian => $uploadedFile) {
+                if ($uploadedFile) {
+                    $detail[$idIsian] = $uploadedFile->store('lampiran-isian', 'public');
+                }
+            }
+        }
+
+        $validated['detail'] = $detail;
+        $validated['kategori_api'] = $kategoriApi;
+
+        return $validated;
+    }
+
+    private function syncDetailKegiatan(int $idKegiatan, array $detail): void
+    {
+        foreach ($detail as $idIsian => $nilai) {
+            DB::table('detail_kegiatan')
+                ->where('id_kegiatan', $idKegiatan)
+                ->where('id_isian_kategori', (int) $idIsian)
+                ->delete();
+
+            $items = is_array($nilai) ? $nilai : [$nilai];
+
+            foreach ($items as $val) {
+                if ($val === null || trim((string) $val) === '') {
+                    continue;
+                }
+
+                DB::table('detail_kegiatan')->insert([
+                    'id_kegiatan' => $idKegiatan,
+                    'id_isian_kategori' => (int) $idIsian,
+                    'isian' => (string) $val,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    private function saveSubmission(Request $request, string $showRoute)
+    {
+        // Mode Interoperabilitas API: jika form mengirim id_kategori dari API Admin
+        if ($request->filled('id_kategori')) {
+            $validated = $this->validateDynamicSubmission($request, isUpdate: false);
+            $kategoriApi = $validated['kategori_api'];
+
+            $idUser = auth()->id()
+                ?? DB::table('users')->value('id_user');
+
+            $payload = [
+                'id_kategori' => $kategoriApi['id_kategori'],
+                'id_user' => $idUser,
+                'nama_kegiatan' => $validated['title'],
+            ];
+
+            $berkas = [];
+            if ($request->hasFile('lampiran')) {
+                $berkas['lampiran'] = $request->file('lampiran');
+            }
+
+            try {
+                $result = ApiClient::pengguna()->post('/pengajuan-mahasiswa', $payload, $berkas);
+                $newId = $result['data']['id_kegiatan'] ?? null;
+
+                if ($newId) {
+                    $this->syncDetailKegiatan((int) $newId, $validated['detail']);
+
+                    return redirect()->route($showRoute, $newId)
+                        ->with('success', 'Pengajuan berhasil dikirim melalui API.');
+                }
+            } catch (ApiException $e) {
+                if ($e->getStatusCode() === 401) {
+                    throw $e;
+                }
+
+                return back()
+                    ->withInput()
+                    ->with('error', 'Gagal menyimpan pengajuan ke API: '.$e->getMessage());
+            }
+        }
+
+        // Fallback ke session saat pengujian form statis/CI tanpa id_kategori
+        $data = $this->validated($request);
         $documents = $data['documents'] ?? [];
         unset($data['documents']);
 
@@ -910,26 +1152,42 @@ class PengajuanController extends Controller
 
     public function update(Request $request, int $id)
     {
-        if (Kegiatan::where('id_kegiatan', $id)->exists()) {
+        $kegiatan = Kegiatan::find($id);
+
+        if ($kegiatan) {
             $backend = new PengajuanMahasiswaController;
             $detail = $backend->showDetailData($id);
             $status = $detail['row']['status'] ?? 'Diajukan';
 
             abort_unless(in_array($status, self::EDITABLE, true), 403, 'Pengajuan dengan status '.$status.' tidak dapat diedit.');
 
-            $kategori = DB::table('kategori')
-                ->where('nama_kategori', 'like', '%'.$request->input('category').'%')
-                ->first();
+            $validated = $this->validateDynamicSubmission($request, isUpdate: true);
 
-            $request->merge([
-                'id_kategori' => $kategori?->id_kategori,
-                'nama_kegiatan' => $request->input('title') ?? $request->input('nama_kegiatan'),
-            ]);
+            $payload = [
+                'id_kategori' => $validated['kategori_api']['id_kategori'],
+                'nama_kegiatan' => $validated['title'],
+            ];
 
-            $backend->apiUpdate($request, $id);
+            $berkas = [];
+            if ($request->hasFile('lampiran')) {
+                $berkas['lampiran'] = $request->file('lampiran');
+            }
 
-            return redirect()->route('pengajuan.show', $id)
-                ->with('success', 'Perubahan pengajuan berhasil disimpan.');
+            try {
+                ApiClient::pengguna()->post('/pengajuan-mahasiswa/'.$id, $payload, $berkas);
+                $this->syncDetailKegiatan($id, $validated['detail']);
+
+                return redirect()->route('pengajuan.show', $id)
+                    ->with('success', 'Perubahan pengajuan berhasil disimpan melalui API.');
+            } catch (ApiException $e) {
+                if ($e->getStatusCode() === 401) {
+                    throw $e;
+                }
+
+                return back()
+                    ->withInput()
+                    ->with('error', 'Gagal memperbarui pengajuan ke API: '.$e->getMessage());
+            }
         }
 
         $item = $this->findEditable($id);
