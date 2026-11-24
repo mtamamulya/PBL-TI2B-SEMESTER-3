@@ -55,6 +55,8 @@ tags:
     description: Login dan logout dengan token Bearer (Laravel Sanctum).
   - name: Kurikulum
     description: Kurikulum prodi (baca publik, tulis admin dan kaprodi).
+  - name: Tahun Akademik
+    description: Master tahun akademik dan semester aktif (baca publik, tambah khusus admin).
   - name: Mata Kuliah
     description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
   - name: Akreditasi
@@ -475,6 +477,59 @@ paths:
           $ref: '#/components/responses/TidakLogin'
         '403':
           $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /tahun-akademik:
+    get:
+      tags: [Tahun Akademik]
+      summary: Daftar tahun akademik
+      description: Publik / tanpa token. Diurutkan berdasarkan status aktif terlebih dahulu lalu terbaru.
+      responses:
+        '200':
+          description: Daftar tahun akademik berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikListResponse'
+    post:
+      tags: [Tahun Akademik]
+      summary: Tambah dan aktifkan tahun akademik baru
+      description: Khusus peran **admin**. Menambahkan tahun akademik baru dan otomatis menjadikannya satu-satunya yang berstatus aktif.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TahunAkademikInput'
+      responses:
+        '201':
+          description: Tahun akademik berhasil ditambahkan dan diaktifkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /tahun-akademik/aktif:
+    get:
+      tags: [Tahun Akademik]
+      summary: Tahun akademik yang sedang aktif
+      description: Publik / tanpa token. Mengambil satu tahun akademik yang berstatus aktif saat ini.
+      responses:
+        '200':
+          description: Tahun akademik aktif berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikResponse'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
 
@@ -4358,6 +4413,59 @@ components:
             $ref: '#/components/schemas/Skim'
         meta:
           $ref: '#/components/schemas/Meta'
+
+    TahunAkademik:
+      type: object
+      properties:
+        id_tahun_akademik:
+          type: integer
+          example: 1
+        tahun_akademik:
+          type: string
+          example: Ganjil 2026/2027
+        status:
+          type: boolean
+          example: true
+
+    TahunAkademikInput:
+      type: object
+      required: [semester, tahun_ajaran]
+      properties:
+        semester:
+          type: string
+          enum: [Ganjil, Genap]
+          example: Ganjil
+        tahun_ajaran:
+          type: string
+          pattern: '^\d{4}/\d{4}$'
+          description: Format YYYY/YYYY dengan tahun kedua selisih +1 dari tahun pertama.
+          example: 2026/2027
+
+    TahunAkademikResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Tahun akademik aktif berhasil diambil.
+        data:
+          $ref: '#/components/schemas/TahunAkademik'
+
+    TahunAkademikListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Daftar tahun akademik berhasil diambil.
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TahunAkademik'
 
     Berita:
       type: object

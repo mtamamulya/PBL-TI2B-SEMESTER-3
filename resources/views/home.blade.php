@@ -124,7 +124,7 @@
         {{-- Catatan: sesuaikan 68px dengan tinggi navbar webmu (ubah ke 16px jika navbar transparan/overlay di atas hero)
         --}}
         <section id="hero"
-            class="relative mt-16 flex h-[calc(100svh-64px)] min-h-[520px] flex-col bg-[#0043AD] md:mt-[70px] md:h-[calc(100svh-70px)] md:min-h-[580px] lg:min-h-[640px]"
+            class="relative mt-16 flex h-[calc(100dvh-64px)] max-h-[calc(100dvh-64px)] flex-col bg-[#0043AD] md:mt-[70px] md:h-[calc(100dvh-70px)] md:max-h-[calc(100dvh-70px)]"
             aria-roledescription="carousel" aria-label="Kegiatan TRK">
 
             {{-- Area foto: foto bertumpuk, yang aktif tampil (fade) --}}
@@ -154,12 +154,12 @@
             <div class="grid shrink-0 border-b-[8px] border-[#FFD121] bg-[#002D72] text-[#FFD121]">
                 @foreach ($heroSlides as $i => $s)
                     <div data-caption data-active="{{ $i === 0 ? 'true' : 'false' }}"
-                        class="pointer-events-none col-start-1 row-start-1 mx-auto flex w-full max-w-7xl flex-col gap-1 px-6 py-3.5 opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:pointer-events-auto data-[active=true]:opacity-100 md:gap-1.5 md:px-10 md:py-4 lg:py-5">
-                        <h2 class="line-clamp-2 text-base font-bold tracking-tight text-[#FFD121] md:text-xl lg:text-2xl">
+                        class="pointer-events-none col-start-1 row-start-1 mx-auto flex w-full max-w-7xl flex-col gap-0.5 px-6 py-2.5 opacity-0 transition-opacity duration-1000 ease-out data-[active=true]:pointer-events-auto data-[active=true]:opacity-100 sm:gap-1 sm:py-3 md:gap-1.5 md:px-10 md:py-3.5 lg:py-4">
+                        <h2 class="line-clamp-1 text-sm font-bold tracking-tight text-[#FFD121] sm:line-clamp-2 sm:text-base md:text-lg lg:text-xl">
                             {{ $s['title'] }}
                         </h2>
                         <p
-                            class="line-clamp-3 text-xs font-normal leading-relaxed text-[#FFD121]/95 md:text-sm lg:text-[15px]">
+                            class="line-clamp-2 text-[11px] font-normal leading-relaxed text-[#FFD121]/95 sm:text-xs md:line-clamp-3 md:text-sm lg:text-[14px]">
                             {{ $s['text'] }}
                         </p>
                     </div>
