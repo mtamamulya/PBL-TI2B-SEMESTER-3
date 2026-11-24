@@ -55,19 +55,18 @@ class PengajuanController extends Controller
     }
 
     private function databaseKegiatan(): Collection
-    {
-        $user = Auth::user();
+{
+    $user = Auth::user();
 
-        $query = Kegiatan::with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa']);
-
-        // Filter kegiatan milik user yang sedang login (atau anggota kegiatan);
-        // jika user yang login belum punya data kegiatan, tampilkan semua kegiatan dari DB agar tetap bisa diuji.
-        if ($user && Kegiatan::untukUser($user)->exists()) {
-            $query->untukUser($user);
-        }
-
-        return $query->orderByDesc('id_kegiatan')->get();
+    if (! $user) {
+        return collect();
     }
+
+    return Kegiatan::untukUser($user)
+        ->with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa'])
+        ->orderByDesc('id_kegiatan')
+        ->get();
+}
 
     private function items(): array
     {
@@ -664,8 +663,9 @@ class PengajuanController extends Controller
 
     public function show(int $id)
     {
-        $kegiatan = Kegiatan::with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
-            ->findOrFail($id);
+        $kegiatan = Kegiatan::untukUser(Auth::user())
+    ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
+    ->findOrFail($id);
 
         $student = $this->studentProfile($kegiatan->user);
 
