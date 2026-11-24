@@ -98,20 +98,23 @@ class AdminKegiatanDetailShowController extends Controller
         $penyelenggara = $isian['Penyelenggara'] ?? '-';
         unset($isian['Penyelenggara']);
 
+        // Informasi tambahan: SK + isian dinamis kategori (kunci lama "tambahan" dipertahankan untuk tes/view).
+        $tambahan = [];
+        if (! empty($row['nomor_sk'])) {
+            $tambahan['Nomor SK'] = (string) $row['nomor_sk'];
+        }
+        if (! empty($row['tanggal_sk'])) {
+            $tambahan['Tanggal SK'] = $this->tanggalSk((string) $row['tanggal_sk']);
+        }
+        $tambahan += $isian;
+
         $info = [
             $cfg['pengaju'] => $pengaju,
             'Kategori' => $this->teks($row, 'kategori'),
             'Jenis' => $cfg['label'],
             'Penyelenggara' => $penyelenggara,
             'Tanggal' => $tanggal,
-        ];
-        if (! empty($row['nomor_sk'])) {
-            $info['Nomor SK'] = (string) $row['nomor_sk'];
-        }
-        if (! empty($row['tanggal_sk'])) {
-            $info['Tanggal SK'] = $this->tanggalSk((string) $row['tanggal_sk']);
-        }
-        $info += $isian;
+        ] + $tambahan;
 
         // Anggota: [{nama, status}]. Dokumen: [{nama, kategori, url}]. Riwayat: teks atau {status, tanggal, keterangan}.
         $anggota = [];
@@ -145,7 +148,12 @@ class AdminKegiatanDetailShowController extends Controller
         return [
             'judul' => $this->teks($row, 'nama'),
             'status' => $status,
+            'pengaju' => $pengaju,
+            'kategori' => $this->teks($row, 'kategori'),
             'jenis' => $jenis,
+            'penyelenggara' => $penyelenggara,
+            'tanggal' => $tanggal,
+            'tambahan' => $tambahan,
             'tab_label' => $cfg['tab'],
             'rute_daftar' => $cfg['rute'],
             'info' => $info,
