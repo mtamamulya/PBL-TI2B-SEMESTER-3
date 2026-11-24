@@ -143,7 +143,7 @@ class BeritaController extends Controller
             ->where('status', 'publish')
             ->where('id_berita', '!=', $berita->id_berita)
             ->orderByDesc('tanggal_publish')
-            ->limit(4)
+            ->limit(5)
             ->get()
             ->map(function (Berita $item) {
                 $eks = $item->sampul ? strtolower(pathinfo($item->sampul, PATHINFO_EXTENSION)) : '';

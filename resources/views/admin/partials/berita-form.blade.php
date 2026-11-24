@@ -56,9 +56,18 @@
     .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
     .ck-content blockquote { border-left: 3px solid #2277FF; padding-left: 0.875rem; color: #4B5563; margin: 0.6rem 0; }
     .ck-content a { color: #2277FF; text-decoration: underline; }
-    .ck-content figure.image { margin: 1rem auto; text-align: center; }
-    .ck-content figure.image img { max-width: 100%; border-radius: 0.5rem; margin: 0 auto; }
+    .ck-content figure.image { margin: 1rem auto; text-align: center; max-width: 640px; }
+    .ck-content figure.image img { max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 0.5rem; margin: 0 auto; }
     .ck-content figure.image figcaption { font-size: 0.8125rem; color: #6B7280; margin-top: 0.375rem; }
+    /* Sembunyikan badge watermark "Powered by CKEditor" */
+    .ck-powered-by,
+    .ck.ck-powered-by,
+    a.ck-powered-by {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
 </style>
 
 <form id="form-berita-utama" method="POST" action="{{ $action }}" enctype="multipart/form-data"

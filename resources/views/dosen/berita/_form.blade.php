@@ -58,6 +58,15 @@
     .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.4rem 0; }
     .ck-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.875rem; color: #4b5563; margin: 0.5rem 0; }
     .ck-content a { color: #1f66e5; text-decoration: underline; }
+    /* Sembunyikan badge watermark "Powered by CKEditor" */
+    .ck-powered-by,
+    .ck.ck-powered-by,
+    a.ck-powered-by {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
 </style>
 
 <form x-data="formBerita(@js($awal))" x-on:submit.prevent="ajukan()"
