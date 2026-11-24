@@ -201,7 +201,7 @@ class DokumenSuratController extends Controller
             }
 
             $ext = $matches[1] === 'jpeg' ? 'jpg' : $matches[1];
-            $newPath = 'tanda_tangan/' . Str::uuid() . '.' . $ext;
+            $newPath = 'tanda_tangan/'.Str::uuid().'.'.$ext;
             Storage::disk('public')->put($newPath, $binary);
         }
 
@@ -261,7 +261,7 @@ class DokumenSuratController extends Controller
             'ttdBase64' => $ttdBase64,
         ])->setPaper('a4', 'portrait');
 
-        $namaFile = 'Surat-' . Str::slug($k->nama_kegiatan ?: 'kegiatan-' . $k->getKey()) . '.pdf';
+        $namaFile = 'Surat-'.Str::slug($k->nama_kegiatan ?: 'kegiatan-'.$k->getKey()).'.pdf';
 
         if ($preview) {
             return $pdf->stream($namaFile);
@@ -287,7 +287,7 @@ class DokumenSuratController extends Controller
 
         $lokasi = [
             Storage::disk('public')->path($cleanPath),
-            public_path('storage/' . $cleanPath),
+            public_path('storage/'.$cleanPath),
         ];
 
         foreach ($lokasi as $fullPath) {
