@@ -56,9 +56,18 @@
     .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
     .ck-content blockquote { border-left: 3px solid #2277FF; padding-left: 0.875rem; color: #4B5563; margin: 0.6rem 0; }
     .ck-content a { color: #2277FF; text-decoration: underline; }
-    .ck-content figure.image { margin: 1rem auto; text-align: center; }
-    .ck-content figure.image img { max-width: 100%; border-radius: 0.5rem; margin: 0 auto; }
+    .ck-content figure.image { margin: 1rem auto; text-align: center; max-width: 640px; }
+    .ck-content figure.image img { max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 0.5rem; margin: 0 auto; }
     .ck-content figure.image figcaption { font-size: 0.8125rem; color: #6B7280; margin-top: 0.375rem; }
+    /* Sembunyikan badge watermark "Powered by CKEditor" */
+    .ck-powered-by,
+    .ck.ck-powered-by,
+    a.ck-powered-by {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
 </style>
 
 <form id="form-berita-utama" method="POST" action="{{ $action }}" enctype="multipart/form-data"
@@ -124,6 +133,20 @@
                 @error('kategori') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
             </div>
         </div>
+
+        {{-- Panel Foto Dokumentasi Kegiatan --}}
+        <div id="panel-dokumentasi-kegiatan" class="hidden flex-col gap-3 rounded-lg border border-[#DBEAFE] bg-[#F8FAFF] p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 class="text-sm font-semibold text-[#071E38]">Dokumentasi Foto Kegiatan</h3>
+                    <p class="{{ $hint }}">Klik <strong>Sisipkan ke Isi</strong> untuk memasukkan foto ke editor, atau <strong>Jadikan Sampul</strong> untuk memakainya sebagai sampul berita.</p>
+                </div>
+            </div>
+            <div id="daftar-dokumentasi-kegiatan" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+            <p id="kosong-dokumentasi-kegiatan" class="hidden text-xs text-[#6B7280]">
+                Kegiatan ini belum memiliki dokumentasi foto. Anda tetap dapat mengunggah gambar baru langsung di editor atau pada foto sampul di bawah.
+            </p>
+        </div>
     </section>
 
     {{-- 2. INFORMASI BERITA (RICH TEXT + SISIP FOTO) --}}
@@ -181,6 +204,7 @@
                     <span class="text-sm font-semibold text-[#2277FF]">Pilih berkas sampul dari perangkat</span>
                     <span class="{{ $hint }}">PDF, JPG, atau PNG &bull; Maksimal 5 MB per berkas</span>
                     <input id="foto" name="foto" type="file" accept=".pdf,.jpg,.jpeg,.png" class="sr-only">
+                    <input type="hidden" id="sampul_dokumen_id" name="sampul_dokumen_id" value="{{ old('sampul_dokumen_id', '') }}">
                 </label>
 
                 <div id="sampul-preview-wrap" class="{{ $adaFoto && preg_match('/\.(jpe?g|png|webp)$/i', (string) ($b['foto'] ?? '')) ? 'flex' : 'hidden' }} items-center gap-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-3">
@@ -362,6 +386,110 @@
     radios.forEach(function (r) { r.addEventListener('change', sync); });
     kegiatan.addEventListener('change', sync);
     sync();
+
+    var kegiatanDocsMap = {};
+    @json($kegiatanList).forEach(function (item) {
+        kegiatanDocsMap[String(item.id)] = item.dokumentasi || [];
+    });
+
+    var panelDok = document.getElementById('panel-dokumentasi-kegiatan');
+    var listDok = document.getElementById('daftar-dokumentasi-kegiatan');
+    var kosongDok = document.getElementById('kosong-dokumentasi-kegiatan');
+    var sampulDokId = document.getElementById('sampul_dokumen_id');
+
+    function escHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function sisipkanFotoKeEditor(url, nama) {
+        if (!ckInstance) return;
+        ckInstance.model.change(function (writer) {
+            var imageElement = writer.createElement('imageBlock', {
+                src: url,
+                alt: nama || 'Dokumentasi Kegiatan'
+            });
+            ckInstance.model.insertContent(imageElement, ckInstance.model.document.selection);
+        });
+        statusKonten.textContent = 'Foto dokumentasi "' + (nama || 'kegiatan') + '" berhasil disisipkan ke dalam isi berita.';
+    }
+
+    function renderDokumentasiKegiatan() {
+        var checked = document.querySelector('input[name="sumber"]:checked');
+        var prev = checked && checked.value === 'prev';
+        var selectedId = kegiatan.value;
+
+        if (!prev || !selectedId) {
+            panelDok.classList.add('hidden');
+            panelDok.classList.remove('flex');
+            listDok.innerHTML = '';
+            if (sampulDokId) sampulDokId.value = '';
+            return;
+        }
+
+        panelDok.classList.remove('hidden');
+        panelDok.classList.add('flex');
+
+        var docs = kegiatanDocsMap[String(selectedId)] || [];
+        if (!docs.length) {
+            listDok.innerHTML = '';
+            kosongDok.classList.remove('hidden');
+            return;
+        }
+
+        kosongDok.classList.add('hidden');
+        listDok.innerHTML = docs.map(function (d) {
+            return (
+                '<div class="flex flex-col overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">' +
+                    '<img src="' + escHtml(d.url) + '" alt="' + escHtml(d.nama) + '" class="h-32 w-full object-cover bg-[#F3F4F6]">' +
+                    '<div class="flex flex-1 flex-col justify-between gap-2 p-3">' +
+                        '<div>' +
+                            '<p class="truncate text-xs font-semibold text-[#111827]" title="' + escHtml(d.nama) + '">' + escHtml(d.nama) + '</p>' +
+                            '<span class="text-[11px] text-[#6B7280]">' + escHtml(d.jenis) + '</span>' +
+                        '</div>' +
+                        '<div class="flex gap-2">' +
+                            '<button type="button" data-dok-sisip data-url="' + escHtml(d.url) + '" data-nama="' + escHtml(d.nama) + '" class="flex-1 cursor-pointer rounded-md bg-[#EFF6FF] px-2 py-1.5 text-xs font-semibold text-[#2277FF] hover:bg-[#DBEAFE]">Sisipkan ke Isi</button>' +
+                            '<button type="button" data-dok-sampul data-id="' + escHtml(d.id_dokumen) + '" data-url="' + escHtml(d.url) + '" data-nama="' + escHtml(d.nama) + '" class="cursor-pointer rounded-md border border-[#E5E7EB] bg-white px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#F9FAFB]">Sampul</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>'
+            );
+        }).join('');
+    }
+
+    if (listDok) {
+        listDok.addEventListener('click', function (e) {
+            var btnSisip = e.target.closest('button[data-dok-sisip]');
+            if (btnSisip) {
+                sisipkanFotoKeEditor(btnSisip.dataset.url, btnSisip.dataset.nama);
+                return;
+            }
+            var btnSampul = e.target.closest('button[data-dok-sampul]');
+            if (btnSampul) {
+                if (sampulDokId) sampulDokId.value = btnSampul.dataset.id;
+                if (foto) foto.value = '';
+                if (fileStatusEmpty) fileStatusEmpty.classList.add('hidden');
+                previewWrap.classList.remove('hidden');
+                previewWrap.classList.add('flex');
+                previewImg.src = btnSampul.dataset.url;
+                previewImg.classList.remove('hidden');
+                if (fileStatus) fileStatus.textContent = 'Mengambil dari dokumentasi kegiatan: ' + btnSampul.dataset.nama;
+            }
+        });
+    }
+
+    if (foto) {
+        foto.addEventListener('change', function () {
+            if (foto.files.length && sampulDokId) {
+                sampulDokId.value = '';
+            }
+        });
+    }
+
+    radios.forEach(function (r) { r.addEventListener('change', renderDokumentasiKegiatan); });
+    kegiatan.addEventListener('change', renderDokumentasiKegiatan);
+    renderDokumentasiKegiatan();
 })();
 </script>
 @endpush

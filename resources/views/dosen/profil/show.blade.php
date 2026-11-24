@@ -35,6 +35,12 @@
             <p class="text-2xl text-gray-400">Dashboard / Profil</p>
         </div>
         <div class="mt-2 flex items-center gap-3">
+            <button type="button"
+                    x-show="!loading && !error && !mengedit"
+                    x-on:click="mulaiEdit()"
+                    class="flex h-11 cursor-pointer items-center gap-2 rounded-md bg-brand px-4 text-base font-medium text-white hover:opacity-90">
+                Edit Profil
+            </button>
             <a href="{{ route('dosen.dashboard') }}"
                class="flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
@@ -43,32 +49,85 @@
         </div>
     </div>
 
-    {{-- Pesan error bila gagal memuat data API --}}
+    {{-- Pesan sukses / error --}}
+    <template x-if="sukses">
+        <div role="status" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700" x-text="sukses"></div>
+    </template>
     <template x-if="error">
         <div role="alert" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" x-text="error"></div>
     </template>
 
     {{-- Kartu identitas --}}
     <section class="flex flex-col gap-8 rounded-lg bg-white p-5 shadow-sm">
-        <div class="flex items-center gap-5">
-            <div class="relative shrink-0">
-                <template x-if="profil.foto_profil">
-                    <img :src="profil.foto_profil" :alt="profil.nama || 'Foto Profil'" class="size-[88px] rounded-full object-cover">
-                </template>
-                <template x-if="!profil.foto_profil">
-                    <span class="flex size-[88px] items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white"
-                          aria-hidden="true" x-text="inisial(profil.nama)"></span>
-                </template>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-                <div class="flex flex-wrap items-center gap-4">
-                    <h2 class="text-2xl font-semibold" x-text="loading ? 'Memuat...' : (profil.nama || '-')"></h2>
-                    <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">Aktif</span>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-5">
+                <div class="relative shrink-0">
+                    <template x-if="profil.foto_profil">
+                        <img :src="profil.foto_profil" :alt="profil.nama || 'Foto Profil'" class="size-[88px] rounded-full object-cover">
+                    </template>
+                    <template x-if="!profil.foto_profil">
+                        <span class="flex size-[88px] items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white"
+                              aria-hidden="true" x-text="inisial(profil.nama)"></span>
+                    </template>
                 </div>
-                <p class="text-xl text-gray-400" x-text="profil.nip ? `NIP ${profil.nip}` : 'NIP -'"></p>
+
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="flex flex-wrap items-center gap-4">
+                        <h2 class="text-2xl font-semibold" x-text="loading ? 'Memuat...' : (profil.nama || '-')"></h2>
+                        <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">Aktif</span>
+                    </div>
+                    <p class="text-xl text-gray-400" x-text="profil.nip ? `NIP ${profil.nip}` : 'NIP -'"></p>
+                </div>
             </div>
         </div>
+
+        {{-- Form edit nama & foto profil --}}
+        <template x-if="mengedit">
+            <form x-on:submit.prevent="simpanProfil()" class="flex flex-col gap-4 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+                @csrf
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="flex flex-col gap-1.5">
+                        <label for="input-nama-dosen" class="text-sm font-medium text-gray-700">Nama Lengkap</label>
+                        <input id="input-nama-dosen"
+                               type="text"
+                               x-model="form.nama"
+                               required
+                               placeholder="Masukkan nama dosen"
+                               class="h-11 rounded-md border border-gray-300 bg-white px-3.5 text-base text-gray-900 focus:border-brand focus:outline-none">
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <label for="input-foto-dosen" class="text-sm font-medium text-gray-700">Foto Profil (Opsional)</label>
+                        <input id="input-foto-dosen"
+                               type="file"
+                               accept="image/png,image/jpeg,image/jpg,image/webp"
+                               x-on:change="pilihFoto($event)"
+                               class="block w-full cursor-pointer rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-blue-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-brand hover:file:bg-blue-200">
+                    </div>
+                </div>
+
+                <template x-if="previewFoto">
+                    <div class="flex items-center gap-3">
+                        <img :src="previewFoto" alt="Pratinjau Foto Baru" class="size-14 rounded-full border border-gray-300 object-cover">
+                        <span class="text-xs text-gray-500">Pratinjau foto baru sebelum disimpan</span>
+                    </div>
+                </template>
+
+                <div class="flex items-center gap-2.5">
+                    <button type="submit"
+                            :disabled="menyimpan"
+                            class="flex h-11 cursor-pointer items-center justify-center rounded-md bg-brand px-5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-text="menyimpan ? 'Menyimpan...' : 'Simpan'"></span>
+                    </button>
+                    <button type="button"
+                            :disabled="menyimpan"
+                            x-on:click="batalEdit()"
+                            class="flex h-11 cursor-pointer items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60">
+                        Batal
+                    </button>
+                </div>
+            </form>
+        </template>
 
         <dl class="grid grid-cols-1 gap-5 rounded-lg bg-blue-50 px-5 py-5 sm:grid-cols-2 lg:grid-cols-[1.8fr_0.8fr_1.4fr_0.8fr]">
             <div class="flex min-w-0 flex-col gap-1.5">
@@ -179,7 +238,12 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('profilDosen', () => ({
         loading: true,
+        menyimpan: false,
+        mengedit: false,
         error: '',
+        sukses: '',
+        fileFoto: null,
+        previewFoto: '',
         profil: {
             id_dosen: null,
             nama: '',
@@ -188,17 +252,36 @@ document.addEventListener('alpine:init', () => {
             foto_profil: null,
             pangkat_terakhir: null,
         },
+        form: {
+            nama: '',
+        },
         riwayat: [],
 
-        headers() {
+        headers(isMultipart = false) {
             const h = {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
             };
+
+            if (!isMultipart) {
+                h['Content-Type'] = 'application/json';
+            }
+
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfMeta) {
+                h['X-CSRF-TOKEN'] = csrfMeta;
+            } else {
+                const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+                if (match) {
+                    h['X-XSRF-TOKEN'] = decodeURIComponent(match[1]);
+                }
+            }
+
             const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
             if (token) {
                 h['Authorization'] = `Bearer ${token}`;
             }
+
             return h;
         },
 
@@ -209,11 +292,11 @@ document.addEventListener('alpine:init', () => {
             try {
                 const [resProfil, resRiwayat] = await Promise.all([
                     fetch('/api/v1/dosen/profil', {
-                        headers: this.headers(),
+                        headers: this.headers(false),
                         credentials: 'same-origin',
                     }),
                     fetch('/api/v1/dosen/riwayat-pangkat', {
-                        headers: this.headers(),
+                        headers: this.headers(false),
                         credentials: 'same-origin',
                     }),
                 ]);
@@ -229,6 +312,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.profil = jsonProfil.data ?? jsonProfil;
+                this.form.nama = this.profil?.nama || '';
                 this.riwayat = Array.isArray(jsonRiwayat.data)
                     ? jsonRiwayat.data
                     : (Array.isArray(jsonRiwayat) ? jsonRiwayat : []);
@@ -236,6 +320,86 @@ document.addEventListener('alpine:init', () => {
                 this.error = err.message || 'Terjadi kesalahan saat mengambil data dari API.';
             } finally {
                 this.loading = false;
+            }
+        },
+
+        mulaiEdit() {
+            this.error = '';
+            this.sukses = '';
+            this.form.nama = this.profil?.nama || '';
+            this.fileFoto = null;
+            this.previewFoto = '';
+            this.mengedit = true;
+        },
+
+        batalEdit() {
+            this.mengedit = false;
+            this.form.nama = this.profil?.nama || '';
+            this.fileFoto = null;
+            this.previewFoto = '';
+        },
+
+        pilihFoto(event) {
+            const file = event.target.files?.[0] || null;
+            if (!file) {
+                this.fileFoto = null;
+                this.previewFoto = '';
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                this.error = 'Ukuran foto maksimal 2 MB.';
+                event.target.value = '';
+                this.fileFoto = null;
+                this.previewFoto = '';
+                return;
+            }
+
+            this.error = '';
+            this.fileFoto = file;
+            this.previewFoto = URL.createObjectURL(file);
+        },
+
+        async simpanProfil() {
+            this.menyimpan = true;
+            this.error = '';
+            this.sukses = '';
+
+            try {
+                const fd = new FormData();
+                fd.append('nama', this.form.nama.trim());
+                fd.append('_method', 'PATCH');
+
+                if (this.fileFoto) {
+                    fd.append('foto_profil', this.fileFoto);
+                }
+
+                const res = await fetch('/api/v1/dosen/profil', {
+                    method: 'POST',
+                    headers: this.headers(true),
+                    credentials: 'same-origin',
+                    body: fd,
+                });
+
+                const json = await res.json().catch(() => ({}));
+
+                if (!res.ok) {
+                    const pesanValidasi = json.errors
+                        ? Object.values(json.errors).flat().join(' ')
+                        : null;
+                    throw new Error(pesanValidasi || json.message || `Gagal menyimpan profil (${res.status})`);
+                }
+
+                this.profil = json.data ?? json;
+                this.form.nama = this.profil?.nama || '';
+                this.fileFoto = null;
+                this.previewFoto = '';
+                this.mengedit = false;
+                this.sukses = json.message || 'Profil dosen berhasil diperbarui.';
+            } catch (err) {
+                this.error = err.message || 'Terjadi kesalahan saat menyimpan profil.';
+            } finally {
+                this.menyimpan = false;
             }
         },
 

@@ -121,7 +121,7 @@ class MahasiswaController extends Controller
                 }
             }],
             'angkatan' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'status' => ['required', Rule::in($this->store->opsiStatus())],
+            'status' => ['nullable', Rule::in($this->store->opsiStatus())],
             'email' => ['required', 'email', 'max:150', function ($attr, $value, $fail) {
                 if ($this->store->usedByOther('email', $value, '')) {
                     $fail('Email sudah dipakai akun lain.');
@@ -139,6 +139,7 @@ class MahasiswaController extends Controller
             'password.min' => 'Password minimal 8 karakter.',
         ]);
 
+        $data['status'] = $data['status'] ?? 'Aktif';
         $row = $this->store->create($data);
 
         return response()->json([
@@ -251,7 +252,7 @@ class MahasiswaController extends Controller
     /**
      * PATCH /api/v1/mahasiswa/{id}/status (Khusus Admin)
      */
-    public function toggleStatus(string $id): JsonResponse
+    public function toggleStatus(Request $request, string $id): JsonResponse
     {
         $lama = $this->store->find($id);
 
@@ -262,7 +263,14 @@ class MahasiswaController extends Controller
             ], 404);
         }
 
-        $statusBaru = strcasecmp($lama['status'] ?? 'Aktif', 'Aktif') === 0 ? 'Non-aktif' : 'Aktif';
+        if ($request->filled('status')) {
+            $validated = $request->validate([
+                'status' => ['required', Rule::in($this->store->opsiStatus())],
+            ]);
+            $statusBaru = $validated['status'];
+        } else {
+            $statusBaru = strcasecmp($lama['status'] ?? 'Aktif', 'Aktif') === 0 ? 'Cuti' : 'Aktif';
+        }
 
         $updated = $this->store->update($id, [
             'nama' => $lama['nama'],
@@ -305,12 +313,25 @@ class MahasiswaController extends Controller
         $ta = $ringkasan['tahun_akademik'] ?? 'aktif';
         $dibuat = $ringkasan['dibuat'] ?? 0;
         $sudahAda = $ringkasan['sudah-ada'] ?? 0;
-        $lulus = $ringkasan['lulus'] ?? 0;
+        $skripsiTa = $ringkasan['skripsi-ta'] ?? 0;
 
         return response()->json([
             'success' => true,
-            'message' => "Sinkronisasi kelas ({$ta}) selesai: {$dibuat} ditempatkan, {$sudahAda} sudah terdaftar, {$lulus} lulus.",
+            'message' => "Sinkronisasi kelas ({$ta}) selesai: {$dibuat} ditempatkan, {$sudahAda} sudah terdaftar, {$skripsiTa} masuk status Skripsi/TA.",
             'data' => $ringkasan,
+        ], 200);
+    }
+
+    public function luluskanTa(): JsonResponse
+    {
+        $jumlah = $this->store->luluskanSkripsiTa();
+
+        return response()->json([
+            'success' => true,
+            'message' => $jumlah > 0
+                ? "{$jumlah} mahasiswa berstatus Skripsi/TA berhasil diluluskan."
+                : 'Tidak ada mahasiswa berstatus Skripsi/TA saat ini.',
+            'data' => ['lulus' => $jumlah],
         ], 200);
     }
 }

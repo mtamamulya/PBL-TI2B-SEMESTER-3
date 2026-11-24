@@ -84,6 +84,8 @@ tags:
     description: Pengelolaan seluruh prestasi oleh pengguna dengan role admin.
   - name: Kelompok Bidang
     description: Kelompok bidang (bertingkat lewat id_rujukan). Baca semua pengguna login, tulis admin dan kaprodi.
+  - name: Skim
+    description: Master data skim penelitian dan pengabdian.
 
 paths:
   /ping:
@@ -956,7 +958,7 @@ paths:
             type: string
         - name: status
           in: query
-          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Lulus`, `Non-aktif`, atau `all`).
+          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Drop Out`, `Skripsi/TA`, `Lulus`, `Meninggal Dunia`, atau `all`).
           schema:
             type: string
       responses:
@@ -1049,12 +1051,23 @@ paths:
   /mahasiswa/{id}/status:
     patch:
       tags: [Mahasiswa]
-      summary: Toggle status aktif/nonaktif mahasiswa
-      description: Khusus peran **admin**. Membalik status keaktifan akun dan status akademik mahasiswa (`Aktif` <-> `Non-aktif`) tanpa body request.
+      summary: Ubah atau toggle status akademik mahasiswa
+      description: Khusus peran **admin**. Jika body `status` dikirim, status mahasiswa diubah sesuai nilai tersebut; jika dikosongkan, membalik status antara `Aktif` dan `Cuti`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+                  example: Skripsi/TA
       responses:
         '200':
           description: Status mahasiswa berhasil diperbarui.
@@ -1068,12 +1081,14 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/MahasiswaTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
 
   /mahasiswa/sinkronisasi-kelas:
     post:
       tags: [Mahasiswa]
       summary: Sinkronisasi kelas semester mahasiswa
-      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan serta menempatkannya ke kelas yang sesuai.
+      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan, menempatkannya ke kelas yang sesuai, atau mengubah mahasiswa tingkat akhir menjadi `Skripsi/TA`.
       security:
         - bearerAuth: []
       responses:
@@ -1083,6 +1098,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          description: Tidak ada tahun akademik yang berstatus aktif.
+
+  /mahasiswa/luluskan-ta:
+    post:
+      tags: [Mahasiswa]
+      summary: Luluskan seluruh mahasiswa berstatus Skripsi/TA
+      description: Khusus peran **admin**. Mengubah status akademik seluruh mahasiswa yang sedang berstatus `Skripsi/TA` menjadi `Lulus`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Proses kelulusan mahasiswa Skripsi/TA selesai dijalankan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 3 mahasiswa berstatus Skripsi/TA berhasil diluluskan.
+                  data:
+                    type: object
+                    properties:
+                      lulus:
+                        type: integer
+                        example: 3
         '401':
           $ref: '#/components/responses/TidakLogin'
         '403':
@@ -1209,6 +1258,132 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
+
+  /skim:
+    get:
+      tags: [Skim]
+      summary: Daftar skim (berhalaman)
+      description: Urut nama A–Z. Wajib login.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Cari pada nama skim.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar skim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Skim]
+      summary: Tambah skim
+      description: Peran **admin** atau **kaprodi**. `nama_skim` harus unik.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkimInput'
+      responses:
+        '201':
+          description: Skim berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /skim/{id}:
+    get:
+      tags: [Skim]
+      summary: Detail satu skim
+      description: Wajib login.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail skim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Skim]
+      summary: Ubah skim
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkimInput'
+      responses:
+        '200':
+          description: Skim berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Skim]
+      summary: Hapus skim
+      description: Peran **admin** atau **kaprodi**. Gagal jika skim masih dipakai pada data kegiatan.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Skim berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Skim masih dipakai kegiatan dan tidak dapat dihapus.
 
   /berita:
     get:
@@ -3996,7 +4171,7 @@ components:
 
     MahasiswaCreateInput:
       type: object
-      required: [nama, nim, angkatan, status, email, password]
+      required: [nama, nim, angkatan, email, password]
       properties:
         nama:
           type: string
@@ -4014,18 +4189,9 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+          default: Aktif
           example: Aktif
-        email:
-          type: string
-          format: email
-          maxLength: 150
-          example: galih.virgi@mhs.polines.ac.id
-        password:
-          type: string
-          format: password
-          minLength: 8
-          example: password123
 
     MahasiswaUpdateInput:
       type: object
@@ -4050,7 +4216,7 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
           nullable: true
           description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
           example: Aktif
@@ -4140,6 +4306,56 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JenisDokumen'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    
+    Skim:
+      type: object
+      properties:
+        id_skim:
+          type: integer
+          example: 1
+        nama_skim:
+          type: string
+          example: Penelitian Dasar
+        total_kegiatan:
+          type: integer
+          example: 0
+
+    SkimInput:
+      type: object
+      required: [nama_skim]
+      properties:
+        nama_skim:
+          type: string
+          maxLength: 100
+          example: Penelitian Dasar
+
+    SkimResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Skim'
+
+    SkimListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skim'
         meta:
           $ref: '#/components/schemas/Meta'
 
