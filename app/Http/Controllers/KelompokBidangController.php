@@ -28,9 +28,9 @@ class KelompokBidangController extends Controller
             ->all();
 
         return view('admin.kelompok-bidang', [
-            'prefix'   => $prefix,
-            'layout'   => $layout,
-            'rows'     => $rows,
+            'prefix' => $prefix,
+            'layout' => $layout,
+            'rows' => $rows,
             'apiError' => null,
         ]);
     }
@@ -42,7 +42,7 @@ class KelompokBidangController extends Controller
         try {
             $k = KelompokBidang::create([
                 'nama_kelompok_bidang' => $data['nama_kelompok_bidang'],
-                'id_rujukan'           => $data['id_rujukan'] ?? null,
+                'id_rujukan' => $data['id_rujukan'] ?? null,
             ]);
         } catch (QueryException) {
             return response()->json(['message' => 'Kelompok bidang gagal disimpan. Periksa isian form.'], 409);
@@ -51,7 +51,7 @@ class KelompokBidangController extends Controller
         $k = $this->cari($k->getKey());
 
         return response()->json([
-            'data'    => ApiKelompokBidangController::bentuk($k),
+            'data' => ApiKelompokBidangController::bentuk($k),
             'message' => 'Kelompok bidang dibuat.',
         ], 201);
     }
@@ -68,7 +68,7 @@ class KelompokBidangController extends Controller
         try {
             $k->update([
                 'nama_kelompok_bidang' => $data['nama_kelompok_bidang'],
-                'id_rujukan'           => $data['id_rujukan'] ?? null,
+                'id_rujukan' => $data['id_rujukan'] ?? null,
             ]);
         } catch (QueryException) {
             return response()->json(['message' => 'Kelompok bidang gagal diperbarui. Periksa isian form.'], 409);
@@ -77,7 +77,7 @@ class KelompokBidangController extends Controller
         $k = $this->cari($id);
 
         return response()->json([
-            'data'    => ApiKelompokBidangController::bentuk($k),
+            'data' => ApiKelompokBidangController::bentuk($k),
             'message' => 'Kelompok bidang diperbarui.',
         ]);
     }
@@ -104,7 +104,7 @@ class KelompokBidangController extends Controller
         }
 
         return response()->json([
-            'data'    => null,
+            'data' => null,
             'message' => 'Kelompok bidang dihapus.',
         ]);
     }
@@ -143,9 +143,9 @@ class KelompokBidangController extends Controller
             'id_rujukan' => ['nullable', 'integer', Rule::exists('kelompok_bidang', 'id_kelompok_bidang')],
         ], [
             'nama_kelompok_bidang.required' => 'Nama kelompok bidang wajib diisi.',
-            'nama_kelompok_bidang.max'      => 'Nama kelompok bidang maksimal 100 karakter.',
-            'nama_kelompok_bidang.unique'   => 'Nama kelompok bidang sudah ada.',
-            'id_rujukan.exists'             => 'Kelompok bidang rujukan tidak ditemukan.',
+            'nama_kelompok_bidang.max' => 'Nama kelompok bidang maksimal 100 karakter.',
+            'nama_kelompok_bidang.unique' => 'Nama kelompok bidang sudah ada.',
+            'id_rujukan.exists' => 'Kelompok bidang rujukan tidak ditemukan.',
         ]);
 
         if ($id !== null && isset($data['id_rujukan']) && $this->membuatSiklus($id, (int) $data['id_rujukan'])) {
