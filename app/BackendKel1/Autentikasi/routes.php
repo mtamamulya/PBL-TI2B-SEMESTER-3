@@ -30,4 +30,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('profil/ganti-sandi/kirim-otp', [PemulihanController::class, 'kirimOtpProfil'])->middleware('throttle:5,1')->name('api.profil.ganti-sandi.kirim-otp');
     Route::post('profil/ganti-sandi/verifikasi', [PemulihanController::class, 'verifikasiOtpProfil'])->name('api.profil.ganti-sandi.verifikasi');
     Route::post('profil/ganti-sandi/simpan', [PemulihanController::class, 'simpanSandiProfilOtp'])->name('api.profil.ganti-sandi.simpan');
+
+    // Perubahan email profil mahasiswa
+    Route::post('profil/ganti-email/kirim-otp', [PemulihanController::class, 'kirimOtpEmailProfil'])->middleware('throttle:5,1')->name('api.profil.ganti-email.kirim-otp');
+    Route::post('profil/ganti-email/verifikasi', [PemulihanController::class, 'verifikasiEmailProfil'])->name('api.profil.ganti-email.verifikasi');
 });

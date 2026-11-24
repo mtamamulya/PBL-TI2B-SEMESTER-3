@@ -67,6 +67,50 @@ class MahasiswaDashboardIdentityTest extends TestCase
             ->assertSee('Keluar');
     }
 
+    public function test_profile_password_modal_uses_the_profile_otp_api(): void
+    {
+        $user = $this->student();
+        $user->update(['email' => 'ivan.mahasiswa@example.test']);
+
+        $this->actingAs($user)
+            ->get(route('mahasiswa.profil'))
+            ->assertOk()
+            ->assertSee('Kode OTP akan dikirim ke i*************@example.test.')
+            ->assertSee('x-text="pesanError"', false)
+            ->assertSee('Ubah email')
+            ->assertSee('/api/v1/profil/ganti-email/kirim-otp', false)
+            ->assertSee('/api/v1/profil/ganti-email/verifikasi', false)
+            ->assertSee('/api/v1/profil/ganti-sandi/kirim-otp', false)
+            ->assertSee('/api/v1/profil/ganti-sandi/verifikasi', false)
+            ->assertSee('/api/v1/profil/ganti-sandi/simpan', false)
+            ->assertDontSee('alert(\'Kata sandi berhasil disimpan!\')', false);
+    }
+
+    public function test_profile_shows_the_local_otp_recipient_for_the_designated_student(): void
+    {
+        $user = $this->student();
+        $user->update(['email' => 'student-original@test.local']);
+        DB::table('mahasiswa')->insert([
+            'id_user' => $user->getKey(),
+            'nim' => '43325111',
+            'nama' => 'Mahasiswa Tes',
+            'tahun_masuk' => 2024,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->app->detectEnvironment(fn () => 'local');
+        config([
+            'mahasiswa.otp_email' => 'ivan.43325111@mhs.polines.ac.id',
+            'mahasiswa.otp_test_nim' => '43325111',
+        ]);
+
+        $maskedEmail = 'i'.str_repeat('*', strlen('ivan.43325111') - 1).'@mhs.polines.ac.id';
+        $this->actingAs($user)
+            ->get(route('mahasiswa.profil'))
+            ->assertOk()
+            ->assertSee('Kode OTP akan dikirim ke '.$maskedEmail.'.');
+    }
+
     public function test_student_can_log_out_using_the_shared_logout_route(): void
     {
         $roleId = DB::table('roles')->insertGetId([
