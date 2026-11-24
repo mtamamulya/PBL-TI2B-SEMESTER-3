@@ -82,6 +82,8 @@ tags:
 
   - name: Admin Prestasi
     description: Pengelolaan seluruh prestasi oleh pengguna dengan role admin.
+  - name: Kelompok Bidang
+    description: Kelompok bidang (bertingkat lewat id_rujukan). Baca semua pengguna login, tulis admin dan kaprodi.
 
 paths:
   /ping:
@@ -1517,7 +1519,98 @@ paths:
         '200':
           description: Pengajuan kegiatan berhasil dihapus
 
-components:
+  /kelompok-bidang:
+    get:
+      tags: [Kelompok Bidang]
+      summary: Daftar kelompok bidang (berhalaman)
+      description: Butuh token (peran apa saja). Urut nama.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: Cari nama }
+        - { name: id_rujukan, in: query, schema: { type: integer }, description: Hanya turunan dari kelompok bidang ini }
+        - { name: tanpa_rujukan, in: query, schema: { type: boolean }, description: Hanya yang tingkat atas }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 15 } }
+      responses:
+        '200': { description: Daftar kelompok bidang. }
+        '401': { $ref: '#/components/responses/TidakLogin' }
+    post:
+      tags: [Kelompok Bidang]
+      summary: Tambah kelompok bidang
+      description: Hanya admin dan kaprodi (selain itu 403).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nama_kelompok_bidang]
+              properties:
+                nama_kelompok_bidang: { type: string, maxLength: 100 }
+                id_rujukan: { type: integer, nullable: true }
+      responses:
+        '201': { description: Dibuat. }
+        '401': { $ref: '#/components/responses/TidakLogin' }
+        '403': { $ref: '#/components/responses/DilarangPeran' }
+        '422': { $ref: '#/components/responses/ValidasiGagal' }
+
+  /kelompok-bidang/opsi:
+    get:
+      tags: [Kelompok Bidang]
+      summary: Semua kelompok bidang untuk dropdown (tanpa halaman)
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Daftar ringkas (id, nama, id_rujukan). }
+        '401': { $ref: '#/components/responses/TidakLogin' }
+
+  /kelompok-bidang/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Kelompok Bidang]
+      summary: Detail kelompok bidang beserta turunannya
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Detail. }
+        '401': { $ref: '#/components/responses/TidakLogin' }
+        '404': { $ref: '#/components/responses/TidakDitemukan' }
+    put:
+      tags: [Kelompok Bidang]
+      summary: Ubah kelompok bidang
+      description: Hanya admin dan kaprodi. id_rujukan tidak dikirim = dibiarkan, null = dilepas.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nama_kelompok_bidang]
+              properties:
+                nama_kelompok_bidang: { type: string, maxLength: 100 }
+                id_rujukan: { type: integer, nullable: true }
+      responses:
+        '200': { description: Diperbarui. }
+        '403': { $ref: '#/components/responses/DilarangPeran' }
+        '404': { $ref: '#/components/responses/TidakDitemukan' }
+        '422': { $ref: '#/components/responses/ValidasiGagal' }
+    delete:
+      tags: [Kelompok Bidang]
+      summary: Hapus kelompok bidang
+      description: Hanya admin dan kaprodi. Ditolak 409 bila dipakai kegiatan atau masih punya turunan.
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Dihapus. }
+        '403': { $ref: '#/components/responses/DilarangPeran' }
+        '404': { $ref: '#/components/responses/TidakDitemukan' }
+        '409': { description: Masih dipakai kegiatan atau masih punya turunan., content: { application/json: { schema: { $ref: '#/components/schemas/GalatUmum' } } } }
+
 
   /berita/opsi:
     get:

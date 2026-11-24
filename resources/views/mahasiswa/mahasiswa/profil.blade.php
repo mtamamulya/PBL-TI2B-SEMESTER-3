@@ -15,9 +15,7 @@
     $isOtpTestStudent = app()->environment('local')
         && $user
         && (int) $user->id_role === 4
-        && filled(config('mahasiswa.otp_email'))
-        && filled(config('mahasiswa.otp_test_nim'))
-        && (string) $user->mahasiswa?->nim === (string) config('mahasiswa.otp_test_nim');
+        && filled(config('mahasiswa.otp_email'));
     $emailOtp = $isOtpTestStudent ? config('mahasiswa.otp_email') : $email;
     [$local, $domain] = explode('@', $emailOtp, 2);
     $maskedEmail = substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
@@ -457,6 +455,7 @@
             emailOtp: '',
             emailChangeLoading: false,
             emailChangeError: '',
+            apiToken: @js(session('api_token')),
             openPhotoModal: false,
             previewPhoto: null,
 
@@ -490,6 +489,18 @@
                 } catch (e) {
                     this.previewPhoto = null;
                 }
+            },
+
+            apiHeaders() {
+                const headers = {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': @js(csrf_token()),
+                };
+                if (this.apiToken) {
+                    headers.Authorization = `Bearer ${this.apiToken}`;
+                }
+                return headers;
             },
 
             get rules() {
@@ -542,11 +553,7 @@
                     const response = await fetch('/api/v1/profil/ganti-email/kirim-otp', {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: {
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': @js(csrf_token()),
-                        },
+                        headers: this.apiHeaders(),
                         body: JSON.stringify({ email: this.emailBaru }),
                     });
                     const data = await response.json().catch(() => ({}));
@@ -575,11 +582,7 @@
                     const response = await fetch('/api/v1/profil/ganti-email/verifikasi', {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: {
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': @js(csrf_token()),
-                        },
+                        headers: this.apiHeaders(),
                         body: JSON.stringify({ otp: this.emailOtp }),
                     });
                     const data = await response.json().catch(() => ({}));
@@ -620,11 +623,7 @@
                     const response = await fetch('/api/v1/profil/ganti-sandi/kirim-otp', {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: {
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': @js(csrf_token()),
-                        },
+                        headers: this.apiHeaders(),
                     });
                     const data = await response.json().catch(() => ({}));
 
@@ -712,11 +711,7 @@
 
                 this.loading = true;
                 this.pesanError = '';
-                const headers = {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': @js(csrf_token()),
-                };
+                const headers = this.apiHeaders();
 
                 try {
                     const otp = this.otp.join('');

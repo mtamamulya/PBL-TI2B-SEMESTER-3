@@ -119,15 +119,6 @@ class PemulihanSandiTest extends TestCase
             $t->timestamps();
         });
 
-        Schema::create('mahasiswa', function ($t) {
-            $t->increments('id_mahasiswa');
-            $t->unsignedInteger('id_user')->unique();
-            $t->string('nim')->unique();
-            $t->string('nama');
-            $t->unsignedSmallInteger('tahun_masuk');
-            $t->timestamps();
-        });
-
         Schema::create('personal_access_tokens', function ($t) {
             $t->id();
             $t->morphs('tokenable');
@@ -253,18 +244,9 @@ class PemulihanSandiTest extends TestCase
     {
         $emailOtp = 'ivan.43325111@mhs.polines.ac.id';
         DB::table('users')->where('id_user', $this->idUser)->update(['id_role' => 4]);
-        DB::table('mahasiswa')->insert([
-            'id_user' => $this->idUser,
-            'nim' => '43325111',
-            'nama' => 'Mahasiswa Tes',
-            'tahun_masuk' => 2024,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
         $this->app->detectEnvironment(fn () => 'local');
         config([
             'mahasiswa.otp_email' => $emailOtp,
-            'mahasiswa.otp_test_nim' => '43325111',
             'mail.default' => 'smtp',
             'mail.mailers.smtp.transport' => 'smtp',
         ]);
@@ -275,22 +257,13 @@ class PemulihanSandiTest extends TestCase
         Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo($emailOtp));
     }
 
-    public function test_password_recovery_otp_uses_local_override_only_for_the_designated_student(): void
+    public function test_student_password_recovery_otp_uses_local_override(): void
     {
         $emailOtp = 'ivan.43325111@mhs.polines.ac.id';
         DB::table('users')->where('id_user', $this->idUser)->update(['id_role' => 4]);
-        DB::table('mahasiswa')->insert([
-            'id_user' => $this->idUser,
-            'nim' => '43325111',
-            'nama' => 'Mahasiswa Tes',
-            'tahun_masuk' => 2024,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
         $this->app->detectEnvironment(fn () => 'local');
         config([
             'mahasiswa.otp_email' => $emailOtp,
-            'mahasiswa.otp_test_nim' => '43325111',
             'mail.default' => 'smtp',
             'mail.mailers.smtp.transport' => 'smtp',
         ]);
@@ -305,7 +278,6 @@ class PemulihanSandiTest extends TestCase
         $this->app->detectEnvironment(fn () => 'local');
         config([
             'mahasiswa.otp_email' => 'ivan.43325111@mhs.polines.ac.id',
-            'mahasiswa.otp_test_nim' => '43325111',
             'mail.default' => 'smtp',
             'mail.mailers.smtp.transport' => 'smtp',
         ]);

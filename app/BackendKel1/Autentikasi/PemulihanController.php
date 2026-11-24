@@ -561,12 +561,9 @@ class PemulihanController extends Controller
     private function otpRecipient(User $user): string
     {
         $emailOverride = config('mahasiswa.otp_email');
-        $testNim = config('mahasiswa.otp_test_nim');
         if (app()->environment('local')
             && (int) $user->id_role === 4
-            && filled($emailOverride)
-            && filled($testNim)
-            && $user->mahasiswa()->where('nim', $testNim)->exists()) {
+            && filled($emailOverride)) {
             return $emailOverride;
         }
 
