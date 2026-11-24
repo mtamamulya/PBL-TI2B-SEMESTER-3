@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Mahasiswa extends Model
 {
+    public const STATUS_OPSI = [
+        'Aktif',
+        'Cuti',
+        'Drop Out',
+        'Skripsi/TA',
+        'Lulus',
+        'Meninggal Dunia',
+    ];
+
     protected $table = 'mahasiswa';
 
     protected $primaryKey = 'id_mahasiswa';
@@ -17,6 +26,7 @@ class Mahasiswa extends Model
         'nim',
         'nama',
         'tahun_masuk',
+        'status_mahasiswa',
     ];
 
     public function user(): BelongsTo

@@ -68,7 +68,7 @@
                 <div class="text-sm font-semibold text-[#0A0A0A]">Data Akademik</div>
             </div>
             <div class="flex flex-col gap-4">
-                <div class="flex flex-col gap-4 md:flex-row">
+                <div class="flex md:w-[calc(50%-8px)]">
                     <div class="flex min-w-0 flex-1 flex-col gap-2">
                         <label for="angkatan" class="{{ $label }}">Angkatan (tahun masuk)<span class="text-[#FF3F3F]"> *</span></label>
                         <div class="relative">
@@ -79,19 +79,8 @@
                             </select>
                             <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
                         </div>
+                        <div class="{{ $hint }}">Mahasiswa baru otomatis berstatus Aktif.</div>
                         @error('angkatan') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                    </div>
-                    <div class="flex min-w-0 flex-1 flex-col gap-2">
-                        <label for="status" class="{{ $label }}">Status akademik<span class="text-[#FF3F3F]"> *</span></label>
-                        <div class="relative">
-                            <select id="status" name="status" class="{{ $select }}">
-                                @foreach ($statusAkad as $s)
-                                    <option value="{{ $s }}" @selected(old('status', 'Aktif') === $s)>{{ $s }}</option>
-                                @endforeach
-                            </select>
-                            <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
-                        </div>
-                        @error('status') <p class="{{ $error }}">{{ $message }}</p> @enderror
                     </div>
                 </div>
             </div>

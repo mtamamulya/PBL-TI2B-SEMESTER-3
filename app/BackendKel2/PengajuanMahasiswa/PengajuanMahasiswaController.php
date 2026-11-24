@@ -2,8 +2,10 @@
 
 namespace App\BackendKel2\PengajuanMahasiswa;
 
+use App\BackendKel2\Support\RoleGuard;
 use App\Http\Controllers\Controller;
 use App\Models\Kegiatan;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -15,9 +17,14 @@ class PengajuanMahasiswaController extends Controller
     // BAGIAN 1: ENDPOINT API (Untuk pengujian Thunder Client / Frontend API)
     // =========================================================================
 
-    public function apiIndex()
+    public function apiIndex(Request $request)
     {
-        $data = Kegiatan::with(['kategori', 'user'])->latest()->get();
+        $user = $this->apiUser($request);
+        $query = Kegiatan::query();
+        if (mb_strtolower((string) $user->role?->nama_role) !== 'admin') {
+            $query->untukUser($user);
+        }
+        $data = $query->with(['kategori', 'user'])->latest()->get();
 
         return response()->json([
             'success' => true,
@@ -28,24 +35,27 @@ class PengajuanMahasiswaController extends Controller
 
     public function apiStore(Request $request)
     {
+        $user = $this->apiUser($request);
+        RoleGuard::ensure($user, ['mahasiswa', 'dosen']);
         $validated = $request->validate([
             'id_kategori' => 'required|exists:kategori,id_kategori',
-            'id_user' => 'nullable|exists:users,id_user',
             'nama_kegiatan' => 'required|string|max:255',
+            'dosen_pendamping' => 'nullable|string|max:255',
             'detail' => 'nullable|array',
             'detail.*' => 'nullable|string',
             'documents' => 'nullable|array',
             'documents.*.name' => 'required_with:documents|string|max:255',
-            'documents.*.type' => 'nullable|string|max:100',
-            'documents.*.url' => 'nullable|string|max:500',
+            'documents.*.type' => 'required_with:documents|string|max:100',
+            'documents.*.url' => 'required_with:documents|url|max:500',
             'lampiran' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
-        return DB::transaction(function () use ($request, $validated) {
+        return DB::transaction(function () use ($request, $validated, $user) {
             $kegiatan = Kegiatan::create([
                 'id_kategori' => $validated['id_kategori'],
-                'id_user' => $validated['id_user'] ?? null,
+                'id_user' => $user->getKey(),
                 'nama_kegiatan' => $validated['nama_kegiatan'],
+                'dosen_pendamping' => $validated['dosen_pendamping'] ?? null,
             ]);
 
             // 1. Catat status awal di tabel timeline
@@ -61,6 +71,10 @@ class PengajuanMahasiswaController extends Controller
             if (! empty($validated['detail'])) {
                 foreach ($validated['detail'] as $idIsian => $nilai) {
                     if ($nilai !== null && $nilai !== '') {
+                        abort_unless(DB::table('isian_kategori')
+                            ->where('id_isian_kategori', $idIsian)
+                            ->where('id_kategori', $kegiatan->id_kategori)
+                            ->exists(), 422, 'Isian tidak sesuai dengan kategori kegiatan.');
                         DB::table('detail_kegiatan')->insert([
                             'id_kegiatan' => $kegiatan->id_kegiatan,
                             'id_isian_kategori' => $idIsian,
@@ -73,9 +87,11 @@ class PengajuanMahasiswaController extends Controller
             }
 
             // 3. Simpan lampiran file atau tautan ke tabel dokumen
-            $idJenisDokumen = DB::table('jenis_dokumen')->value('id_jenis_dokumen');
-
-            if ($idJenisDokumen && $request->hasFile('lampiran')) {
+            if ($request->hasFile('lampiran')) {
+                $idJenisDokumen = DB::table('jenis_dokumen')
+                    ->where('nama_jenis_dokumen', 'Dokumentasi')
+                    ->value('id_jenis_dokumen');
+                abort_if(! $idJenisDokumen, 422, 'Jenis dokumen belum tersedia.');
                 $path = $request->file('lampiran')->store('lampiran', 'public');
                 DB::table('dokumen')->insert([
                     'id_jenis_dokumen' => $idJenisDokumen,
@@ -88,8 +104,16 @@ class PengajuanMahasiswaController extends Controller
                 ]);
             }
 
-            if ($idJenisDokumen && ! empty($validated['documents'])) {
+            if (! empty($validated['documents'])) {
                 foreach ($validated['documents'] as $doc) {
+                    DB::table('jenis_dokumen')->insertOrIgnore([
+                        'nama_jenis_dokumen' => $doc['type'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $idJenisDokumen = DB::table('jenis_dokumen')
+                        ->where('nama_jenis_dokumen', $doc['type'])
+                        ->value('id_jenis_dokumen');
                     DB::table('dokumen')->insert([
                         'id_jenis_dokumen' => $idJenisDokumen,
                         'id_kegiatan' => $kegiatan->id_kegiatan,
@@ -110,9 +134,14 @@ class PengajuanMahasiswaController extends Controller
         });
     }
 
-    public function apiShow($id)
+    public function apiShow(Request $request, $id)
     {
-        $kegiatan = Kegiatan::with(['kategori', 'user'])->findOrFail($id);
+        $user = $this->apiUser($request);
+        $query = Kegiatan::query();
+        if (mb_strtolower((string) $user->role?->nama_role) !== 'admin') {
+            $query->untukUser($user);
+        }
+        $kegiatan = $query->with(['kategori', 'user'])->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -123,21 +152,31 @@ class PengajuanMahasiswaController extends Controller
 
     public function apiUpdate(Request $request, $id)
     {
-        $kegiatan = Kegiatan::findOrFail($id);
+        $user = $this->apiUser($request);
+        $query = Kegiatan::query();
+        if (mb_strtolower((string) $user->role?->nama_role) !== 'admin') {
+            $query->where('id_user', $user->getKey());
+        }
+        $kegiatan = $query->findOrFail($id);
 
         $validated = $request->validate([
             'id_kategori' => 'sometimes|exists:kategori,id_kategori',
             'nama_kegiatan' => 'sometimes|string|max:255',
+            'dosen_pendamping' => 'sometimes|nullable|string|max:255',
             'detail' => 'nullable|array',
             'detail.*' => 'nullable|string',
             'lampiran' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         return DB::transaction(function () use ($request, $kegiatan, $validated) {
-            $kegiatan->update(collect($validated)->only(['id_kategori', 'nama_kegiatan'])->toArray());
+            $kegiatan->update(collect($validated)->only(['id_kategori', 'nama_kegiatan', 'dosen_pendamping'])->toArray());
 
             if (! empty($validated['detail'])) {
                 foreach ($validated['detail'] as $idIsian => $nilai) {
+                    abort_unless(DB::table('isian_kategori')
+                        ->where('id_isian_kategori', $idIsian)
+                        ->where('id_kategori', $kegiatan->id_kategori)
+                        ->exists(), 422, 'Isian tidak sesuai dengan kategori kegiatan.');
                     DB::table('detail_kegiatan')->updateOrInsert(
                         [
                             'id_kegiatan' => $kegiatan->id_kegiatan,
@@ -152,8 +191,11 @@ class PengajuanMahasiswaController extends Controller
                 }
             }
 
-            $idJenisDokumen = DB::table('jenis_dokumen')->value('id_jenis_dokumen');
-            if ($idJenisDokumen && $request->hasFile('lampiran')) {
+            if ($request->hasFile('lampiran')) {
+                $idJenisDokumen = DB::table('jenis_dokumen')
+                    ->where('nama_jenis_dokumen', 'Dokumentasi')
+                    ->value('id_jenis_dokumen');
+                abort_if(! $idJenisDokumen, 422, 'Jenis dokumen belum tersedia.');
                 $path = $request->file('lampiran')->store('lampiran', 'public');
                 DB::table('dokumen')->insert([
                     'id_jenis_dokumen' => $idJenisDokumen,
@@ -174,12 +216,19 @@ class PengajuanMahasiswaController extends Controller
         });
     }
 
-    public function apiDestroy($id)
+    public function apiDestroy(Request $request, $id)
     {
-        $kegiatan = Kegiatan::findOrFail($id);
+        $user = $this->apiUser($request);
+        $query = Kegiatan::query();
+        if (mb_strtolower((string) $user->role?->nama_role) !== 'admin') {
+            $query->where('id_user', $user->getKey());
+        }
+        $kegiatan = $query->with('dokumen')->findOrFail($id);
 
-        DB::table('dokumen')->where('id_kegiatan', $id)->get()->each(function ($doc) {
-            if ($doc->link_dokumen && Storage::disk('public')->exists($doc->link_dokumen)) {
+        $kegiatan->dokumen->each(function ($doc) {
+            if ($doc->link_dokumen
+                && ! preg_match('~^https?://~i', $doc->link_dokumen)
+                && Storage::disk('public')->exists($doc->link_dokumen)) {
                 Storage::disk('public')->delete($doc->link_dokumen);
             }
         });
@@ -190,6 +239,15 @@ class PengajuanMahasiswaController extends Controller
             'success' => true,
             'message' => 'Pengajuan kegiatan berhasil dihapus',
         ], 200);
+    }
+
+    private function apiUser(Request $request): User
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        RoleGuard::ensure($user, ['mahasiswa', 'dosen', 'admin']);
+
+        return $user;
     }
 
     // =========================================================================

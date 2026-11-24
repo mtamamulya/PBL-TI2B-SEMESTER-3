@@ -10,7 +10,7 @@
     $mhsId      = $mahasiswa['id'] ?? request()->route('id');
     $mahasiswa  = $mahasiswa ?? [];
     $tahun      = $tahun ?? range((int) date('Y'), (int) date('Y') - 9);
-    $statusAkad = $statusAkad ?? ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'];
+    $statusAkad = $statusAkad ?? ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
     $fotoUrl    = $fotoUrl ?? null;
 
     $field  = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 py-1.5 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
