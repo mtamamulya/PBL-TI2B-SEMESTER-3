@@ -1,6 +1,6 @@
 # Ganti @username-lead dengan akun GitHub Lead Backend.
 # Aktifkan "Require review from Code Owners" di branch protection agar aturan ini berlaku.
-/app/BackendKel2/Workflow/   @username-lead
-/database/migrations/        @username-lead
-/.github/                    @username-lead
-/docs/adr/                   @username-lead
+/app/BackendKel2/Workflow/   @RizkyAditya007
+/database/migrations/        @RizkyAditya007
+/.github/                    @RizkyAditya007
+/docs/adr/                   @RizkyAditya007
