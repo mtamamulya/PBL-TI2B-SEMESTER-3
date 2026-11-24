@@ -69,7 +69,7 @@ class ProfilController extends Controller
 
             $path = $request->file('foto_profil')->store('foto-profil', 'public');
             $user->update([
-                'foto_profil' => '/storage/' . ltrim($path, '/'),
+                'foto_profil' => '/storage/'.ltrim($path, '/'),
             ]);
             $user->refresh();
         }
@@ -135,7 +135,7 @@ class ProfilController extends Controller
             return $fotoProfil;
         }
 
-        return '/' . ltrim($fotoProfil, '/');
+        return '/'.ltrim($fotoProfil, '/');
     }
 
     private function hapusFotoLama(?string $fotoProfil): void
