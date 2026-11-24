@@ -118,6 +118,44 @@ class DokumenSuratController extends Controller
 
     public function showSurat(Request $request, int $id): Response|JsonResponse
     {
+        $wantsPdf = $request->boolean('preview')
+            || $request->boolean('download')
+            || $request->boolean('pdf');
+
+        if (! $wantsPdf && $request->wantsJson()) {
+            $user = $request->user();
+            abort_unless($user, 401, 'Tidak terautentikasi.');
+
+            $k = Kegiatan::untukUser($user)
+                ->with(['kategori', 'anggota', 'user'])
+                ->findOrFail($id);
+
+            $timelineAkhir = $k->timeline()
+                ->reorder()
+                ->orderByDesc('tanggal_status')
+                ->orderByDesc('id_timeline')
+                ->first();
+
+            $status = $timelineAkhir?->status;
+
+            if (! in_array($status, ['diterima', 'selesai'], true) || ! $k->nomor_sk) {
+                return ApiResponse::gagal('Surat belum diterbitkan.', 404);
+            }
+
+            if (! $k->kategori?->isi_surat) {
+                return ApiResponse::gagal('Kategori ini belum memiliki template surat.', 404);
+            }
+
+            return ApiResponse::ok([
+                'id_kegiatan' => $k->getKey(),
+                'nama_kegiatan' => $k->nama_kegiatan,
+                'nomor_sk' => $k->nomor_sk,
+                'tanggal_sk' => $k->tanggal_sk,
+                'status' => $status,
+                'kategori' => $k->kategori?->nama_kategori,
+            ], 'Surat berhasil dimuat.');
+        }
+
         return $this->renderSuratPdf($request, $id, $request->boolean('preview'));
     }
 
