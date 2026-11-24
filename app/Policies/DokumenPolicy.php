@@ -33,6 +33,16 @@ class DokumenPolicy
         return $this->dapatMengelolaKegiatan($user, $dokumen->kegiatan);
     }
 
+    public function viewHasil(User $user, Kegiatan $kegiatan): bool
+    {
+        return $this->dapatMengelolaKegiatan($user, $kegiatan);
+    }
+
+    public function deleteMahasiswa(User $user, Dokumen $dokumen): bool
+    {
+        return $this->dapatMengelolaKegiatan($user, $dokumen->kegiatan);
+    }
+
     private function dapatMelihatKegiatan(User $user, ?Kegiatan $kegiatan): bool
     {
         if (! $kegiatan) {
