@@ -286,9 +286,31 @@ class MahasiswaController extends Controller
      */
     public function sinkronisasiKelas(): JsonResponse
     {
+        try {
+            $ringkasan = $this->store->sinkronisasiKelas();
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        if ($ringkasan === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada tahun akademik yang berstatus aktif. Aktifkan tahun akademik terlebih dahulu.',
+            ], 422);
+        }
+
+        $ta = $ringkasan['tahun_akademik'] ?? 'aktif';
+        $dibuat = $ringkasan['dibuat'] ?? 0;
+        $sudahAda = $ringkasan['sudah-ada'] ?? 0;
+        $lulus = $ringkasan['lulus'] ?? 0;
+
         return response()->json([
             'success' => true,
-            'message' => 'Sinkronisasi penempatan kelas mahasiswa aktif berhasil dijalankan.',
+            'message' => "Sinkronisasi kelas ({$ta}) selesai: {$dibuat} ditempatkan, {$sudahAda} sudah terdaftar, {$lulus} lulus.",
+            'data' => $ringkasan,
         ], 200);
     }
 }
