@@ -43,9 +43,6 @@ class DosenRoutesTest extends TestCase
             ['penelitian.show', ['id' => 1]],
             ['penelitian.edit', ['id' => 1]],
             ['pengabdian.index'],
-            ['pengabdian.create'],
-            ['pengabdian.show', ['id' => 1]],
-            ['pengabdian.edit', ['id' => 1]],
             ['pengajaran.index'],
             ['pengajaran.create'],
             // ['pengajaran.show', ['id' => 1]],
@@ -65,6 +62,10 @@ class DosenRoutesTest extends TestCase
             ['notifikasi'],
             ['profil'],
         ];
+
+        $this->get(route('pengabdian.create'))->assertNotFound(); // Belum ada kategori pengabdian.
+        $this->get(route('pengabdian.show', ['id' => 1]))->assertRedirect(route('login'));
+        $this->get(route('pengabdian.edit', ['id' => 1]))->assertRedirect(route('login'));
 
         foreach ($routes as $route) {
             $routeName = $route[0];
