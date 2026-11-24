@@ -1,6 +1,7 @@
 <?php
 
 use App\BackendKel3\Dashboard\DosenDashboardController;
+use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DosenPengabdianController;
 use App\Http\Controllers\HomeController;
@@ -28,7 +29,8 @@ Route::view('/prestasi/{id}/edit', 'dosen.prestasi.edit')->whereNumber('id')->na
 Route::view('/verifikasi/{id}', 'pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('verifikasi.show');
 
 Route::view('/profil', 'dosen.profil.show')->name('profil');
-Route::view('/notifikasi', 'dosen.notifikasi.index')->name('notifikasi');
+Route::get('/notifikasi', [NotifikasiController::class, 'web'])->name('notifikasi');
+Route::redirect('/dosen/notifikasi', '/notifikasi');
 
 Route::view('/penelitian', 'dosen.penelitian.index')->name('penelitian.index');
 Route::view('/penelitian/create', 'dosen.penelitian.create')->name('penelitian.create');
