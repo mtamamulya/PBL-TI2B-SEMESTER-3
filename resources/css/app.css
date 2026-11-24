@@ -31,6 +31,26 @@ input, select, textarea, button {
 }
 
 html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+/* Kunci tinggi layar & scroll khusus layout Dosen agar sidebar dan header tetap diam */
+html:has(body.dosen-shell),
+body.dosen-shell {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.dosen-shell [data-frontend-shell] {
+    height: 100%;
+    overflow: hidden;
+}
+
+body.dosen-shell [data-frontend-navigation] {
+    height: 100%;
+}
+
+body.dosen-shell .frontend-main {
+    min-height: 0;
+    overflow-y: auto;
+}
 
 .berita-editor .ql-toolbar.ql-snow {
     border-color: #e5e7eb;

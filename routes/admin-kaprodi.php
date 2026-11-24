@@ -165,6 +165,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
     Route::get('berita/tambah', [AdminBeritaController::class, 'create'])->name('admin.berita.create');
+    Route::post('berita/gambar-konten', [AdminBeritaController::class, 'uploadGambarKonten'])->name('admin.berita.upload-gambar');
     Route::get('berita/{id}', [AdminBeritaController::class, 'show'])->name('admin.berita.show');
     Route::post('berita', [AdminBeritaController::class, 'store'])->name('admin.berita.store');
     Route::get('berita/{id}/edit', [AdminBeritaController::class, 'edit'])->name('admin.berita.edit');
@@ -266,6 +267,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
 
     Route::get('berita', [KaprodiBeritaController::class, 'index'])->name('kaprodi.berita');
     Route::get('berita/tambah', [KaprodiBeritaController::class, 'create'])->name('kaprodi.berita.create');
+    Route::post('berita/gambar-konten', [KaprodiBeritaController::class, 'uploadGambarKonten'])->name('kaprodi.berita.upload-gambar');
     Route::get('berita/{id}', [KaprodiBeritaController::class, 'show'])->name('kaprodi.berita.show');
     Route::post('berita', [KaprodiBeritaController::class, 'store'])->name('kaprodi.berita.store');
     Route::get('berita/{id}/edit', [KaprodiBeritaController::class, 'edit'])->name('kaprodi.berita.edit');
@@ -299,6 +301,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.dashboard',
         'kaprodi.kurikulum.trk',
         'kaprodi.kurikulum.mata-kuliah',
+        'kaprodi.kurikulum.tahun-akademik',
         'kaprodi.dosen',
         'kaprodi.mahasiswa',
         'kaprodi.kegiatan.index',
