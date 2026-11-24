@@ -8,19 +8,19 @@
         {{-- Navbar bersama --}}
         <x-navbar-publik />
 
-        <main class="mx-auto max-w-[1728px] px-5 pb-[105px] pt-12 lg:px-12">
+        <main class="mx-auto max-w-[1200px] px-4 pb-16 pt-20 sm:px-6 md:pt-24 lg:px-8">
 
             {{-- Breadcrumb + Judul --}}
             <div class="flex flex-col gap-2">
-                <p class="text-base leading-[22px] tracking-[-0.18px] text-[#737C8D]">
-                    <a href="{{ route('home') }}" class="hover:underline">Beranda</a> / Berita
+                <p class="text-sm leading-[22px] tracking-[-0.18px] text-[#737C8D]">
+                    <a href="{{ route('home') }}" class="hover:text-[#27F] hover:underline">Beranda</a> / Berita
                 </p>
-                <h1 class="text-4xl font-bold leading-tight tracking-[-0.4px] text-[#071E38] md:text-5xl md:leading-[58px]">
+                <h1 class="text-3xl font-bold leading-tight tracking-[-0.4px] text-[#071E38] sm:text-4xl md:text-5xl md:leading-[58px]">
                     Berita TRK
                 </h1>
             </div>
 
-            <div class="mt-5 flex flex-col gap-6 lg:flex-row lg:items-start">
+            <div class="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
 
                 {{-- Daftar berita + paginasi --}}
                 <div class="flex w-full min-w-0 flex-col gap-5 lg:flex-1">
@@ -39,8 +39,8 @@
                                         </h2>
                                         <p class="text-xs leading-4 tracking-[-0.12px] text-[#7D8999]">
                                             {{ $item['tanggal_ringkas'] }}</p>
-                                        <p class="text-justify text-xs leading-4 tracking-[-0.12px] text-black">
-                                            {{ \Illuminate\Support\Str::limit($item['paragraf'][0] ?? '', 380) }}
+                                        <p class="text-justify text-xs leading-5 tracking-[-0.12px] text-[#4B5563] sm:text-[13px]">
+                                            {{ $item['ringkasan'] ?? \Illuminate\Support\Str::limit(strip_tags($item['paragraf'][0] ?? ''), 260) }}
                                         </p>
                                         <a href="{{ route('publik.berita.show', $item['id'] ?? $item['slug']) }}"
                                             class="text-xs font-semibold leading-4 tracking-[-0.12px] text-[#27F] hover:underline">
@@ -134,23 +134,23 @@
 
                 {{-- Sidebar: Berita Terbaru & Prestasi --}}
                 {{-- Sidebar menempel (sticky) di layar besar: tidak ikut bergulir --}}
-                <aside class="flex w-full shrink-0 flex-col gap-6 lg:sticky lg:top-[120px] lg:w-[420px]">
+                <aside class="flex w-full shrink-0 flex-col gap-6 lg:self-start lg:sticky lg:top-[90px] lg:w-[340px] xl:w-[380px]">
                     @foreach (['Berita Terbaru' => $terbaru, 'Prestasi' => $prestasi] as $judulBlok => $daftarBlok)
                         <section class="w-full">
-                            <h3 class="text-2xl font-bold leading-[30px] tracking-[-0.15px] text-[#071E38]">{{ $judulBlok }}
+                            <h3 class="text-xl font-bold leading-[28px] tracking-[-0.15px] text-[#071E38] lg:text-2xl">{{ $judulBlok }}
                             </h3>
                             <div class="h-1 w-full bg-gradient-to-r from-[#3979BA] to-[#9CB7D5]"></div>
 
                             <div class="flex flex-col gap-3 pt-[14px]">
                                 @forelse ($daftarBlok as $s)
                                     <a href="{{ route('publik.berita.show', $s['id'] ?? $s['slug']) }}"
-                                        class="flex items-center gap-[11px] hover:opacity-80">
+                                        class="group flex items-center gap-[11px] rounded-lg p-1 transition-colors hover:bg-[#F8FAFC]">
                                         <div class="h-[64px] w-[96px] shrink-0 overflow-hidden rounded-lg bg-[#F3F4F6]">
-                                            <img src="{{ $s['gambar'] }}" alt="" class="h-full w-full object-cover">
+                                            <img src="{{ $s['gambar'] }}" alt="" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy">
                                         </div>
                                         <div class="flex min-w-0 flex-col gap-[5px]">
                                             <p
-                                                class="line-clamp-2 text-[15px] font-bold leading-[20px] tracking-[-0.18px] text-[#071E38]">
+                                                class="line-clamp-2 text-[14px] font-bold leading-[19px] tracking-[-0.18px] text-[#071E38] group-hover:text-[#27F]">
                                                 {{ $s['judul'] }}</p>
                                             <p class="font-['Roboto'] text-xs leading-4 text-[#7D8999]">{{ $s['tanggal_ringkas'] }}
                                             </p>

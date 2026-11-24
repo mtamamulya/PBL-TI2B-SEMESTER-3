@@ -129,6 +129,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
     Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
     Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+    Route::post('/mahasiswa/luluskan-ta', [LandingMahasiswaController::class, 'luluskanTa'])->name('admin.mahasiswa.luluskan-ta');
     Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
