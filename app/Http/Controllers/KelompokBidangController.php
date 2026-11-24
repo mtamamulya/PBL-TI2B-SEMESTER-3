@@ -18,20 +18,20 @@ class KelompokBidangController extends Controller
             [
                 'id' => 1,
                 'nama_kelompok_bidang' => 'Rekayasa Perangkat Lunak',
-                'id_rujukan' => null
+                'id_rujukan' => null,
             ],
             [
                 'id' => 2,
                 'nama_kelompok_bidang' => 'Sistem Informasi',
-                'id_rujukan' => 1
+                'id_rujukan' => 1,
             ],
             [
                 'id' => 3,
                 'nama_kelompok_bidang' => 'Jaringan Komputer',
-                'id_rujukan' => null
-            ]
+                'id_rujukan' => null,
+            ],
         ];
-        
+
         $apiError = null;
 
         // Mengarahkan ke file resources/views/admin/kelompok-bidang.blade.php
@@ -42,8 +42,8 @@ class KelompokBidangController extends Controller
     {
         // Respon statis sukses
         return response()->json([
-            'ok' => true, 
-            'message' => 'Dummy: Data berhasil disimpan.'
+            'ok' => true,
+            'message' => 'Dummy: Data berhasil disimpan.',
         ]);
     }
 
@@ -51,8 +51,8 @@ class KelompokBidangController extends Controller
     {
         // Respon statis sukses
         return response()->json([
-            'ok' => true, 
-            'message' => 'Dummy: Data berhasil diperbarui.'
+            'ok' => true,
+            'message' => 'Dummy: Data berhasil diperbarui.',
         ]);
     }
 
@@ -60,8 +60,8 @@ class KelompokBidangController extends Controller
     {
         // Respon statis sukses
         return response()->json([
-            'ok' => true, 
-            'message' => 'Dummy: Data berhasil dihapus.'
+            'ok' => true,
+            'message' => 'Dummy: Data berhasil dihapus.',
         ]);
     }
 }

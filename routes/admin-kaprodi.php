@@ -1,20 +1,19 @@
 <?php
 
 use App\Http\Controllers\AdminAkreditasiController;
-use App\Http\Controllers\KelompokBidangController;
-// ---------- Controller Publik & Landing ----------
 use App\Http\Controllers\AdminAuthController;
+// ---------- Controller Publik & Landing ----------
 use App\Http\Controllers\AdminBeritaController;
 use App\Http\Controllers\AdminKegiatanController;
-use App\Http\Controllers\AdminKegiatanDosenDetailShowController; // <-- Controller Tambah Kegiatan
-use App\Http\Controllers\AdminKegiatanMahasiswaDetailShowController;
+use App\Http\Controllers\AdminKegiatanDosenDetailShowController;
+use App\Http\Controllers\AdminKegiatanMahasiswaDetailShowController; // <-- Controller Tambah Kegiatan
 use App\Http\Controllers\AdminKegiatanTambahController;
 use App\Http\Controllers\AdminKurikulumController;
 use App\Http\Controllers\AdminMataKuliahController;
 use App\Http\Controllers\AdminPengajuanController;
 use App\Http\Controllers\AdminPrestasiController;
-// ---------- Controller Admin ----------
 use App\Http\Controllers\AdminProfilController;
+// ---------- Controller Admin ----------
 use App\Http\Controllers\AdminTinjauPengajuanController;
 use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\DosenController;
@@ -34,13 +33,14 @@ use App\Http\Controllers\KaprodiMataKuliahController;
 use App\Http\Controllers\KaprodiPengajuanController;
 use App\Http\Controllers\KaprodiPrestasiController;
 use App\Http\Controllers\KaprodiProfilController;
-// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiTandaTanganController;
+// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KategoriKegiatanController;
 use App\Http\Controllers\KegiatanDosenController;
 use App\Http\Controllers\KegiatanHapusController;
 use App\Http\Controllers\KegiatanLaporanController;
 use App\Http\Controllers\KegiatanMahasiswaController;
+use App\Http\Controllers\KelompokBidangController;
 use App\Http\Controllers\KurikulumController;
 use App\Http\Controllers\LandingDashboardController;
 use App\Http\Controllers\LandingMahasiswaController;
