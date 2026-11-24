@@ -37,6 +37,8 @@ return [
                 ['label' => 'Data Kegiatan', 'route' => 'kaprodi.kegiatan.index', 'url' => 'kegiatan'],
                 ['label' => 'Jenis Dokumen', 'route' => 'kaprodi.kegiatan.jenis-dokumen', 'url' => 'kegiatan/jenis-dokumen'],
                 ['label' => 'Kategori Kegiatan', 'route' => 'kaprodi.kegiatan.kategori-kegiatan', 'url' => 'kegiatan/kategori-kegiatan'],
+                ['label' => 'Kelompok Bidang', 'route' => 'kaprodi.kegiatan.kelompok-bidang', 'url' => 'kegiatan/kelompok-bidang'],
+                ['label' => 'Skim', 'route' => 'kaprodi.kegiatan.skim', 'url' => 'kegiatan/skim'],
             ]],
 
         ['label' => 'Pengajuan', 'route' => 'kaprodi.pengajuan', 'url' => 'pengajuan',

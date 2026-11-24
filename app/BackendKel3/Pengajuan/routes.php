@@ -3,7 +3,7 @@
 use App\BackendKel3\Pengajuan\PengajuanController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('pengajuan')->group(function () {
+Route::middleware(['auth:sanctum'])->prefix('pengajuan')->group(function () {
     Route::get('/', [PengajuanController::class, 'index']);
     Route::get('/{id}/timeline', [PengajuanController::class, 'timeline']);
     Route::post('/{id}/ajukan', [PengajuanController::class, 'ajukan']);
