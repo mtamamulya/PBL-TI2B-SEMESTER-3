@@ -52,7 +52,7 @@ class KaprodiDashboardController extends Controller
         $kegiatanPerTahun = empty($kegiatanRaw) ? [date('Y') => 0] : $kegiatanRaw;
 
         // 6. Data Tabel 5 Pengajuan Terbaru
-        $pengajuanTerbaru = Kegiatan::with(['dosen', 'mahasiswa', 'statusTerkini'])
+        $pengajuanTerbaru = Kegiatan::with(['user.dosen', 'user.mahasiswa', 'statusTerkini'])
             ->whereHas('statusTerkini', function ($q) {
                 $q->where('status', 'Diajukan');
             })
@@ -62,7 +62,7 @@ class KaprodiDashboardController extends Controller
 
         Carbon::setLocale('id'); // Bahasa Indonesia untuk format waktu
         $rows = $pengajuanTerbaru->map(function ($item) {
-            $pengaju = $item->dosen->nama ?? $item->mahasiswa->nama ?? 'Tanpa Nama';
+            $item->user?->dosen?->nama ?? $item->user?->mahasiswa?->nama ?? 'Tanpa Nama';
             $namaKegiatan = $item->nama_kegiatan ?? $item->nama ?? 'Tanpa Judul';
 
             return [
