@@ -15,6 +15,9 @@ Route::prefix('mahasiswa')->group(function () {
     Route::post('/sinkronisasi-kelas', [MahasiswaController::class, 'sinkronisasiKelas'])
         ->middleware(['auth:sanctum', AdminOnly::class])
         ->name('api.mahasiswa.sinkronisasi');
+    Route::post('/luluskan-ta', [MahasiswaController::class, 'luluskanTa'])
+        ->middleware(['auth:sanctum', AdminOnly::class])
+        ->name('api.mahasiswa.luluskan-ta');
 
     // Route dengan segment dinamis diletakkan terakhir agar URL statis tidak tertangkap.
     Route::get('/{id}', [MahasiswaController::class, 'show'])->name('api.mahasiswa.show');

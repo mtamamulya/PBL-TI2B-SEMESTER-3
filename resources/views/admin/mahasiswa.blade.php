@@ -1,11 +1,16 @@
 {{--
     resources/views/admin/mahasiswa.blade.php
     Daftar mahasiswa: cari, filter tingkat & status, paginasi.
-    Data dikirim oleh MahasiswaController@index via ApiClient.
+    Data dikirim oleh LandingMahasiswaController@index via ApiClient.
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Data Mahasiswa')
+
+@php
+    $statusOpsi = $statusAkad ?? ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
+    $jumlahSkripsiTa = collect($students)->where('status', 'Skripsi/TA')->count();
+@endphp
 
 @section('content')
 <link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
@@ -24,8 +29,8 @@
     #tabel.dataTable > thead > tr > th:nth-child(1) { width: 18%; }
     #tabel.dataTable > thead > tr > th:nth-child(2) { width: 24%; }
     #tabel.dataTable > thead > tr > th:nth-child(3) { width: 14%; }
-    #tabel.dataTable > thead > tr > th:nth-child(4) { width: 18%; }
-    #tabel.dataTable > thead > tr > th:nth-child(5) { width: 14%; }
+    #tabel.dataTable > thead > tr > th:nth-child(4) { width: 16%; }
+    #tabel.dataTable > thead > tr > th:nth-child(5) { width: 16%; }
     #tabel.dataTable > thead > tr > th:nth-child(6) { width: 12%; }
 
     #tabel.dataTable > thead > tr > th {
@@ -94,14 +99,15 @@
     #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
     #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
 
-    #modalStatus, #modalSinkron { position: fixed; inset: 0; margin: auto; height: fit-content; width: 380px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
-    #modalStatus::backdrop, #modalSinkron::backdrop { background: rgb(10 10 10 / .45); }
-    #modalStatus[open], #modalSinkron[open] { animation: modalMasuk .15s ease-out; }
+    #modalStatus, #modalSinkron, #modalLulus { position: fixed; inset: 0; margin: auto; height: fit-content; width: 400px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
+    #modalStatus::backdrop, #modalSinkron::backdrop, #modalLulus::backdrop { background: rgb(10 10 10 / .45); }
+    #modalStatus[open], #modalSinkron[open], #modalLulus[open] { animation: modalMasuk .15s ease-out; }
     @keyframes modalMasuk { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
     
     .modal-kartu { padding: 24px; border-radius: 12px; background: #fff; text-align: center; box-shadow: 0 20px 50px rgb(0 0 0 / .2); }
-    .modal-ikon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 9999px; background: #FFD9D9; color: #E5484D; }
+    .modal-ikon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 9999px; background: #D4E3FF; color: #1F73FF; }
     .modal-ikon-warning { background: #FDE2CA; color: #DC6803; }
+    .modal-ikon-indigo { background: #E0E7FF; color: #4338CA; }
     
     .modal-judul { font-size: 18px; font-weight: 700; line-height: 24px; color: #0A0A0A; }
     .modal-teks { margin-top: 8px; font-size: 14px; line-height: 20px; color: #55555C; }
@@ -112,17 +118,17 @@
     .modal-btn-batal { background: #fff; border-color: #E8E8EC; color: #2E2E2E; }
     .modal-btn-batal:hover { background: #F9F9FB; }
     
-    .modal-btn-ya { background: #E5484D; color: #fff; }
-    .modal-btn-ya:hover { background: #D13A3F; }
+    .modal-btn-ya { background: #2277FF; color: #fff; }
+    .modal-btn-ya:hover { background: #1A66E0; }
     .modal-btn-ya:disabled { opacity: .7; cursor: not-allowed; }
     
     .modal-btn-sinkron { background: #10B981; color: #fff; }
     .modal-btn-sinkron:hover { background: #059669; }
     .modal-btn-sinkron:disabled { opacity: .7; cursor: not-allowed; }
 
-    #modalStatus[data-mode="aktif"] .modal-ikon { background: #DDF3D0; color: #3A8A1E; }
-    #modalStatus[data-mode="aktif"] .modal-btn-ya { background: #2277FF; }
-    #modalStatus[data-mode="aktif"] .modal-btn-ya:hover { background: #1A66E0; }
+    .modal-btn-lulus { background: #4F46E5; color: #fff; }
+    .modal-btn-lulus:hover { background: #4338CA; }
+    .modal-btn-lulus:disabled { opacity: .7; cursor: not-allowed; }
 
     .btn-status { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: #FBE5CB; color: #FFAA49; cursor: pointer; transition: background .15s; }
     .btn-status:hover { background: #F8D9B5; }
@@ -136,7 +142,13 @@
             <x-admin.breadcrumb :items="[['Dashboard', 'admin.dashboard'], ['Data Mahasiswa']]" />
         </div>
         
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            @if ($jumlahSkripsiTa > 0 && \Illuminate\Support\Facades\Route::has('admin.mahasiswa.luluskan-ta'))
+                <button type="button" id="btnLulusTa" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-indigo-600 px-4 text-[15px] font-medium text-white shadow hover:bg-indigo-700">
+                    Luluskan Skripsi/TA ({{ $jumlahSkripsiTa }})
+                </button>
+            @endif
+
             <button type="button" id="btnSinkron" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-emerald-600 px-4 text-[15px] font-medium text-white shadow hover:bg-emerald-700">
                 Sinkronisasi Kelas
             </button>
@@ -151,9 +163,9 @@
     @if (session('status'))
         <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('status') }}</div>
     @endif
-    @if (session('error'))
+    @if (session('error') || $errors->any())
         <div class="mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="alert">
-            {{ $errors->first() }}
+            {{ session('error') ?: $errors->first() }}
         </div>
     @endif
 
@@ -177,8 +189,9 @@
             <div class="relative w-full sm:w-[190px]">
                 <select id="fStatus" class="h-10 w-full cursor-pointer appearance-none rounded-md border border-[#E4E4E7] bg-white px-4 pr-9 text-sm outline-none focus:border-[#1F73FF]">
                     <option value="all">Semua Status</option>
-                    <option value="Aktif">Aktif</option>
-                    <option value="Non-aktif">Nonaktif</option>
+                    @foreach ($statusOpsi as $st)
+                        <option value="{{ $st }}">{{ $st }}</option>
+                    @endforeach
                 </select>
                 <svg class="pointer-events-none absolute right-3 top-[11px]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
             </div>
@@ -202,42 +215,73 @@
     </section>
 </main>
 
-{{-- Form tersembunyi untuk ubah status & sinkronisasi --}}
+{{-- Form tersembunyi untuk ubah status, sinkronisasi, & kelulusan TA --}}
 <form id="formStatus" method="POST" style="display: none;">
     @csrf
     @method('PATCH')
+    <input type="hidden" name="status" id="inputStatusBaru" value="">
 </form>
 
 <form id="formSinkron" action="{{ route('admin.mahasiswa.buat-kelas') }}" method="POST" style="display: none;">
     @csrf
 </form>
 
-{{-- Modal konfirmasi aktifkan / nonaktifkan --}}
-<dialog id="modalStatus" data-mode="nonaktif" aria-labelledby="modalStatusJudul" aria-describedby="modalStatusTeks">
+@if (\Illuminate\Support\Facades\Route::has('admin.mahasiswa.luluskan-ta'))
+<form id="formLulus" action="{{ route('admin.mahasiswa.luluskan-ta') }}" method="POST" style="display: none;">
+    @csrf
+</form>
+@endif
+
+{{-- Modal ubah status akademik mahasiswa --}}
+<dialog id="modalStatus" aria-labelledby="modalStatusJudul" aria-describedby="modalStatusTeks">
     <div class="modal-kartu">
         <div class="modal-ikon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 6a7.75 7.75 0 1 0 10 0" /><path d="M12 4l0 8" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
         </div>
-        <h2 id="modalStatusJudul" class="modal-judul">Nonaktifkan mahasiswa?</h2>
-        <p id="modalStatusTeks" class="modal-teks"><strong id="modalStatusNama"></strong> <span id="modalStatusSuffix"></span></p>
+        <h2 id="modalStatusJudul" class="modal-judul">Ubah Status Mahasiswa</h2>
+        <p id="modalStatusTeks" class="modal-teks">Pilih status akademik baru untuk <strong id="modalStatusNama"></strong>:</p>
+        <div class="relative mt-4 text-left">
+            <select id="modalStatusSelect" class="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#E4E4E7] bg-white px-3.5 pr-9 text-sm font-medium text-[#0A0A0A] outline-none focus:border-[#2277FF]">
+                @foreach ($statusOpsi as $st)
+                    <option value="{{ $st }}">{{ $st }}</option>
+                @endforeach
+            </select>
+            <svg class="pointer-events-none absolute right-3 top-[11px] text-[#55555C]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
+        </div>
+        <p id="modalStatusHint" class="mt-2 text-left text-xs text-[#6B7280]"></p>
         <div class="modal-aksi">
             <button type="button" id="modalStatusBatal" class="modal-btn modal-btn-batal">Batal</button>
-            <button type="button" id="modalStatusYa" class="modal-btn modal-btn-ya">Nonaktifkan</button>
+            <button type="button" id="modalStatusYa" class="modal-btn modal-btn-ya">Simpan Status</button>
         </div>
     </div>
 </dialog>
 
-{{-- Modal konfirmasi sinkronisasi --}}
+{{-- Modal konfirmasi sinkronisasi kelas (Juli) --}}
 <dialog id="modalSinkron" class="dialog-overlay" aria-labelledby="modalSinkronJudul" aria-describedby="modalSinkronTeks">
     <div class="modal-kartu">
         <div class="modal-ikon modal-ikon-warning">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v2m0 4v.01M5.07 19H18.93c1.9 0 2.8-2.27 1.8-3.75L13.8 3.55c-1-1.4-3.1-1.4-4.1 0L2.27 15.25c-1 1.48-.1 3.75 1.8 3.75z" /></svg>
         </div>
         <h2 id="modalSinkronJudul" class="modal-judul">Sinkronisasi Kelas?</h2>
-        <p id="modalSinkronTeks" class="modal-teks">Proses ini akan menempatkan seluruh mahasiswa ke tingkat baru sesuai semester aktif saat ini. Lanjutkan?</p>
+        <p id="modalSinkronTeks" class="modal-teks">Mahasiswa aktif Tingkat 1–3 akan ditempatkan ke tingkat berikutnya, dan Tingkat 4 yang selesai masa studi reguler akan berubah menjadi <strong>Skripsi/TA</strong>. Lanjutkan?</p>
         <div class="modal-aksi">
             <button type="button" id="modalSinkronBatal" class="modal-btn modal-btn-batal">Batal</button>
             <button type="button" id="modalSinkronYa" class="modal-btn modal-btn-sinkron">Sinkronkan</button>
+        </div>
+    </div>
+</dialog>
+
+{{-- Modal konfirmasi kelulusan Skripsi/TA (September) --}}
+<dialog id="modalLulus" class="dialog-overlay" aria-labelledby="modalLulusJudul" aria-describedby="modalLulusTeks">
+    <div class="modal-kartu">
+        <div class="modal-ikon modal-ikon-indigo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" /><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" /></svg>
+        </div>
+        <h2 id="modalLulusJudul" class="modal-judul">Luluskan Mahasiswa Skripsi/TA?</h2>
+        <p id="modalLulusTeks" class="modal-teks">Sebanyak <strong>{{ $jumlahSkripsiTa }} mahasiswa</strong> berstatus <strong>Skripsi/TA</strong> akan diubah menjadi <strong>Lulus</strong> dan akses loginnya dinonaktifkan. Lanjutkan?</p>
+        <div class="modal-aksi">
+            <button type="button" id="modalLulusBatal" class="modal-btn modal-btn-batal">Batal</button>
+            <button type="button" id="modalLulusYa" class="modal-btn modal-btn-lulus">Luluskan Semua</button>
         </div>
     </div>
 </dialog>
@@ -255,6 +299,24 @@
     var $ = function (id) { return document.getElementById(id); };
     var filter = { level: 'all', status: 'all' };
 
+    var BADGE_MAP = {
+        'Aktif':           'bg-[#DDF3D0] text-[#3A8A1E]',
+        'Skripsi/TA':      'bg-[#DBEAFE] text-[#1D4ED8]',
+        'Lulus':           'bg-[#E0E7FF] text-[#4338CA]',
+        'Cuti':            'bg-[#FEF3C7] text-[#B45309]',
+        'Drop Out':        'bg-[#FEE2E2] text-[#B91C1C]',
+        'Meninggal Dunia': 'bg-[#EDEDF0] text-[#55555C]'
+    };
+
+    var HINT_MAP = {
+        'Aktif':           'Mahasiswa dapat login dan ikut dalam penempatan kelas semester.',
+        'Skripsi/TA':      'Mahasiswa tetap dapat login untuk keperluan pengajuan/TA, namun tidak masuk rombel reguler.',
+        'Lulus':           'Akses login akun akan otomatis dinonaktifkan karena sudah lulus.',
+        'Cuti':            'Akses login akun akan dinonaktifkan sementara selama masa cuti.',
+        'Drop Out':        'Akses login akun akan dinonaktifkan permanen.',
+        'Meninggal Dunia': 'Akses login akun akan dinonaktifkan permanen.'
+    };
+
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -270,8 +332,8 @@
 
     DataTable.ext.search.push(function (settings, searchData, dataIndex, r) {
         if (settings.nTable.id !== 'tabel') return true;
-        var st = String(r.status).toLowerCase().replace('-', '');
-        var fSt = String(filter.status).toLowerCase().replace('-', '');
+        var st = String(r.status || '').toLowerCase();
+        var fSt = String(filter.status || '').toLowerCase();
         return (filter.level === 'all' || r.level === filter.level) &&
                (filter.status === 'all' || st === fSt);
     });
@@ -290,20 +352,18 @@
                 data: 'status', searchable: false,
                 render: function (d, type) {
                     if (type !== 'display') return d;
-                    var on = (d === 'Aktif' || d === 'aktif' || d == 1);
-                    return '<span class="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ' +
-                        (on ? 'bg-[#DDF3D0] text-[#3A8A1E]' : 'bg-[#EDEDF0] text-[#55555C]') + '">' + (on ? 'Aktif' : 'Nonaktif') + '</span>';
+                    var val = d || 'Aktif';
+                    var cls = BADGE_MAP[val] || 'bg-[#EDEDF0] text-[#55555C]';
+                    return '<span class="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ' + cls + '">' + esc(val) + '</span>';
                 }
             },
             {
                 data: null, orderable: false, searchable: false,
                 render: function (d, type, r) {
                     var id = esc(r.id);
-                    var isAktif = (r.status === 'Aktif' || r.status === 'aktif' || r.status == 1);
-                    var title = isAktif ? 'Nonaktifkan mahasiswa' : 'Aktifkan mahasiswa';
                     return '<div class="flex gap-2">' +
                         '<button type="button" title="Lihat detail" aria-label="Lihat detail" data-act="view" data-id="' + id + '" class="flex size-8 cursor-pointer items-center justify-center rounded-md bg-[#D4E3FF] text-[#1F73FF] hover:bg-[#C2D8FF]">' + I_EYE + '</button>' +
-                        '<button type="button" title="' + title + '" aria-label="' + title + '" data-act="status" data-id="' + id + '" class="btn-status">' + I_SYNC + '</button>' +
+                        '<button type="button" title="Ubah status akademik" aria-label="Ubah status akademik" data-act="status" data-id="' + id + '" class="btn-status">' + I_SYNC + '</button>' +
                     '</div>';
                 }
             }
@@ -336,11 +396,26 @@
     $('fStatus').addEventListener('change', function (e) { filter.status = e.target.value; table.draw(); });
 
     // ---------- Modal Ubah Status ----------
-    var modal = $('modalStatus'), btnYa = $('modalStatusYa'), formStatus = $('formStatus');
+    var modal = $('modalStatus'),
+        btnYa = $('modalStatusYa'),
+        formStatus = $('formStatus'),
+        selectStatus = $('modalStatusSelect'),
+        hintStatus = $('modalStatusHint'),
+        inputStatusBaru = $('inputStatusBaru');
     var idStatus = null;
 
-    function submitStatus(id) {
+    function updateHintStatus() {
+        if (!selectStatus || !hintStatus) return;
+        hintStatus.textContent = HINT_MAP[selectStatus.value] || '';
+    }
+
+    if (selectStatus) {
+        selectStatus.addEventListener('change', updateHintStatus);
+    }
+
+    function submitStatus(id, statusBaru) {
         formStatus.action = URL_STATUS.replace('__ID__', encodeURIComponent(id));
+        inputStatusBaru.value = statusBaru;
         formStatus.submit();
     }
 
@@ -354,35 +429,34 @@
         }
         if (b.dataset.act === 'status') {
             idStatus = b.dataset.id;
-            var nonaktifkan = !!r && (r.status === 'Aktif' || r.status === 'aktif' || r.status == 1);
             var nama = r ? r.name : '';
+            var statusSekarang = (r && r.status) ? r.status : 'Aktif';
+
             if (typeof modal.showModal !== 'function') {
-                if (confirm((nonaktifkan ? 'Nonaktifkan' : 'Aktifkan') + ' mahasiswa "' + nama + '"?')) submitStatus(idStatus);
+                var pilihan = prompt('Masukkan status baru untuk "' + nama + '" (Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia):', statusSekarang);
+                if (pilihan) submitStatus(idStatus, pilihan.trim());
                 return;
             }
-            modal.dataset.mode = nonaktifkan ? 'nonaktif' : 'aktif';
-            $('modalStatusJudul').textContent = nonaktifkan ? 'Nonaktifkan mahasiswa?' : 'Aktifkan mahasiswa?';
+
             $('modalStatusNama').textContent = '"' + nama + '"';
-            $('modalStatusSuffix').textContent = nonaktifkan
-                ? 'tidak dapat melakukan login ke sistem. Data mahasiswa tetap tersimpan.'
-                : 'dapat kembali melakukan login ke sistem.';
-            btnYa.textContent = nonaktifkan ? 'Nonaktifkan' : 'Aktifkan';
+            selectStatus.value = statusSekarang;
+            updateHintStatus();
             modal.showModal();
         }
     });
 
     $('modalStatusBatal').addEventListener('click', function () { modal.close(); });
     modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
-    modal.addEventListener('close', function () { idStatus = null; btnYa.disabled = false; });
+    modal.addEventListener('close', function () { idStatus = null; btnYa.disabled = false; btnYa.textContent = 'Simpan Status'; });
 
     btnYa.addEventListener('click', function () {
         if (!idStatus) return;
         btnYa.disabled = true;
-        btnYa.textContent = 'Memproses...';
-        submitStatus(idStatus);
+        btnYa.textContent = 'Menyimpan...';
+        submitStatus(idStatus, selectStatus.value);
     });
 
-    // ---------- Modal Sinkronisasi ----------
+    // ---------- Modal Sinkronisasi (Juli) ----------
     var modalSinkron = $('modalSinkron');
     var btnSinkron = $('btnSinkron');
     var btnYaSinkron = $('modalSinkronYa');
@@ -408,6 +482,35 @@
             btnYaSinkron.disabled = true;
             btnYaSinkron.textContent = 'Menyinkronkan...';
             $('formSinkron').submit();
+        });
+    }
+
+    // ---------- Modal Kelulusan Skripsi/TA (September) ----------
+    var modalLulus = $('modalLulus');
+    var btnLulusTa = $('btnLulusTa');
+    var btnYaLulus = $('modalLulusYa');
+
+    if (btnLulusTa) {
+        btnLulusTa.addEventListener('click', function () {
+            if (modalLulus && typeof modalLulus.showModal === 'function') {
+                modalLulus.showModal();
+            } else if (confirm('Ubah status seluruh mahasiswa Skripsi/TA menjadi Lulus?')) {
+                $('formLulus').submit();
+            }
+        });
+    }
+
+    if ($('modalLulusBatal')) {
+        $('modalLulusBatal').addEventListener('click', function () { modalLulus.close(); });
+    }
+    if (modalLulus) {
+        modalLulus.addEventListener('click', function (e) { if (e.target === modalLulus) modalLulus.close(); });
+    }
+    if (btnYaLulus) {
+        btnYaLulus.addEventListener('click', function () {
+            btnYaLulus.disabled = true;
+            btnYaLulus.textContent = 'Memproses...';
+            $('formLulus').submit();
         });
     }
 })();
