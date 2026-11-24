@@ -1,0 +1,2420 @@
+
+===== app\Models\Skim.php =====
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Skim extends Model
+{
+    protected $table = 'skim';
+
+    protected $primaryKey = 'id_skim';
+
+    protected $fillable = ['nama_skim'];
+
+    public function kegiatan(): HasMany
+    {
+        return $this->hasMany(Kegiatan::class, 'id_skim', 'id_skim');
+    }
+}
+
+
+===== app\Models\KelompokBidang.php =====
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
+
+class KelompokBidang extends Model
+{
+    protected $table = 'kelompok_bidang';
+
+    protected $primaryKey = 'id_kelompok_bidang';
+
+    protected $fillable = ['id_rujukan', 'nama_kelompok_bidang'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $bidang) {
+            if ($bidang->exists && $bidang->id_rujukan !== null
+                && (int) $bidang->id_rujukan === (int) $bidang->getKey()) {
+                throw ValidationException::withMessages(['id_rujukan' => 'Kelompok bidang tidak boleh merujuk ke dirinya sendiri.']);
+            }
+        });
+    }
+
+    public function rujukan(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'id_rujukan', 'id_kelompok_bidang');
+    }
+
+    public function turunan(): HasMany
+    {
+        return $this->hasMany(self::class, 'id_rujukan', 'id_kelompok_bidang');
+    }
+
+    public function kegiatan(): HasMany
+    {
+        return $this->hasMany(Kegiatan::class, 'id_kelompok_bidang', 'id_kelompok_bidang');
+    }
+}
+
+
+===== app\Models\Kegiatan.php =====
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+
+class Kegiatan extends Model
+{
+    protected $table = 'kegiatan';
+
+    protected $primaryKey = 'id_kegiatan';
+
+    protected $fillable = [
+        'id_kategori', 'id_user', 'id_skim', 'id_kelompok_bidang',
+        'nama_kegiatan', 'dosen_pendamping', 'nomor_sk', 'tanggal_sk',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'tanggal_sk' => 'date',
+        ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $activity) {
+            if ($activity->isDirty('id_kategori') && $activity->detail()->exists()) {
+                throw ValidationException::withMessages(['id_kategori' => 'Kategori kegiatan yang sudah memiliki jawaban tidak dapat langsung diubah.']);
+            }
+        });
+    }
+
+    public function statusTerkini(): HasOne
+    {
+        return $this->hasOne(Timeline::class, 'id_kegiatan', 'id_kegiatan')
+            ->latestOfMany('tanggal_status');
+    }
+
+    public function timeline(): HasMany
+    {
+        return $this->hasMany(Timeline::class, 'id_kegiatan', 'id_kegiatan')
+            ->orderBy('tanggal_status')->orderBy('id_timeline');
+    }
+
+    public function scopeUntukUser(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(fn (Builder $q) => $q->where('id_user', $user->getKey())
+            ->orWhereHas('anggota', fn (Builder $q) => $q->where('id_user', $user->getKey())));
+    }
+
+    public function scopeUntukPrestasi(Builder $query, ?User $pemilik): Builder
+    {
+        return $query->untukUser($pemilik)
+            ->whereHas('statusTerkini', fn (Builder $status) => $status->where('status', 'diterima'));
+    }
+
+    /** Satu baris per kegiatan, termasuk kegiatan yang belum memiliki tanggal. */
+    public static function tabelDenganTanggal(): QueryBuilder
+    {
+        // Older installations still retain physical date columns. Exclude them
+        // so the derived table exposes each detail-based date exactly once.
+        $columns = array_map(
+            fn (string $column) => 'kegiatan.'.$column,
+            array_values(array_diff(Schema::getColumnListing('kegiatan'), ['tanggal_mulai', 'tanggal_selesai']))
+        );
+        $kegiatan = DB::table('kegiatan')->select($columns);
+        foreach (['tanggal_mulai', 'tanggal_selesai'] as $input) {
+            $tanggal = DB::table('detail_kegiatan as d')
+                ->join('isian_kategori as i', 'i.id_isian_kategori', '=', 'd.id_isian_kategori')
+                ->whereColumn('d.id_kegiatan', 'kegiatan.id_kegiatan')
+                ->where('i.input', $input)
+                ->orderBy('d.id_detail_kegiatan')->limit(1)->select('d.isian');
+            $kegiatan->selectSub($tanggal, $input);
+        }
+
+        return $kegiatan;
+    }
+
+    public function scopeDenganTanggal(Builder $query): Builder
+    {
+        return $query->fromSub(self::tabelDenganTanggal(), 'kegiatan');
+    }
+
+    private function tanggalDetail(string $input): ?Carbon
+    {
+        $nilai = array_key_exists($input, $this->attributes)
+            ? $this->attributes[$input]
+            : $this->nilaiIsian($input);
+
+        return $nilai && Carbon::hasFormat($nilai, 'Y-m-d') ? Carbon::createFromFormat('!Y-m-d', $nilai) : null;
+    }
+
+    public function getTanggalMulaiAttribute(): ?Carbon
+    {
+        return $this->tanggalDetail('tanggal_mulai');
+    }
+
+    public function getTanggalSelesaiAttribute(): ?Carbon
+    {
+        return $this->tanggalDetail('tanggal_selesai');
+    }
+
+    public function kategori(): BelongsTo
+    {
+        return $this->belongsTo(Kategori::class, 'id_kategori');
+    }
+
+    public function skim(): BelongsTo
+    {
+        return $this->belongsTo(Skim::class, 'id_skim', 'id_skim');
+    }
+
+    public function kelompokBidang(): BelongsTo
+    {
+        return $this->belongsTo(KelompokBidang::class, 'id_kelompok_bidang', 'id_kelompok_bidang');
+    }
+
+    public function detail(): HasMany
+    {
+        return $this->hasMany(DetailKegiatan::class, 'id_kegiatan', 'id_kegiatan')->orderBy('id_detail_kegiatan');
+    }
+
+    public function prestasi(): HasMany
+    {
+        return $this->hasMany(Prestasi::class, 'id_kegiatan', 'id_kegiatan');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'id_user', 'id_user');
+    }
+
+    public function berita(): HasMany
+    {
+        return $this->hasMany(Berita::class, 'id_kegiatan', 'id_kegiatan');
+    }
+
+    public function nilaiIsian(string $input): ?string
+    {
+        $details = $this->relationLoaded('detail') ? $this->detail : $this->detail()->with('isianKategori')->get();
+
+        return $details->first(fn ($detail) => $detail->isianKategori?->input === $input)?->isian;
+    }
+
+    public function dokumen(): HasMany
+    {
+        return $this->hasMany(Dokumen::class, 'id_kegiatan')->orderBy('id_dokumen');
+    }
+
+    public function anggota(): HasMany
+    {
+        return $this->hasMany(AnggotaKegiatan::class, 'id_kegiatan');
+    }
+}
+
+
+===== database\migrations\2026_10_22_000006_create_skim_table.php =====
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('skim', function (Blueprint $table) {
+            $table->id('id_skim');
+            $table->string('nama_skim', 100);
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('skim');
+    }
+};
+
+
+===== database\migrations\2026_10_22_000007_create_kelompok_bidang_table.php =====
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('kelompok_bidang', function (Blueprint $table) {
+            $table->id('id_kelompok_bidang');
+            $table->foreignId('id_rujukan')
+                ->nullable()
+                ->constrained('kelompok_bidang', 'id_kelompok_bidang')
+                ->nullOnDelete();
+
+            $table->string('nama_kelompok_bidang', 100)->unique();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('kelompok_bidang');
+    }
+};
+
+
+===== database\seeders\DataMasterSeeder.php =====
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+
+class DataMasterSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // 1. Isi Tabel Prodi
+        DB::table('prodi')->updateOrInsert(
+            ['kode_prodi' => 'TRK'],
+            ['nama_prodi' => 'Teknologi Rekayasa Komputer', 'jenjang' => 'D4']
+        );
+
+        $this->call(TingkatKelasSeeder::class);
+
+        // 4. Pastikan role 'mahasiswa' ada (dibutuhkan oleh MahasiswaDbStore)
+        DB::table('roles')->updateOrInsert(
+            ['nama_role' => 'mahasiswa'],
+            ['nama_role' => 'mahasiswa']
+        );
+
+        // 5. Isi Tabel Tahun Akademik SECARA KRONOLOGIS
+        // Diurutkan dari masa lalu ke masa depan agar ID di database urut dan rapi
+        $tahunAkademik = [
+            ['tahun_akademik' => 'Ganjil 2023/2024', 'status' => 0],
+            ['tahun_akademik' => 'Genap 2023/2024', 'status' => 0],
+            ['tahun_akademik' => 'Ganjil 2024/2025', 'status' => 0],
+            ['tahun_akademik' => 'Genap 2024/2025', 'status' => 0],
+            ['tahun_akademik' => 'Ganjil 2025/2026', 'status' => 0],
+            ['tahun_akademik' => 'Genap 2025/2026', 'status' => 0],
+            ['tahun_akademik' => 'Ganjil 2026/2027', 'status' => 1], // Status 1 = Aktif saat ini
+        ];
+
+        foreach ($tahunAkademik as $ta) {
+            DB::table('tahun_akademik')->updateOrInsert(
+                ['tahun_akademik' => $ta['tahun_akademik']],
+                ['status' => $ta['status']]
+            );
+        }
+    }
+}
+
+
+===== app\Http\Controllers\KelompokBidangController.php =====
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class KelompokBidangController extends Controller
+{
+    public function index(Request $request)
+    {
+        // Deteksi peran dari route agar navbar/sidebar menyesuaikan
+        $isKaprodi = $request->routeIs('kaprodi.*');
+        $prefix = $isKaprodi ? 'kaprodi' : 'admin';
+        $layout = $isKaprodi ? 'layouts.kaprodi' : 'layouts.admin';
+
+        // DATA DUMMY (Sementara untuk keperluan pembuatan Frontend)
+        $rows = [
+            [
+                'id' => 1,
+                'nama_kelompok_bidang' => 'Rekayasa Perangkat Lunak',
+                'id_rujukan' => null
+            ],
+            [
+                'id' => 2,
+                'nama_kelompok_bidang' => 'Sistem Informasi',
+                'id_rujukan' => 1
+            ],
+            [
+                'id' => 3,
+                'nama_kelompok_bidang' => 'Jaringan Komputer',
+                'id_rujukan' => null
+            ]
+        ];
+        
+        $apiError = null;
+
+        // Mengarahkan ke file resources/views/admin/kelompok-bidang.blade.php
+        return view('admin.kelompok-bidang', compact('rows', 'prefix', 'layout', 'apiError'));
+    }
+
+    public function store(Request $request)
+    {
+        // Respon statis sukses
+        return response()->json([
+            'ok' => true, 
+            'message' => 'Dummy: Data berhasil disimpan.'
+        ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Respon statis sukses
+        return response()->json([
+            'ok' => true, 
+            'message' => 'Dummy: Data berhasil diperbarui.'
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        // Respon statis sukses
+        return response()->json([
+            'ok' => true, 
+            'message' => 'Dummy: Data berhasil dihapus.'
+        ]);
+    }
+}
+
+===== resources\views\admin\kelompok-bidang.blade.php =====
+@extends($layout ?? 'layouts.admin')
+
+@section('title', 'Kelompok Bidang')
+
+@section('content')
+{{-- CSS DataTables + penyesuaian tampilan agar identik dengan Jenis Dokumen --}}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+<style>
+    /* ---------- Kotak tabel ---------- */
+    #tabel-wrap .dt-layout-row { margin: 0; }
+    #tabel-wrap .dt-layout-row.dt-layout-table {
+        border: 1px solid rgb(0 0 47 / .15);
+        border-radius: 6px;
+        overflow: hidden;
+        background: #fff;
+    }
+    #tabel-wrap .dt-layout-table .dt-layout-cell { width: 100%; padding: 0; overflow-x: auto; }
+
+    #tabel { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: collapse; margin: 0 !important; font-size: 14px; color: #1C2024; }
+    #tabel.dataTable > thead > tr > th:nth-child(1) { width: 80px; }
+    #tabel.dataTable > thead > tr > th:nth-child(2) { width: 45%; }
+    #tabel.dataTable > thead > tr > th:nth-child(4) { width: 140px; }
+
+    /* Header: latar abu penuh, semua kolom rata kiri */
+    #tabel.dataTable > thead > tr > th {
+        padding: 8px; font-weight: 510; text-align: left;
+        background: #F9F9FC;
+        border-bottom: 1px solid rgb(0 0 47 / .15);
+        color: #1C2024;
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-header {
+        display: flex; flex-direction: row !important; justify-content: flex-start !important; align-items: center; gap: 6px;
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-title { flex-grow: 0 !important; }
+
+    #tabel.dataTable > tbody > tr > td {
+        height: 64px; padding: 8px; text-align: left;
+        border-top: 1px solid rgb(0 0 47 / .15);
+        box-shadow: none;
+        vertical-align: middle;
+    }
+    #tabel.dataTable > tbody > tr:first-child > td { border-top: 0; }
+    #tabel.dataTable > tbody > tr > td.dt-empty { padding: 24px; text-align: center; color: #A8A8A8; }
+
+    /* Kolom No: beri jarak dari tepi kiri kotak */
+    #tabel.dataTable > thead > tr > th:first-child,
+    #tabel.dataTable > tbody > tr > td:first-child:not(.dt-empty) { padding-left: 20px; }
+
+    /* ---------- Paginasi ---------- */
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) { padding: 24px 0 0; justify-content: center; }
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) .dt-layout-cell { width: 100%; padding: 0; display: flex; justify-content: center; }
+    #tabel-wrap .dt-paging nav { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+    #tabel-wrap .dt-paging .dt-paging-button {
+        display: flex !important; align-items: center; justify-content: center;
+        width: 32px; height: 32px; min-width: 32px; padding: 0 !important; margin: 0 !important;
+        border: 1px solid #DFE3E8; border-radius: 4px !important;
+        font-size: 14px; font-weight: 700; letter-spacing: -.16px; line-height: 1;
+        box-shadow: none !important; cursor: pointer;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.disabled { cursor: not-allowed; opacity: .6; }
+
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover {
+        background: #fff !important; color: #0A0A0A !important; border-color: #DFE3E8 !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover { border-color: #2277FF !important; }
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis):hover,
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis):hover {
+        color: #2277FF !important; border-color: #2277FF !important; background: #fff !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.ellipsis { border-color: transparent !important; background: none !important; color: #55555C !important; opacity: 1; cursor: default; }
+
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.next {
+        font-size: 0 !important; background-repeat: no-repeat !important; background-position: center !important; background-size: 20px 20px !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.previous.disabled:hover {
+        background-color: #2277FF !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 6l-6 6l6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.next,
+    #tabel-wrap .dt-paging .dt-paging-button.next.disabled:hover {
+        background-color: #CDDEF9 !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232277FF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6l-6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
+    #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
+
+    /* ---------- Kursor tangan pada tombol ---------- */
+    #kb-tambah, #kb-batal, #kb-simpan { cursor: pointer; }
+    #kb-simpan:disabled { cursor: not-allowed; }
+
+    /* ---------- Modal konfirmasi hapus ---------- */
+    #modalHapus { position: fixed; inset: 0; margin: auto; height: fit-content; width: 380px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }
+    #modalHapus::backdrop { background: rgb(10 10 10 / .45); }
+    #modalHapus[open] { animation: modalMasuk .15s ease-out; }
+    @keyframes modalMasuk { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .modal-kartu { padding: 24px; border-radius: 12px; background: #fff; text-align: center; box-shadow: 0 20px 50px rgb(0 0 0 / .2); }
+    .modal-ikon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 9999px; background: #FFD9D9; color: #E5484D; }
+    .modal-judul { font-size: 18px; font-weight: 700; line-height: 24px; color: #0A0A0A; }
+    .modal-teks { margin-top: 8px; font-size: 14px; line-height: 20px; color: #55555C; }
+    .modal-teks strong { font-weight: 600; color: #0A0A0A; word-break: break-word; }
+    .modal-error { margin-top: 12px; font-size: 13px; color: #E5484D; }
+    .modal-aksi { display: flex; gap: 12px; margin-top: 24px; }
+    .modal-btn { flex: 1; height: 40px; border: 1px solid transparent; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .modal-btn-batal { background: #fff; border-color: #E8E8EC; color: #2E2E2E; }
+    .modal-btn-batal:hover { background: #F9F9FB; }
+    .modal-btn-hapus { background: #E5484D; color: #fff; }
+    .modal-btn-hapus:hover { background: #D13A3F; }
+    .modal-btn-hapus:disabled { opacity: .7; cursor: not-allowed; }
+</style>
+
+<div class="px-6 pb-8 pt-4 md:px-8">
+    <h1 class="text-[32px] font-bold leading-tight text-[#111]">Kelompok Bidang</h1>
+    {{-- Breadcrumb: Dashboard & Kegiatan bisa diklik (hover biru underline), halaman aktif tidak --}}
+    <nav aria-label="Breadcrumb" class="mt-[7px] text-xl leading-[26px] text-[#B9B9BF]">
+        <a href="{{ route(($prefix ?? 'admin').'.dashboard') }}" class="transition-colors hover:text-[#226CFF] hover:underline">Dashboard</a>
+        <span class="mx-1">/</span>
+        <a href="{{ route(($prefix ?? 'admin').'.kegiatan.index') }}" class="transition-colors hover:text-[#226CFF] hover:underline">Kegiatan</a>
+        <span class="mx-1">/</span>
+        <span class="text-[#6E6E76]" aria-current="page">Kelompok Bidang</span>
+    </nav>
+
+    {{-- Alert Error API (Jika ada) --}}
+    @if(!empty($apiError))
+    <div class="mt-5 rounded-lg border border-[#F5B7B1] bg-[#FADBD8] px-4 py-3 text-sm text-[#922B21]">
+        {{ $apiError }}
+    </div>
+    @endif
+
+    <section class="mt-[26px] max-w-[1152px] rounded-lg border border-[#EFEFF1] bg-white p-[25px] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="text-base font-medium leading-6 text-[#111]">Daftar Kelompok Bidang</h3>
+                <p class="mt-1 text-[13px] leading-[18px] text-[#6E6E76]">Kelompok bidang penelitian yang tersedia untuk dosen</p>
+            </div>
+            <button type="button" id="kb-tambah"
+                    class="flex h-[39px] items-center gap-2 rounded-[7px] bg-[#226CFF] px-[17px] text-sm font-medium text-white hover:bg-[#1b5ae0]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                Kelompok Bidang
+            </button>
+        </div>
+
+        {{-- Cari --}}
+        <div class="relative mt-5">
+            <svg class="absolute left-[15px] top-1/2 -translate-y-1/2 text-[#8E8E96]" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7" /><path d="M21 21l-6-6" /></svg>
+            <input id="kb-cari" type="text" placeholder="Cari kelompok bidang..."
+                   class="h-10 w-full rounded-[7px] border border-[#DEDEE3] pl-10 pr-3 text-sm outline-none placeholder:text-[#757575] focus:border-[#226CFF]">
+        </div>
+
+        {{-- Tabel (isi <tbody> dan paginasi dibuat otomatis oleh DataTables) --}}
+        <div id="tabel-wrap" class="mt-[19px]">
+            <table id="tabel">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Kelompok Bidang</th>
+                        <th>Sub-bidang</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </section>
+</div>
+
+{{-- Pop-up tambah / edit --}}
+<div id="kb-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div class="w-full max-w-[540px] rounded-lg bg-white px-6 pb-5 pt-6 shadow-xl">
+        <h2 id="kb-modal-judul" class="text-xl font-bold leading-6 text-[#111]">Tambah Kelompok Bidang</h2>
+        <p id="kb-modal-sub" class="mt-1 text-xs text-[#B9B9BF]">Isi data kelompok bidang baru program studi</p>
+
+        <div class="mt-5 space-y-4">
+            <div>
+                <label for="kb-nama" class="mb-1.5 block text-sm font-semibold text-[#111]">Nama Kelompok Bidang</label>
+                <input id="kb-nama" type="text" maxlength="100" placeholder="Contoh: Rekayasa Perangkat Lunak"
+                       class="h-9 w-full rounded-[5px] border border-[#DEDEE3] px-3 text-xs outline-none placeholder:text-[#B0B0B8] focus:border-[#226CFF]">
+            </div>
+
+            <div>
+                <label for="kb-induk" class="mb-1.5 block text-sm font-semibold text-[#111]">Induk Rujukan (Opsional)</label>
+                <select id="kb-induk"
+                        class="h-9 w-full rounded-[5px] border border-[#DEDEE3] bg-white px-3 text-xs text-[#111] outline-none focus:border-[#226CFF]">
+                    <option value="">Tanpa Induk (Bidang Utama)</option>
+                </select>
+                <p class="mt-1 text-[11px] text-[#8E8E96]">Kosongkan jika ini merupakan bidang utama.</p>
+            </div>
+
+            <p id="kb-error" class="hidden text-[13px] text-[#E5484D]"></p>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="kb-batal"
+                    class="h-8 rounded-md bg-[#FF4B4B] px-4 text-xs font-semibold text-white hover:bg-[#e63e3e]">Batal</button>
+            <button type="button" id="kb-simpan"
+                    class="h-8 rounded-md bg-[#226CFF] px-4 text-xs font-semibold text-white hover:bg-[#1b5ae0] disabled:opacity-60">Simpan</button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal konfirmasi hapus --}}
+<dialog id="modalHapus" aria-labelledby="modalHapusJudul" aria-describedby="modalHapusTeks">
+    <div class="modal-kartu">
+        <div class="modal-ikon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg>
+        </div>
+        <h2 id="modalHapusJudul" class="modal-judul">Hapus kelompok bidang?</h2>
+        <p id="modalHapusTeks" class="modal-teks"><strong id="modalHapusNama"></strong> akan dihapus permanen.</p>
+        <p id="modalHapusError" class="modal-error" hidden></p>
+        <div class="modal-aksi">
+            <button type="button" id="modalHapusBatal" class="modal-btn modal-btn-batal">Batal</button>
+            <button type="button" id="modalHapusYa" class="modal-btn modal-btn-hapus">Hapus</button>
+        </div>
+    </div>
+</dialog>
+@endsection
+
+@push('scripts')
+{{-- Hapus baris jQuery ini kalau layout admin/kaprodi kamu sudah memuat jQuery 3.x --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script>
+(() => {
+    // Data dummy awal (akan otomatis memakai $rows dari controller jika tersedia)
+    const serverRows = @json($rows ?? []);
+    const rows = serverRows.length > 0 ? serverRows.map((r, idx) => ({
+        id: r.id_kelompok_bidang ?? r.id ?? (idx + 1),
+        nama_kelompok_bidang: r.nama_kelompok_bidang ?? 'Tanpa Nama',
+        id_rujukan: r.id_rujukan ?? null,
+        nama_rujukan: r.nama_rujukan ?? (r.id_rujukan === 1 ? 'Rekayasa Perangkat Lunak' : null),
+        total_turunan: r.total_turunan ?? (idx === 0 ? 2 : 0)
+    })) : [
+        { id: 1, nama_kelompok_bidang: 'Rekayasa Perangkat Lunak', id_rujukan: null, nama_rujukan: null, total_turunan: 2 },
+        { id: 2, nama_kelompok_bidang: 'Pengembangan Web & Mobile', id_rujukan: 1, nama_rujukan: 'Rekayasa Perangkat Lunak', total_turunan: 0 }
+    ];
+
+    let editingId = null;
+    let idHapus = null;
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const IKON_EDIT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.828 2.828 0 1 0-4-4L4 16v4M13.5 6.5l4 4"/></svg>';
+    const IKON_HAPUS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg>';
+
+    // ---------- DataTables ----------
+    const table = new DataTable('#tabel', {
+        data: rows,
+        autoWidth: false,
+        pageLength: 10,
+        order: [],
+        columns: [
+            { data: null, orderable: false, searchable: false, defaultContent: '' },
+            {
+                data: 'nama_kelompok_bidang',
+                render: (d, type, r) => {
+                    if (type !== 'display') return d ?? '';
+                    const badge = r.nama_rujukan
+                        ? `<div class="mt-1 inline-flex items-center rounded border border-[#DEDEE3] bg-[#F9F9FC] px-2 py-0.5 text-xs font-medium text-[#6E6E76]">Induk: ${esc(r.nama_rujukan)}</div>`
+                        : '';
+                    return `<div><div class="font-medium text-[#1C2024]">${esc(d)}</div>${badge}</div>`;
+                }
+            },
+            {
+                data: 'total_turunan',
+                render: (d, type) => type === 'display'
+                    ? `<span class="text-[#6E6E76]">${Number(d ?? 0)} Sub-bidang</span>`
+                    : Number(d ?? 0)
+            },
+            {
+                data: null, orderable: false, searchable: false,
+                render: (d, type, r) => `
+                    <div class="flex items-center gap-3">
+                        <button type="button" data-act="edit" data-id="${esc(r.id)}" title="Edit" aria-label="Edit"
+                                class="rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] hover:bg-[#BBD2F6] cursor-pointer">${IKON_EDIT}</button>
+                        <button type="button" data-act="hapus" data-id="${esc(r.id)}" title="Hapus" aria-label="Hapus"
+                                class="rounded-md bg-[#FFD9D9] p-1.5 text-[#E5484D] hover:bg-[#FFC9C9] cursor-pointer">${IKON_HAPUS}</button>
+                    </div>`
+            }
+        ],
+        layout: { topStart: null, topEnd: null, bottomStart: null, bottomEnd: null, bottom: 'paging' },
+        pagingType: 'simple_numbers',
+        language: {
+            emptyTable: 'Tidak ada kelompok bidang.',
+            zeroRecords: 'Tidak ada kelompok bidang.',
+            paginate: { previous: 'Sebelumnya', next: 'Berikutnya' }
+        }
+    });
+
+    function isiNomor() {
+        const mulai = table.page.info().start;
+        table.column(0, { page: 'current' }).nodes().each((cell, i) => { cell.textContent = mulai + i + 1; });
+    }
+    function togglePager() {
+        const p = document.querySelector('#tabel-wrap .dt-paging');
+        if (p) p.style.display = table.page.info().pages > 1 ? '' : 'none';
+    }
+    table.on('draw.dt', () => { isiNomor(); togglePager(); });
+    isiNomor();
+    togglePager();
+
+    const cariBaris = (id) => table.row((idx, data) => String(data.id) === String(id));
+
+    function pindahJikaHalamanKosong() {
+        const i = table.page.info();
+        if (i.pages > 0 && i.page >= i.pages) table.page(i.pages - 1).draw('page');
+    }
+
+    function isiDropdownInduk(excludeId) {
+        const sel = $('kb-induk');
+        sel.innerHTML = '<option value="">Tanpa Induk (Bidang Utama)</option>';
+        table.rows().data().each((item) => {
+            if (excludeId !== null && String(item.id) === String(excludeId)) return;
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.nama_kelompok_bidang;
+            sel.appendChild(opt);
+        });
+    }
+
+    // ---------- Pop-up tambah / edit (Mode Dummy Frontend) ----------
+    function bukaModal(row) {
+        editingId = row ? row.id : null;
+        $('kb-modal-judul').textContent = row ? 'Edit Kelompok Bidang' : 'Tambah Kelompok Bidang';
+        $('kb-modal-sub').textContent = row
+            ? 'Ubah data kelompok bidang program studi'
+            : 'Isi data kelompok bidang baru program studi';
+        isiDropdownInduk(editingId);
+        $('kb-nama').value = row ? row.nama_kelompok_bidang : '';
+        $('kb-induk').value = row && row.id_rujukan ? row.id_rujukan : '';
+        tampilError('');
+        $('kb-modal').classList.remove('hidden');
+        $('kb-modal').classList.add('flex');
+        $('kb-nama').focus();
+    }
+
+    function tutupModal() {
+        $('kb-modal').classList.add('hidden');
+        $('kb-modal').classList.remove('flex');
+    }
+
+    function tampilError(pesan) {
+        const el = $('kb-error');
+        el.textContent = pesan;
+        el.classList.toggle('hidden', !pesan);
+    }
+
+    function simpanDummy() {
+        const nama = $('kb-nama').value.trim();
+        const indukVal = $('kb-induk').value;
+        if (!nama) { tampilError('Nama kelompok bidang wajib diisi.'); return; }
+
+        let namaInduk = null;
+        if (indukVal) {
+            const indukRow = cariBaris(indukVal).data();
+            namaInduk = indukRow ? indukRow.nama_kelompok_bidang : null;
+        }
+
+        if (editingId === null) {
+            const newRow = {
+                id: Date.now(),
+                nama_kelompok_bidang: nama,
+                id_rujukan: indukVal ? Number(indukVal) : null,
+                nama_rujukan: namaInduk,
+                total_turunan: 0
+            };
+            table.order([]);
+            table.row.add(newRow).draw();
+            table.page('last').draw('page');
+        } else {
+            const existing = cariBaris(editingId).data();
+            const updatedRow = {
+                ...existing,
+                nama_kelompok_bidang: nama,
+                id_rujukan: indukVal ? Number(indukVal) : null,
+                nama_rujukan: namaInduk
+            };
+            cariBaris(editingId).data(updatedRow).draw(false);
+        }
+        tutupModal();
+    }
+
+    // ---------- Modal konfirmasi hapus (Mode Dummy Frontend) ----------
+    const modalHapus = $('modalHapus'), btnHapusYa = $('modalHapusYa');
+
+    function bukaHapus(id) {
+        const r = cariBaris(id).data();
+        if (!r) return;
+        idHapus = id;
+        $('modalHapusNama').textContent = `"${r.nama_kelompok_bidang}"`;
+        $('modalHapusError').hidden = true;
+        modalHapus.showModal();
+    }
+
+    function prosesHapusDummy() {
+        if (idHapus === null) return;
+        cariBaris(idHapus).remove().draw(false);
+        pindahJikaHalamanKosong();
+        if (modalHapus.open) modalHapus.close();
+    }
+
+    $('modalHapusBatal').addEventListener('click', () => modalHapus.close());
+    modalHapus.addEventListener('click', (e) => { if (e.target === modalHapus) modalHapus.close(); });
+    modalHapus.addEventListener('close', () => { idHapus = null; });
+    btnHapusYa.addEventListener('click', prosesHapusDummy);
+
+    // ---------- Event ----------
+    $('kb-tambah').addEventListener('click', () => bukaModal(null));
+    $('kb-batal').addEventListener('click', tutupModal);
+    $('kb-simpan').addEventListener('click', simpanDummy);
+    $('kb-modal').addEventListener('click', (e) => { if (e.target === $('kb-modal')) tutupModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tutupModal(); });
+    $('kb-nama').addEventListener('keydown', (e) => { if (e.key === 'Enter') simpanDummy(); });
+
+    $('kb-cari').addEventListener('input', (e) => table.column(1).search(e.target.value.trim()).draw());
+
+    $('tabel').addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-act]');
+        if (!b) return;
+        if (b.dataset.act === 'edit') { const r = cariBaris(b.dataset.id).data(); if (r) bukaModal(r); }
+        if (b.dataset.act === 'hapus') bukaHapus(b.dataset.id);
+    });
+})();
+</script>
+@endpush
+
+===== app\BackendKel1\JenisDokumen\JenisDokumenController.php =====
+<?php
+
+namespace App\BackendKel1\JenisDokumen;
+
+use App\Http\Controllers\Controller;
+use App\Models\JenisDokumen;
+use App\Support\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+/** CRUD /api/v1/jenis-dokumen */
+class JenisDokumenController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $p = JenisDokumen::query()
+            ->when($request->filled('q'), fn ($q) => $q->where('nama_jenis_dokumen', 'like', '%'.$request->query('q').'%'))
+            ->orderByDesc('id_jenis_dokumen')
+            ->paginate((int) $request->query('per_page', 15));
+
+        return ApiResponse::paginated($p, $p->getCollection()->map(fn ($item) => self::bentuk($item))->all());
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        $item = JenisDokumen::query()->find($id);
+
+        return $item ? ApiResponse::ok(self::bentuk($item)) : ApiResponse::gagal('Jenis dokumen tidak ditemukan');
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'nama_jenis_dokumen' => ['required', 'string', 'max:100', 'unique:jenis_dokumen,nama_jenis_dokumen'],
+            'keterangan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $item = JenisDokumen::query()->create($data);
+
+        return ApiResponse::ok(self::bentuk($item));
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $item = JenisDokumen::query()->find($id);
+
+        if (! $item) {
+            return ApiResponse::gagal('Jenis dokumen tidak ditemukan');
+        }
+
+        $data = $request->validate([
+            'nama_jenis_dokumen' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('jenis_dokumen', 'nama_jenis_dokumen')->ignore($item->id_jenis_dokumen, 'id_jenis_dokumen'),
+            ],
+            'keterangan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $item->update($data);
+
+        return ApiResponse::ok(self::bentuk($item));
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $item = JenisDokumen::query()->find($id);
+
+        if (! $item) {
+            return ApiResponse::gagal('Jenis dokumen tidak ditemukan');
+        }
+
+        if ($item->dokumen()->exists() || $item->buktiPrestasi()->exists()) {
+            return ApiResponse::gagal('Jenis dokumen masih digunakan dan tidak dapat dihapus');
+        }
+
+        $item->delete();
+
+        return ApiResponse::ok([]);
+    }
+
+    public static function bentuk(JenisDokumen $item): array
+    {
+        return [
+            'id_jenis_dokumen' => $item->id_jenis_dokumen,
+            'nama_jenis_dokumen' => $item->nama_jenis_dokumen,
+            'keterangan' => $item->keterangan,
+        ];
+    }
+}
+
+
+===== app\BackendKel1\JenisDokumen\routes.php =====
+<?php
+
+use App\BackendKel1\JenisDokumen\JenisDokumenController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('jenis-dokumen', [JenisDokumenController::class, 'index'])->name('api.jenis-dokumen.index');
+Route::post('jenis-dokumen', [JenisDokumenController::class, 'store'])->name('api.jenis-dokumen.store');
+Route::get('jenis-dokumen/{id}', [JenisDokumenController::class, 'show'])->whereNumber('id')->name('api.jenis-dokumen.show');
+Route::put('jenis-dokumen/{id}', [JenisDokumenController::class, 'update'])->whereNumber('id')->name('api.jenis-dokumen.update');
+Route::delete('jenis-dokumen/{id}', [JenisDokumenController::class, 'destroy'])->whereNumber('id')->name('api.jenis-dokumen.destroy');
+
+
+===== app\Http\Controllers\JenisDokumenController.php =====
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Support\ApiClient;
+use App\Support\ApiException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class JenisDokumenController extends Controller
+{
+    public function index()
+    {
+        $hasil = ApiClient::pengguna()->get('/jenis-dokumen', ['per_page' => 100]);
+        $rows = collect($hasil['data'] ?? [])->map(fn (array $item) => $this->bentukBaris($item))->all();
+
+        return view('admin.jenis-dokumen', ['rows' => $rows]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $this->validasi($request);
+
+        try {
+            $hasil = ApiClient::pengguna()->post('/jenis-dokumen', [
+                'nama_jenis_dokumen' => $data['name'],
+                'keterangan' => $data['description'] ?? null,
+            ]);
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'row' => $this->bentukBaris($hasil['data'] ?? []),
+        ]);
+    }
+
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $data = $this->validasi($request);
+
+        try {
+            $hasil = ApiClient::pengguna()->put("/jenis-dokumen/{$id}", [
+                'nama_jenis_dokumen' => $data['name'],
+                'keterangan' => $data['description'] ?? null,
+            ]);
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'row' => $this->bentukBaris($hasil['data'] ?? []),
+        ]);
+    }
+
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            ApiClient::pengguna()->delete("/jenis-dokumen/{$id}");
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function validasi(Request $request): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Nama jenis dokumen wajib diisi.',
+            'name.max' => 'Nama jenis dokumen maksimal 100 karakter.',
+        ]);
+    }
+
+    /** @param array<string, mixed> $item */
+    private function bentukBaris(array $item): array
+    {
+        return [
+            'id' => $item['id_jenis_dokumen'] ?? null,
+            'name' => $item['nama_jenis_dokumen'] ?? '',
+            'description' => $item['keterangan'] ?? null,
+        ];
+    }
+
+    private function responGagalApi(ApiException $e): JsonResponse
+    {
+        $status = method_exists($e, 'getStatusCode')
+            ? $e->getStatusCode()
+            : ($e->status ?? ($e->getCode() ?: 422));
+
+        if ($status < 400 || $status > 599) {
+            $status = 422;
+        }
+
+        return response()->json([
+            'message' => $e->getMessage(),
+        ], $status);
+    }
+}
+
+
+===== app\Http\Controllers\KaprodiJenisDokumenController.php =====
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Support\ApiClient;
+use Illuminate\Http\Request;
+
+class KaprodiJenisDokumenController extends Controller
+{
+    /** Baca saja: ambil dari REST API via ApiClient. */
+    public function index(Request $request)
+    {
+        $params = ['per_page' => 100];
+        if ($request->filled('q')) {
+            $params['q'] = $request->query('q');
+        }
+
+        $hasil = ApiClient::pengguna()->get('/jenis-dokumen', $params);
+
+        $rows = collect($hasil['data'] ?? [])->map(fn (array $item) => [
+            'id' => $item['id_jenis_dokumen'] ?? null,
+            'name' => $item['nama_jenis_dokumen'] ?? '',
+            'description' => $item['keterangan'] ?? null,
+        ])->values()->all();
+
+        return view('kaprodi.jenis-dokumen', [
+            'rows' => $rows,
+        ]);
+    }
+}
+
+
+===== resources\views\admin\jenis-dokumen.blade.php =====
+{{--
+    resources/views/admin/jenis-dokumen.blade.php
+    Daftar jenis dokumen (admin): tambah / edit lewat pop-up, hapus lewat modal konfirmasi.
+    Tabel memakai DataTables 2.x (sorting, paginasi ditangani library).
+--}}
+@extends('layouts.admin')
+
+@section('title', 'Jenis Dokumen')
+
+@section('content')
+{{-- CSS DataTables + penyesuaian tampilan --}}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+<style>
+    /* ---------- Kotak tabel: sama dengan halaman Kegiatan Dosen / Mahasiswa ---------- */
+    #tabel-wrap .dt-layout-row { margin: 0; }
+    #tabel-wrap .dt-layout-row.dt-layout-table {
+        border: 1px solid rgb(0 0 47 / .15);
+        border-radius: 6px;
+        overflow: hidden;                    /* latar header ikut terpotong sudut bulat */
+        background: #fff;
+    }
+    #tabel-wrap .dt-layout-table .dt-layout-cell { width: 100%; padding: 0; overflow-x: auto; }
+
+    #tabel { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: collapse; margin: 0 !important; font-size: 14px; color: #1C2024; }
+    #tabel.dataTable > thead > tr > th:nth-child(1) { width: 80px; }
+    #tabel.dataTable > thead > tr > th:nth-child(2) { width: 26%; }
+    #tabel.dataTable > thead > tr > th:nth-child(4) { width: 140px; }
+
+    /* Header: latar abu penuh, semua kolom rata kiri */
+    #tabel.dataTable > thead > tr > th {
+        padding: 8px; font-weight: 510; text-align: left;
+        background: #F9F9FC;
+        border-bottom: 1px solid rgb(0 0 47 / .15);
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-header {
+        display: flex; flex-direction: row !important; justify-content: flex-start !important; align-items: center; gap: 6px;
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-title { flex-grow: 0 !important; }
+
+    #tabel.dataTable > tbody > tr > td {
+        height: 64px; padding: 8px; text-align: left;
+        border-top: 1px solid rgb(0 0 47 / .15);
+        box-shadow: none;
+    }
+    #tabel.dataTable > tbody > tr:first-child > td { border-top: 0; }
+    #tabel.dataTable > tbody > tr > td.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tabel.dataTable > tbody > tr > td.dt-empty { padding: 24px; text-align: center; color: #A8A8A8; }
+
+    /* Kolom No: beri jarak dari tepi kiri kotak (header & isi sejajar) */
+    #tabel.dataTable > thead > tr > th:first-child,
+    #tabel.dataTable > tbody > tr > td:first-child:not(.dt-empty) { padding-left: 20px; }
+
+    /* ---------- Paginasi: di tengah bawah, tombol kotak 32px ---------- */
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) { padding: 24px 0 0; justify-content: center; }
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) .dt-layout-cell { width: 100%; padding: 0; display: flex; justify-content: center; }
+    #tabel-wrap .dt-paging nav { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+    #tabel-wrap .dt-paging .dt-paging-button {
+        display: flex !important; align-items: center; justify-content: center;
+        width: 32px; height: 32px; min-width: 32px; padding: 0 !important; margin: 0 !important;
+        border: 1px solid #DFE3E8; border-radius: 4px !important;
+        font-size: 14px; font-weight: 700; letter-spacing: -.16px; line-height: 1;
+        box-shadow: none !important; cursor: pointer;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.disabled { cursor: not-allowed; opacity: .6; }
+
+    /* Tombol angka */
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover {
+        background: #fff !important; color: #0A0A0A !important; border-color: #DFE3E8 !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover { border-color: #2277FF !important; }
+    /* Halaman aktif: border + angka biru */
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis):hover,
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis):hover {
+        color: #2277FF !important; border-color: #2277FF !important; background: #fff !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.ellipsis { border-color: transparent !important; background: none !important; color: #55555C !important; opacity: 1; cursor: default; }
+
+    /* Tombol sebelumnya (biru penuh, panah putih) & berikutnya (biru muda, panah biru) */
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.next {
+        font-size: 0 !important; background-repeat: no-repeat !important; background-position: center !important; background-size: 20px 20px !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.previous.disabled:hover {
+        background-color: #2277FF !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 6l-6 6l6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.next,
+    #tabel-wrap .dt-paging .dt-paging-button.next.disabled:hover {
+        background-color: #CDDEF9 !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232277FF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6l-6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
+    #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
+
+    /* ---------- Kursor tangan pada tombol ---------- */
+    #jd-tambah, #jd-batal, #jd-simpan { cursor: pointer; }
+    #jd-simpan:disabled { cursor: not-allowed; }
+
+    /* ---------- Modal konfirmasi hapus ---------- */
+    #modalHapus { position: fixed; inset: 0; margin: auto; height: fit-content; width: 380px; max-width: calc(100vw - 32px); padding: 0; border: 0; background: transparent; overflow: visible; }  /* margin:auto + inset:0 = tepat di tengah (Tailwind reset menimpa margin bawaan dialog) */
+    #modalHapus::backdrop { background: rgb(10 10 10 / .45); }
+    #modalHapus[open] { animation: modalMasuk .15s ease-out; }
+    @keyframes modalMasuk { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .modal-kartu { padding: 24px; border-radius: 12px; background: #fff; text-align: center; box-shadow: 0 20px 50px rgb(0 0 0 / .2); }
+    .modal-ikon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 9999px; background: #FFD9D9; color: #E5484D; }
+    .modal-judul { font-size: 18px; font-weight: 700; line-height: 24px; color: #0A0A0A; }
+    .modal-teks { margin-top: 8px; font-size: 14px; line-height: 20px; color: #55555C; }
+    .modal-teks strong { font-weight: 600; color: #0A0A0A; word-break: break-word; }
+    .modal-error { margin-top: 12px; font-size: 13px; color: #E5484D; }
+    .modal-aksi { display: flex; gap: 12px; margin-top: 24px; }
+    .modal-btn { flex: 1; height: 40px; border: 1px solid transparent; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .modal-btn-batal { background: #fff; border-color: #E8E8EC; color: #2E2E2E; }
+    .modal-btn-batal:hover { background: #F9F9FB; }
+    .modal-btn-hapus { background: #E5484D; color: #fff; }
+    .modal-btn-hapus:hover { background: #D13A3F; }
+    .modal-btn-hapus:disabled { opacity: .7; cursor: not-allowed; }
+</style>
+
+<div class="px-6 pb-8 pt-4 md:px-8">
+    <h1 class="text-[32px] font-bold ...">Jenis Dokumen</h1>
+    {{-- Breadcrumb: Dashboard & Kegiatan bisa diklik, halaman aktif tidak --}}
+    <nav aria-label="Breadcrumb" class="mt-[7px] text-xl leading-[26px] text-[#B9B9BF]">
+        <a href="{{ route('admin.dashboard') }}" class="transition-colors hover:text-[#226CFF] hover:underline">Dashboard</a>
+        <span class="mx-1">/</span>
+        <a href="{{ route('admin.kegiatan.mahasiswa') }}" class="transition-colors hover:text-[#226CFF] hover:underline">Kegiatan</a>
+        <span class="mx-1">/</span>
+        <span class="text-[#6E6E76]" aria-current="page">Jenis Dokumen</span>
+    </nav>
+
+    <section class="mt-[26px] max-w-[1152px] rounded-lg border border-[#EFEFF1] bg-white p-[25px] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="text-base font-medium leading-6 text-[#111]">Daftar Jenis Dokumen</h3>
+                <p class="text-[13px] leading-[18px] text-[#6E6E76]">Jenis dokumen yang tersedia untuk kegiatan dosen dan mahasiswa</p>
+            </div>
+            <button type="button" id="jd-tambah"
+                    class="flex h-[39px] items-center gap-2 rounded-[7px] bg-[#226CFF] px-[17px] text-sm font-medium text-white hover:bg-[#1b5ae0]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                Jenis Dokumen
+            </button>
+        </div>
+
+        {{-- Cari --}}
+        <div class="relative mt-5">
+            <svg class="absolute left-[15px] top-1/2 -translate-y-1/2 text-[#8E8E96]" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7" /><path d="M21 21l-6-6" /></svg>
+            <input id="jd-cari" type="text" placeholder="Cari jenis dokumen..."
+                   class="h-10 w-full rounded-[7px] border border-[#DEDEE3] pl-10 pr-3 text-sm outline-none placeholder:text-[#757575] focus:border-[#226CFF]">
+        </div>
+
+        {{-- Tabel (isi <tbody> dan paginasi dibuat otomatis oleh DataTables) --}}
+        <div id="tabel-wrap" class="mt-[19px]">
+            <table id="tabel">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Jenis Dokumen</th>
+                        <th>Keterangan</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </section>
+</div>
+
+{{-- Pop-up tambah / edit --}}
+<div id="jd-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div class="w-full max-w-[540px] rounded-lg bg-white px-6 pb-5 pt-6 shadow-xl">
+        <h2 id="jd-modal-judul" class="text-xl font-bold leading-6 text-[#111]">Tambah Jenis Dokumen</h2>
+        <p id="jd-modal-sub" class="mt-1 text-xs text-[#B9B9BF]">Isi data jenis dokumen baru program studi</p>
+
+        <div class="mt-5 space-y-4">
+            <div>
+                <label for="jd-nama" class="mb-1.5 block text-sm font-semibold text-[#111]">Nama Jenis Dokumen</label>
+                <input id="jd-nama" type="text" maxlength="100" placeholder="Contoh: Sertifikat"
+                       class="h-9 w-full rounded-[5px] border border-[#DEDEE3] px-3 text-xs outline-none placeholder:text-[#B0B0B8] focus:border-[#226CFF]">
+            </div>
+
+            <div>
+                <label for="jd-ket" class="mb-1.5 block text-sm font-semibold text-[#111]">Keterangan</label>
+                <textarea id="jd-ket" rows="4" maxlength="255" placeholder="Tuliskan keterangan singkat mengenai jenis dokumen ini"
+                          class="block w-full resize-none rounded-[5px] border border-[#DEDEE3] px-3 py-2 text-xs outline-none placeholder:text-[#B0B0B8] focus:border-[#226CFF]"></textarea>
+            </div>
+
+            <p id="jd-error" class="hidden text-[13px] text-[#E5484D]"></p>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="jd-batal"
+                    class="h-8 rounded-md bg-[#FF4B4B] px-4 text-xs font-semibold text-white hover:bg-[#e63e3e]">Batal</button>
+            <button type="button" id="jd-simpan"
+                    class="h-8 rounded-md bg-[#226CFF] px-4 text-xs font-semibold text-white hover:bg-[#1b5ae0] disabled:opacity-60">Simpan</button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal konfirmasi hapus (dibuka lewat JS: tombol Hapus di tabel) --}}
+<dialog id="modalHapus" aria-labelledby="modalHapusJudul" aria-describedby="modalHapusTeks">
+    <div class="modal-kartu">
+        <div class="modal-ikon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg>
+        </div>
+        <h2 id="modalHapusJudul" class="modal-judul">Hapus jenis dokumen?</h2>
+        <p id="modalHapusTeks" class="modal-teks"><strong id="modalHapusNama"></strong> akan dihapus permanen.</p>
+        <p id="modalHapusError" class="modal-error" hidden></p>
+        <div class="modal-aksi">
+            <button type="button" id="modalHapusBatal" class="modal-btn modal-btn-batal">Batal</button>
+            <button type="button" id="modalHapusYa" class="modal-btn modal-btn-hapus">Hapus</button>
+        </div>
+    </div>
+</dialog>
+@endsection
+
+@push('scripts')
+{{-- Hapus baris jQuery ini kalau layout admin kamu sudah memuat jQuery 3.x --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script>
+(() => {
+    const URL_STORE  = @json(route('admin.kegiatan.jenis-dokumen.store'));
+    const URL_UPDATE = @json(route('admin.kegiatan.jenis-dokumen.update', ['id' => '__ID__']));
+    const URL_DELETE = @json(route('admin.kegiatan.jenis-dokumen.destroy', ['id' => '__ID__']));
+    const CSRF = @json(csrf_token());
+
+    const rows = @json($rows);
+    let editingId = null; // null = tambah baru
+    let idHapus = null;
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const IKON_EDIT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.828 2.828 0 1 0-4-4L4 16v4M13.5 6.5l4 4"/></svg>';
+    const IKON_HAPUS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg>';
+
+    // ---------- DataTables ----------
+    const table = new DataTable('#tabel', {
+        data: rows,
+        autoWidth: false,
+        pageLength: 10,
+        order: [],                       // tanpa urutan awal = urutan asli dari server
+        columns: [
+            { data: null, orderable: false, searchable: false, defaultContent: '' },   // No: diisi otomatis saat draw
+            { data: 'name',        className: 'truncate', createdCell: (td, d) => { td.title = d ?? ''; },
+              render: (d, type) => type === 'display' ? esc(d) : (d ?? '') },
+            { data: 'description', className: 'truncate', createdCell: (td, d) => { td.title = d ?? ''; },
+              render: (d, type) => type === 'display' ? esc(d) : (d ?? '') },
+            {
+                data: null, orderable: false, searchable: false,
+                render: (d, type, r) => `
+                    <div class="flex items-center gap-3">
+                        <button type="button" data-act="edit" data-id="${esc(r.id)}" title="Edit" aria-label="Edit"
+                                class="rounded-md bg-[#CDDEF9] p-1.5 text-[#2277FF] hover:bg-[#BBD2F6] cursor-pointer">${IKON_EDIT}</button>
+                        <button type="button" data-act="hapus" data-id="${esc(r.id)}" title="Hapus" aria-label="Hapus"
+                                class="rounded-md bg-[#FFD9D9] p-1.5 text-[#E5484D] hover:bg-[#FFC9C9] cursor-pointer">${IKON_HAPUS}</button>
+                    </div>`
+            }
+        ],
+        // Hanya paginasi (tengah bawah). Kotak cari, "show entries", dan info bawaan dimatikan
+        layout: { topStart: null, topEnd: null, bottomStart: null, bottomEnd: null, bottom: 'paging' },
+        pagingType: 'simple_numbers',
+        language: {
+            emptyTable: 'Tidak ada jenis dokumen.',
+            zeroRecords: 'Tidak ada jenis dokumen.',
+            paginate: { previous: 'Sebelumnya', next: 'Berikutnya' }
+        }
+    });
+
+    // Nomor urut mengikuti tampilan (urutan + halaman saat ini)
+    function isiNomor() {
+        const mulai = table.page.info().start;
+        table.column(0, { page: 'current' }).nodes().each((cell, i) => { cell.textContent = mulai + i + 1; });
+    }
+    // Sembunyikan paginasi kalau hanya ada 1 halaman
+    function togglePager() {
+        const p = document.querySelector('#tabel-wrap .dt-paging');
+        if (p) p.style.display = table.page.info().pages > 1 ? '' : 'none';
+    }
+    table.on('draw.dt', () => { isiNomor(); togglePager(); });
+    isiNomor();
+    togglePager();
+
+    const cariBaris = (id) => table.row((idx, data) => String(data.id) === String(id));
+
+    // Setelah hapus: kalau halaman yang sedang dibuka jadi kosong, mundur ke halaman terakhir yang masih ada isinya
+    function pindahJikaHalamanKosong() {
+        const i = table.page.info();
+        if (i.pages > 0 && i.page >= i.pages) table.page(i.pages - 1).draw('page');
+    }
+
+    // ---------- Pop-up tambah / edit ----------
+    function bukaModal(row) {
+        editingId = row ? row.id : null;
+        $('jd-modal-judul').textContent = row ? 'Edit Jenis Dokumen' : 'Tambah Jenis Dokumen';
+        $('jd-modal-sub').textContent = row
+            ? 'Ubah data jenis dokumen program studi'
+            : 'Isi data jenis dokumen baru program studi';
+        $('jd-nama').value = row ? row.name : '';
+        $('jd-ket').value = row ? row.description : '';
+        tampilError('');
+        $('jd-modal').classList.remove('hidden');
+        $('jd-modal').classList.add('flex');
+        $('jd-nama').focus();
+    }
+
+    function tutupModal() {
+        $('jd-modal').classList.add('hidden');
+        $('jd-modal').classList.remove('flex');
+    }
+
+    function tampilError(pesan) {
+        const el = $('jd-error');
+        el.textContent = pesan;
+        el.classList.toggle('hidden', !pesan);
+    }
+
+    async function kirim(url, method, body) {
+        const res = await fetch(url, {
+            method,
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const pesan = json.errors ? Object.values(json.errors)[0][0] : (json.message || 'Terjadi kesalahan.');
+            throw new Error(pesan);
+        }
+        return json;
+    }
+
+    async function simpan() {
+        const name = $('jd-nama').value.trim();
+        const description = $('jd-ket').value.trim();
+        if (!name) { tampilError('Nama jenis dokumen wajib diisi.'); return; }
+
+        const tombol = $('jd-simpan');
+        tombol.disabled = true;
+        try {
+            if (editingId === null) {
+                const { row } = await kirim(URL_STORE, 'POST', { name, description });
+                table.order([]);                       // baris baru muncul di urutan akhir
+                table.row.add(row).draw();
+                table.page('last').draw('page');       // lompat ke halaman terakhir
+            } else {
+                const { row } = await kirim(URL_UPDATE.replace('__ID__', editingId), 'PUT', { name, description });
+                cariBaris(row.id).data(row).draw(false);   // tetap di halaman yang sama
+            }
+            tutupModal();
+        } catch (e) {
+            tampilError(e.message);
+        } finally {
+            tombol.disabled = false;
+        }
+    }
+
+    // ---------- Modal konfirmasi hapus ----------
+    const modalHapus = $('modalHapus'), btnHapusYa = $('modalHapusYa');
+
+    function bukaHapus(id) {
+        const r = cariBaris(id).data();
+        if (!r) return;
+        idHapus = id;
+        if (typeof modalHapus.showModal !== 'function') {          // cadangan untuk browser lama
+            if (confirm(`Hapus "${r.name}"?`)) prosesHapus();
+            return;
+        }
+        $('modalHapusNama').textContent = `"${r.name}"`;
+        $('modalHapusError').hidden = true;
+        modalHapus.showModal();                                    // fokus awal di tombol Batal; Esc menutup modal
+    }
+
+    async function prosesHapus() {
+        if (idHapus === null) return;
+        btnHapusYa.disabled = true;                                // cegah klik ganda
+        btnHapusYa.textContent = 'Menghapus...';
+        try {
+            await kirim(URL_DELETE.replace('__ID__', idHapus), 'DELETE');
+            cariBaris(idHapus).remove().draw(false);
+            pindahJikaHalamanKosong();                                 // hapus data terakhir di halaman 2 -> otomatis ke halaman 1
+            if (modalHapus.open) modalHapus.close();
+        } catch (e) {
+            $('modalHapusError').textContent = e.message;
+            $('modalHapusError').hidden = false;
+            btnHapusYa.disabled = false;
+            btnHapusYa.textContent = 'Hapus';
+        }
+    }
+
+    $('modalHapusBatal').addEventListener('click', () => modalHapus.close());
+    modalHapus.addEventListener('click', (e) => { if (e.target === modalHapus) modalHapus.close(); });   // klik area gelap = batal
+    modalHapus.addEventListener('close', () => { idHapus = null; btnHapusYa.disabled = false; btnHapusYa.textContent = 'Hapus'; });
+    btnHapusYa.addEventListener('click', prosesHapus);
+
+    // ---------- Event ----------
+    $('jd-tambah').addEventListener('click', () => bukaModal(null));
+    $('jd-batal').addEventListener('click', tutupModal);
+    $('jd-simpan').addEventListener('click', simpan);
+    $('jd-modal').addEventListener('click', (e) => { if (e.target === $('jd-modal')) tutupModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tutupModal(); });
+    // Enter menyimpan hanya dari kolom nama (kolom keterangan adalah textarea: Enter = baris baru)
+    $('jd-nama').addEventListener('keydown', (e) => { if (e.key === 'Enter') simpan(); });
+
+    // Cari di kolom Nama Jenis Dokumen
+    $('jd-cari').addEventListener('input', (e) => table.column(1).search(e.target.value.trim()).draw());
+
+    $('tabel').addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-act]');
+        if (!b) return;
+        if (b.dataset.act === 'edit') { const r = cariBaris(b.dataset.id).data(); if (r) bukaModal(r); }
+        if (b.dataset.act === 'hapus') bukaHapus(b.dataset.id);
+    });
+})();
+</script>
+@endpush
+
+===== resources\views\kaprodi\jenis-dokumen.blade.php =====
+{{--
+    resources/views/kaprodi/jenis-dokumen.blade.php
+    Versi kaprodi (BACA SAJA) dari admin Jenis Dokumen. Data $rows: [id, name, description].
+    Tabel memakai DataTables 2.x (sorting & paginasi ditangani library), tampilan sama dengan halaman Dosen, Mahasiswa, Berita, Akreditasi, Kurikulum & Kategori Kegiatan.
+    Tidak ada aksi tambah / ubah / hapus di halaman ini.
+--}}
+@extends('layouts.kaprodi')
+
+@section('title', 'Jenis Dokumen')
+
+@section('content')
+{{-- CSS DataTables + penyesuaian tampilan (sama dengan halaman Dosen, Mahasiswa, Berita, Akreditasi, Kurikulum & Kategori Kegiatan) --}}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+<style>
+    /* ---------- Kotak tabel ---------- */
+    #tabel-wrap .dt-layout-row { margin: 0; }
+    #tabel-wrap .dt-layout-row.dt-layout-table {
+        border: 1px solid rgb(0 0 47 / .15);
+        border-radius: 6px;
+        overflow: hidden;                    /* latar header ikut terpotong sudut bulat */
+        background: #fff;
+    }
+    #tabel-wrap .dt-layout-table .dt-layout-cell { width: 100%; padding: 0; overflow-x: auto; }
+
+    #tabel { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: collapse; margin: 0 !important; font-size: 14px; color: #1C2024; }
+
+    /* Lebar kolom (total harus 100%): No 10, Nama Jenis Dokumen 32, Keterangan 58 */
+    #tabel.dataTable > thead > tr > th:nth-child(1) { width: 10%; }
+    #tabel.dataTable > thead > tr > th:nth-child(2) { width: 32%; }
+    #tabel.dataTable > thead > tr > th:nth-child(3) { width: 58%; }
+
+    /* Header: latar abu penuh, semua kolom rata kiri */
+    #tabel.dataTable > thead > tr > th {
+        padding: 8px; font-weight: 510; text-align: left;
+        background: #F9F9FC;
+        border-bottom: 1px solid rgb(0 0 47 / .15);
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-header {
+        display: flex; flex-direction: row !important; justify-content: flex-start !important; align-items: center; gap: 6px;
+    }
+    #tabel.dataTable > thead > tr > th .dt-column-title { flex-grow: 0 !important; }
+
+    #tabel.dataTable > tbody > tr > td {
+        height: 56px; padding: 8px; text-align: left;
+        border-top: 1px solid rgb(0 0 47 / .15);
+        box-shadow: none;
+    }
+    #tabel.dataTable > tbody > tr:first-child > td { border-top: 0; }
+    #tabel.dataTable > tbody > tr > td.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tabel.dataTable > tbody > tr > td.dt-empty { padding: 24px; text-align: center; color: #A8A8A8; }
+
+    /* Kolom pertama: beri jarak dari tepi kiri kotak (header & isi sejajar) */
+    #tabel.dataTable > thead > tr > th:first-child,
+    #tabel.dataTable > tbody > tr > td:first-child:not(.dt-empty) { padding-left: 20px; }
+
+    /* ---------- Paginasi: di tengah bawah, tombol kotak 32px ---------- */
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) { padding: 24px 0 0; justify-content: center; }
+    #tabel-wrap .dt-layout-row:not(.dt-layout-table) .dt-layout-cell { width: 100%; padding: 0; display: flex; justify-content: center; }
+    #tabel-wrap .dt-paging nav { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+    #tabel-wrap .dt-paging .dt-paging-button {
+        display: flex !important; align-items: center; justify-content: center;
+        width: 32px; height: 32px; min-width: 32px; padding: 0 !important; margin: 0 !important;
+        border: 1px solid #DFE3E8; border-radius: 4px !important;
+        font-size: 14px; font-weight: 700; letter-spacing: -.16px; line-height: 1;
+        box-shadow: none !important; cursor: pointer;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.disabled { cursor: not-allowed; opacity: .6; }
+
+    /* Tombol angka */
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover {
+        background: #fff !important; color: #0A0A0A !important; border-color: #DFE3E8 !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button:not(.previous):not(.next):not(.ellipsis):hover { border-color: #2277FF !important; }
+    /* Halaman aktif: border + angka biru */
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button.current:not(.previous):not(.next):not(.ellipsis):hover,
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis),
+    #tabel-wrap .dt-paging .dt-paging-button[aria-current="page"]:not(.previous):not(.next):not(.ellipsis):hover {
+        color: #2277FF !important; border-color: #2277FF !important; background: #fff !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.ellipsis { border-color: transparent !important; background: none !important; color: #55555C !important; opacity: 1; cursor: default; }
+
+    /* Tombol sebelumnya (biru penuh, panah putih) & berikutnya (biru muda, panah biru) */
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.next {
+        font-size: 0 !important; background-repeat: no-repeat !important; background-position: center !important; background-size: 20px 20px !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous,
+    #tabel-wrap .dt-paging .dt-paging-button.previous.disabled:hover {
+        background-color: #2277FF !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 6l-6 6l6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.next,
+    #tabel-wrap .dt-paging .dt-paging-button.next.disabled:hover {
+        background-color: #CDDEF9 !important; border-color: #2277FF !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232277FF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6l-6 6'/%3E%3C/svg%3E") !important;
+    }
+    #tabel-wrap .dt-paging .dt-paging-button.previous:hover:not(.disabled) { background-color: #1A66E0 !important; border-color: #1A66E0 !important; }
+    #tabel-wrap .dt-paging .dt-paging-button.next:hover:not(.disabled) { background-color: #BBD2F6 !important; }
+</style>
+
+<div class="px-6 pb-8 pt-4 md:px-8">
+    <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px] text-[#111]">Jenis Dokumen</h1>
+
+    <x-admin.breadcrumb :items="[
+        ['Dashboard', 'kaprodi.dashboard'],
+        ['Kegiatan', 'kaprodi.kegiatan.dosen'],
+        ['Jenis Dokumen'],
+    ]" />
+
+    <section class="mt-6 rounded-lg bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        <div>
+            <h2 class="text-lg font-medium text-[#111]">Daftar Jenis Dokumen</h2>
+            <p class="text-sm text-[#8A8A90]">Jenis dokumen yang tersedia untuk kegiatan dosen dan mahasiswa</p>
+        </div>
+
+        {{-- Cari --}}
+        <div class="relative mt-5">
+            <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A8A90]" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7" /><path d="M21 21l-6-6" /></svg>
+            <input id="jd-cari" type="text" placeholder="Cari jenis dokumen..."
+                   class="h-10 w-full rounded-md border border-[#E4E4E7] bg-white pl-11 pr-3 text-base outline-none placeholder:text-[#B3B3B8] focus:border-[#2277FF]">
+        </div>
+
+        {{-- Tabel (isi <tbody> dan paginasi dibuat otomatis oleh DataTables) --}}
+        <div id="tabel-wrap" class="mt-5">
+            <table id="tabel">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Jenis Dokumen</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </section>
+</div>
+@endsection
+
+@push('scripts')
+{{-- Hapus baris jQuery ini kalau layout kaprodi kamu sudah memuat jQuery 3.x --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script>
+(function () {
+    var rows = @json($rows);
+
+    var $ = function (id) { return document.getElementById(id); };
+    var q = '';
+
+    var TXT = DataTable.render.text(); // otomatis escape HTML
+
+    /* ---------- Pencarian: nama jenis dokumen ---------- */
+    DataTable.ext.search.push(function (settings, searchData, dataIndex, r) {
+        if (settings.nTable.id !== 'tabel') return true;
+        return String(r.name == null ? '' : r.name).toLowerCase().indexOf(q) !== -1;
+    });
+
+    var table = new DataTable('#tabel', {
+        data: rows,
+        autoWidth: false,
+        pageLength: 10,
+        order: [],                       // tanpa urutan awal = urutan asli dari server
+        columns: [
+            { data: null, orderable: false, searchable: false, defaultContent: '' },   // nomor urut: diisi ulang setiap tabel digambar
+            { data: 'name', render: TXT, className: 'truncate font-semibold' },
+            { data: 'description', render: TXT, className: 'truncate' }
+        ],
+        // Tooltip: arahkan kursor ke teks yang terpotong "..." -> muncul teks lengkapnya
+        createdRow: function (tr, r) {
+            var td = tr.children;
+            td[1].title = r.name || '';
+            td[2].title = r.description || '';
+        },
+        // Hanya paginasi (tengah bawah). Kotak cari, "show entries", dan info bawaan dimatikan
+        layout: { topStart: null, topEnd: null, bottomStart: null, bottomEnd: null, bottom: 'paging' },
+        pagingType: 'simple_numbers',
+        language: {
+            emptyTable: 'Tidak ada jenis dokumen.',
+            zeroRecords: 'Tidak ada jenis dokumen.',
+            paginate: { previous: 'Sebelumnya', next: 'Berikutnya' }
+        }
+    });
+
+    // Nomor urut mengikuti hasil pencarian & halaman (halaman 2 mulai dari 11, dst.)
+    function isiNomor() {
+        var mulai = table.page.info().start;
+        table.column(0, { page: 'current' }).nodes().each(function (cell, i) { cell.textContent = mulai + i + 1; });
+    }
+
+    // Sembunyikan paginasi kalau hanya ada 1 halaman
+    function togglePager() {
+        var p = document.querySelector('#tabel-wrap .dt-paging');
+        if (p) p.style.display = table.page.info().pages > 1 ? '' : 'none';
+    }
+    table.on('draw.dt', function () { isiNomor(); togglePager(); });
+    isiNomor();
+    togglePager();
+
+    /* ---------- Event pencarian ---------- */
+    $('jd-cari').addEventListener('input', function (e) { q = e.target.value.trim().toLowerCase(); table.draw(); });
+})();
+</script>
+@endpush
+
+===== tests\Feature\KaprodiJenisDokumenTest.php =====
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\JenisDokumen;
+use App\Models\User;
+use Database\Seeders\JenisDokumenSeeder;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class KaprodiJenisDokumenTest extends TestCase
+{
+    use DatabaseMigrations;
+
+    private function palsukanApiJenisDokumen(): void
+    {
+        Http::fake([
+            '*/jenis-dokumen*' => function () {
+                $data = JenisDokumen::query()
+                    ->get()
+                    ->map(fn (JenisDokumen $item) => [
+                        'id_jenis_dokumen' => $item->id_jenis_dokumen,
+                        'nama_jenis_dokumen' => $item->nama_jenis_dokumen,
+                        'keterangan' => $item->keterangan,
+                    ])
+                    ->all();
+
+                return Http::response([
+                    'success' => true,
+                    'message' => 'Data berhasil diambil',
+                    'data' => $data,
+                ], 200);
+            },
+        ]);
+    }
+
+    private function masukSebagaiKaprodi(): User
+    {
+        DB::table('roles')->insertOrIgnore(['id_role' => 2, 'nama_role' => 'kaprodi']);
+
+        return User::firstOrCreate(
+            ['email' => 'kaprodi@trk.ac.id'],
+            ['id_role' => 2, 'password' => 'password', 'status' => true]
+        );
+    }
+
+    public function test_guest_is_redirected_to_login(): void
+    {
+        $response = $this->get(route('kaprodi.kegiatan.jenis-dokumen'));
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_kaprodi_can_view_seeded_document_types_from_database(): void
+    {
+        $this->seed(JenisDokumenSeeder::class);
+        $this->palsukanApiJenisDokumen();
+
+        $response = $this->actingAs($this->masukSebagaiKaprodi())
+            ->withSession(['kaprodi' => ['nama' => 'Kaprodi']])
+            ->get(route('kaprodi.kegiatan.jenis-dokumen'));
+
+        $response->assertOk();
+        $response->assertViewIs('kaprodi.jenis-dokumen');
+        $response->assertViewHas('rows');
+
+        $rows = $response->viewData('rows');
+        $this->assertCount(5, $rows);
+        $this->assertSame('Sertifikat', $rows[0]['name']);
+        $this->assertSame('Sertifikat keikutsertaan atau penghargaan kegiatan', $rows[0]['description']);
+    }
+
+    public function test_kaprodi_view_reflects_custom_database_document_type(): void
+    {
+        JenisDokumen::create([
+            'nama_jenis_dokumen' => 'Surat Rekomendasi Lomba',
+            'keterangan' => 'Surat rekomendasi resmi dari pimpinan jurusan',
+        ]);
+        $this->palsukanApiJenisDokumen();
+
+        $response = $this->actingAs($this->masukSebagaiKaprodi())
+            ->withSession(['kaprodi' => ['nama' => 'Kaprodi']])
+            ->get(route('kaprodi.kegiatan.jenis-dokumen'));
+
+        $response->assertOk();
+        $rows = $response->viewData('rows');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Surat Rekomendasi Lomba', $rows[0]['name']);
+        $this->assertSame('Surat rekomendasi resmi dari pimpinan jurusan', $rows[0]['description']);
+    }
+}
+
+
+===== config\admin.php =====
+<?php
+
+/*
+ * ADMIN (simulasi, belum database)
+ *
+ * 'akun'  : akun admin simulasi untuk login. Hapus/ganti dengan tabel users saat database siap.
+ * 'menu'  : isi sidebar admin. 'route' = nama route, 'url' = alamat di bawah /admin.
+ *           Item dengan 'children' tampil sebagai dropdown.
+ *           'icon'  = isi <svg> (path) bergaya garis, 24x24.
+ */
+return [
+    'akun' => [
+        'email' => 'trk@admin.polines.ac.id',
+        'password' => env('ADMIN_SIM_PASSWORD', 'admin123'),   // sandi simulasi
+        'nama' => 'Admin TRK',
+    ],
+
+    'menu' => [
+        [
+            'label' => 'Dashboard',
+            'route' => 'admin.dashboard',
+            'url' => 'dashboard',
+            'icon' => '<path d="M4 4h6v6h-6z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6h-6z" /><path d="M14 14h6v6h-6z" />',
+        ],
+        [
+            'label' => 'Akreditasi',
+            'route' => 'admin.akreditasi',
+            'url' => 'akreditasi',
+            'icon' => '<path d="M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" /><path d="M12 15l3.4 5.89l1.6 -3.355l3.6 -.534l-3.4 -5.89" /><path d="M6.4 11l-3.4 5.89l3.6 .534l1.6 3.355l3.4 -5.89" />',
+        ],
+        [
+            'label' => 'Kurikulum',
+            'icon' => '<path d="M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20l14 0" />',
+            'children' => [
+                ['label' => 'Kurikulum TRK', 'route' => 'admin.kurikulum.trk', 'url' => 'kurikulum/trk'],
+                ['label' => 'Mata Kuliah', 'route' => 'admin.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
+                ['label' => 'Tahun Akademik', 'url' => '/admin/kurikulum/tahun-akademik', 'route' => 'admin.kurikulum.tahun-akademik'],
+            ]],
+
+        ['label' => 'Data Dosen', 'route' => 'admin.dosen', 'url' => 'dosen',
+            'icon' => '<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'],
+
+        ['label' => 'Data Mahasiswa', 'route' => 'admin.mahasiswa', 'url' => 'mahasiswa',
+            'icon' => '<path d="M5 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />'],
+
+        [
+            'label' => 'Kegiatan',
+            'icon' => '<path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3" /><path d="M15 9m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />',
+            'children' => [
+                ['label' => 'Data Kegiatan', 'route' => 'admin.kegiatan.index', 'url' => 'kegiatan'],
+                ['label' => 'Jenis Dokumen', 'route' => 'admin.kegiatan.jenis-dokumen', 'url' => 'kegiatan/jenis-dokumen'],
+                ['label' => 'Kategori Kegiatan', 'route' => 'admin.kegiatan.kategori-kegiatan', 'url' => 'kegiatan/kategori-kegiatan'],
+                ['label' => 'Kelompok Bidang', 'route' => 'admin.kegiatan.kelompok-bidang', 'url' => 'kegiatan/kelompok-bidang'],
+            ],
+        ],
+
+        ['label' => 'Pengajuan', 'route' => 'admin.pengajuan', 'url' => 'pengajuan',
+            'icon' => '<path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M4 13h3l3 3h4l3 -3h3"/>'],
+
+        ['label' => 'Berita', 'route' => 'admin.berita', 'url' => 'berita',
+            'icon' => '<path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11" /><path d="M8 8l4 0" /><path d="M8 12l4 0" /><path d="M8 16l4 0" />'],
+
+        [
+            'label' => 'Prestasi',
+            'route' => 'admin.prestasi',
+            'url' => 'prestasi',
+            'icon' => '<path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />',
+        ],
+    ],
+    'data_source' => env('DATA_SOURCE', 'json'),
+    'prodi' => [
+        'kode' => env('PRODI_KODE', 'TRK'),
+        'nama' => env('PRODI_NAMA', 'Teknologi Rekayasa Komputer'),
+        'jenjang' => env('PRODI_JENJANG', 'D4'),   // D3 atau D4; sesuaikan
+    ],
+];
+
+
+===== config\kaprodi.php =====
+<?php
+
+/*
+ * KAPRODI (simulasi, belum database)
+ *
+ * 'akun'  : akun kaprodi simulasi untuk login. Hapus/ganti dengan tabel users (role = kaprodi) saat database siap.
+ * 'menu'  : isi sidebar kaprodi. 'route' = nama route, 'url' = alamat di bawah /kaprodi.
+ *           Item dengan 'children' tampil sebagai dropdown. 'icon' = isi <svg> (path) bergaya garis, 24x24.
+ */
+return [
+    'akun' => [
+        'email' => 'trk@kaprodi.polines.ac.id',
+        'password' => env('KAPRODI_SIM_PASSWORD', 'kaprodi123'),   // sandi simulasi
+        'nama' => 'Kaprodi TRK',
+    ],
+
+    'menu' => [
+        ['label' => 'Dashboard', 'route' => 'kaprodi.dashboard', 'url' => 'dashboard',
+            'icon' => '<path d="M4 4h6v6h-6z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6h-6z" /><path d="M14 14h6v6h-6z" />'],
+
+        ['label' => 'Kurikulum',
+            'icon' => '<path d="M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20l14 0" />',
+            'children' => [
+                ['label' => 'Kurikulum TRK', 'route' => 'kaprodi.kurikulum.trk', 'url' => 'kurikulum/trk'],
+                ['label' => 'Mata Kuliah', 'route' => 'kaprodi.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
+                ['label' => 'Tahun Akademik', 'route' => 'kaprodi.kurikulum.tahun-akademik', 'url' => 'kurikulum/tahun-akademik'],            ]],
+
+        ['label' => 'Data Dosen', 'route' => 'kaprodi.dosen', 'url' => 'dosen',
+            'icon' => '<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'],
+
+        ['label' => 'Data Mahasiswa', 'route' => 'kaprodi.mahasiswa', 'url' => 'mahasiswa',
+            'icon' => '<path d="M5 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />'],
+
+        ['label' => 'Kegiatan',
+            'icon' => '<path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3" /><path d="M15 9m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />',
+            'children' => [
+                ['label' => 'Data Kegiatan', 'route' => 'kaprodi.kegiatan.index', 'url' => 'kegiatan'],
+                ['label' => 'Jenis Dokumen', 'route' => 'kaprodi.kegiatan.jenis-dokumen', 'url' => 'kegiatan/jenis-dokumen'],
+                ['label' => 'Kategori Kegiatan', 'route' => 'kaprodi.kegiatan.kategori-kegiatan', 'url' => 'kegiatan/kategori-kegiatan'],
+                ['label' => 'Kelompok Bidang', 'route' => 'kaprodi.kegiatan.kelompok-bidang', 'url' => 'kegiatan/kelompok-bidang'],
+            ]],
+
+        ['label' => 'Pengajuan', 'route' => 'kaprodi.pengajuan', 'url' => 'pengajuan',
+            'icon' => '<path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" />'],
+
+        ['label' => 'Berita', 'route' => 'kaprodi.berita', 'url' => 'berita',
+            'icon' => '<path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11" /><path d="M8 8l4 0" /><path d="M8 12l4 0" /><path d="M8 16l4 0" />'],
+
+        ['label' => 'Prestasi', 'route' => 'kaprodi.prestasi', 'url' => 'prestasi',
+            // Anda bisa mengganti icon SVG ini sesuai dengan tema icon sidebar Anda
+            'icon' => '<svg class="size-5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>',
+        ],
+    ],
+];
+
+
+===== routes\admin-kaprodi.php =====
+<?php
+
+use App\Http\Controllers\AdminAkreditasiController;
+use App\Http\Controllers\KelompokBidangController;
+// ---------- Controller Publik & Landing ----------
+use App\Http\Controllers\AdminAuthController;
+use App\Http\Controllers\AdminBeritaController;
+use App\Http\Controllers\AdminKegiatanController;
+use App\Http\Controllers\AdminKegiatanDosenDetailShowController; // <-- Controller Tambah Kegiatan
+use App\Http\Controllers\AdminKegiatanMahasiswaDetailShowController;
+use App\Http\Controllers\AdminKegiatanTambahController;
+use App\Http\Controllers\AdminKurikulumController;
+use App\Http\Controllers\AdminMataKuliahController;
+use App\Http\Controllers\AdminPengajuanController;
+use App\Http\Controllers\AdminPrestasiController;
+// ---------- Controller Admin ----------
+use App\Http\Controllers\AdminProfilController;
+use App\Http\Controllers\AdminTinjauPengajuanController;
+use App\Http\Controllers\AkreditasiController;
+use App\Http\Controllers\DosenController;
+use App\Http\Controllers\FasilitasController;
+use App\Http\Controllers\JenisDokumenController;
+use App\Http\Controllers\KaprodiBeritaController;
+use App\Http\Controllers\KaprodiDashboardController;
+use App\Http\Controllers\KaprodiDosenController;
+use App\Http\Controllers\KaprodiJenisDokumenController;
+use App\Http\Controllers\KaprodiKategoriKegiatanController;
+use App\Http\Controllers\KaprodiKegiatanController;
+use App\Http\Controllers\KaprodiKegiatanDosenDetailShowController;
+use App\Http\Controllers\KaprodiKegiatanMahasiswaDetailShowController;
+use App\Http\Controllers\KaprodiKurikulumController;
+use App\Http\Controllers\KaprodiMahasiswaController;
+use App\Http\Controllers\KaprodiMataKuliahController;
+use App\Http\Controllers\KaprodiPengajuanController;
+use App\Http\Controllers\KaprodiPrestasiController;
+use App\Http\Controllers\KaprodiProfilController;
+// ---------- Controller Kaprodi ----------
+use App\Http\Controllers\KaprodiTandaTanganController;
+use App\Http\Controllers\KategoriKegiatanController;
+use App\Http\Controllers\KegiatanDosenController;
+use App\Http\Controllers\KegiatanHapusController;
+use App\Http\Controllers\KegiatanLaporanController;
+use App\Http\Controllers\KegiatanMahasiswaController;
+use App\Http\Controllers\KurikulumController;
+use App\Http\Controllers\LandingDashboardController;
+use App\Http\Controllers\LandingMahasiswaController;
+use App\Http\Controllers\MataKuliahController;
+use App\Http\Controllers\PemulihanController;
+use App\Http\Controllers\PrestasiController;
+use App\Http\Controllers\PrestasiLaporanController;
+use App\Http\Controllers\PublicBeritaController;
+use App\Http\Controllers\TahunAkademikController;
+use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\KaprodiOnly;
+use Illuminate\Support\Facades\Route;
+
+// ---------- Publik ----------
+Route::get('/mata-kuliah', [MataKuliahController::class, 'index'])->name('mata-kuliah');
+Route::get('/mata-kuliah/data', [MataKuliahController::class, 'data'])->name('mata-kuliah.data');
+Route::get('/akreditasi', [AkreditasiController::class, 'index'])->name('akreditasi');
+Route::get('/kurikulum', [KurikulumController::class, 'index'])->name('kurikulum');
+Route::get('/fasilitas', [FasilitasController::class, 'index'])->name('fasilitas');
+Route::get('/kabar', [PublicBeritaController::class, 'index'])->name('publik.berita.index');
+Route::get('/kabar/{slug}', [PublicBeritaController::class, 'show'])->name('publik.berita.show');
+Route::get('/prestasi-trk', [PrestasiController::class, 'index'])->name('publik.prestasi.index');
+Route::get('/prestasi-trk/{prestasi}', [PrestasiController::class, 'show'])
+    ->whereNumber('prestasi')
+    ->name('publik.prestasi.show');
+
+// ---------- Login & Pemulihan ----------
+Route::view('/login', 'login')->name('login');
+Route::post('/login', [AdminAuthController::class, 'login'])->name('login.attempt');
+Route::post('/logout', [AdminAuthController::class, 'logout'])->middleware('auth')->name('logout');
+Route::get('/lupa-sandi', [PemulihanController::class, 'show'])->name('password.request');
+Route::post('/lupa-sandi/email', [PemulihanController::class, 'kirimOtp'])->name('password.email');
+Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->name('password.otp');
+Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->name('password.kirim-ulang');
+Route::post('/lupa-sandi/ubah-email', [PemulihanController::class, 'ubahEmail'])->name('password.ubah-email');
+Route::post('/lupa-sandi/sandi', [PemulihanController::class, 'simpan'])->name('password.simpan');
+Route::post('/lupa-sandi/email', [PemulihanController::class, 'kirimOtp'])->middleware('throttle:5,1')->name('password.email');
+Route::post('/lupa-sandi/otp', [PemulihanController::class, 'verifikasi'])->middleware('throttle:10,1')->name('password.otp');
+Route::post('/lupa-sandi/kirim-ulang', [PemulihanController::class, 'kirimUlang'])->middleware('throttle:5,1')->name('password.kirim-ulang');
+Route::get('/lupa-sandi/email', fn () => redirect()->route('password.request'));
+
+// ---------- Admin (dijaga AdminOnly) ----------
+Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
+    Route::get('/dashboard', [LandingDashboardController::class, 'index'])->name('admin.dashboard');
+    Route::post('/keluar', [AdminAuthController::class, 'logout'])->name('admin.logout');
+
+    Route::get('akreditasi', [AdminAkreditasiController::class, 'index'])->name('admin.akreditasi');
+    Route::post('akreditasi', [AdminAkreditasiController::class, 'store'])->name('admin.akreditasi.store');
+    Route::put('akreditasi/{id}', [AdminAkreditasiController::class, 'update'])->name('admin.akreditasi.update');
+    Route::patch('akreditasi/{id}/status', [AdminAkreditasiController::class, 'status'])->name('admin.akreditasi.status');
+    Route::delete('akreditasi/{id}', [AdminAkreditasiController::class, 'destroy'])->name('admin.akreditasi.destroy');
+
+    // Kurikulum TRK
+    Route::get('/kurikulum/trk', [AdminKurikulumController::class, 'index'])->name('admin.kurikulum.trk');
+    Route::post('/kurikulum/trk', [AdminKurikulumController::class, 'store'])->name('admin.kurikulum.store');
+    Route::put('/kurikulum/trk/{id}', [AdminKurikulumController::class, 'update'])->name('admin.kurikulum.update');
+    Route::patch('/kurikulum/trk/{id}/status', [AdminKurikulumController::class, 'status'])->name('admin.kurikulum.status');
+    Route::delete('/kurikulum/trk/{id}', [AdminKurikulumController::class, 'destroy'])->name('admin.kurikulum.destroy');
+
+    // Mata Kuliah
+    Route::get('/kurikulum/mata-kuliah', [AdminMataKuliahController::class, 'index'])->name('admin.kurikulum.mata-kuliah');
+    Route::get('kurikulum/mata-kuliah/tambah', [AdminMataKuliahController::class, 'create'])->name('admin.kurikulum.mata-kuliah.create');
+    Route::post('kurikulum/mata-kuliah', [AdminMataKuliahController::class, 'store'])->name('admin.kurikulum.mata-kuliah.store');
+
+    // Tahun Akademik (Admin: Lihat & Tambah)
+    Route::get('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'index'])
+        ->name('admin.kurikulum.tahun-akademik');
+    Route::post('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'store'])
+        ->name('admin.kurikulum.tahun-akademik.store');
+
+    // Data Dosen
+    Route::get('/dosen', [DosenController::class, 'index'])->name('admin.dosen');
+    Route::get('dosen/tambah', [DosenController::class, 'create'])->name('admin.dosen.create');
+    Route::post('dosen', [DosenController::class, 'store'])->name('admin.dosen.store');
+    Route::get('/dosen/{id}', [DosenController::class, 'show'])->name('admin.dosen.show');
+    Route::get('/dosen/{id}/edit', [DosenController::class, 'edit'])->name('admin.dosen.edit');
+    Route::put('/dosen/{id}', [DosenController::class, 'update'])->name('admin.dosen.update');
+    Route::patch('/dosen/{id}/status', [DosenController::class, 'toggleStatus'])->name('admin.dosen.status');
+
+    // Data Mahasiswa
+    Route::get('/mahasiswa', [LandingMahasiswaController::class, 'index'])->name('admin.mahasiswa');
+    Route::get('mahasiswa/tambah', [LandingMahasiswaController::class, 'create'])->name('admin.mahasiswa.create');
+    Route::post('mahasiswa', [LandingMahasiswaController::class, 'store'])->name('admin.mahasiswa.store');
+    Route::get('/mahasiswa/{id}', [LandingMahasiswaController::class, 'show'])->name('admin.mahasiswa.show');
+    Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
+    Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
+    Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+    Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
+
+    // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
+    Route::get('/kegiatan', [AdminKegiatanController::class, 'index'])->name('admin.kegiatan.index');
+    Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('admin.kegiatan.create');
+    Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('admin.kegiatan.store');
+    // Nama lama untuk tautan/breadcrumb lama; daftar kegiatan kini satu halaman bertab (sama seperti sisi kaprodi).
+    Route::redirect('/kegiatan/dosen', '/admin/kegiatan?tab=dosen')->name('admin.kegiatan.dosen');
+    Route::redirect('/kegiatan/mahasiswa', '/admin/kegiatan?tab=mahasiswa')->name('admin.kegiatan.mahasiswa');
+
+    Route::get('/kegiatan/mahasiswa', [KegiatanMahasiswaController::class, 'index'])->name('admin.kegiatan.mahasiswa');
+    Route::get('/kegiatan/dosen', [KegiatanDosenController::class, 'index'])->name('admin.kegiatan.dosen');
+    Route::get('/kegiatan/dosen/laporan', [KegiatanLaporanController::class, 'dosen'])->name('admin.kegiatan.dosen.laporan');
+    Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.laporan');
+    Route::get('/kegiatan/prodi/laporan', [KegiatanLaporanController::class, 'prodi'])->name('admin.kegiatan.prodi.laporan');
+    Route::get('/kegiatan/semua/laporan', [KegiatanLaporanController::class, 'semua'])->name('admin.kegiatan.semua.laporan');
+    Route::get('/kegiatan/mahasiswa/{id}', [AdminKegiatanMahasiswaDetailShowController::class, 'show'])->name('admin.kegiatan.mahasiswa.detail.show');
+    Route::get('/kegiatan/dosen/{id}', [AdminKegiatanDosenDetailShowController::class, 'show'])->name('admin.kegiatan.dosen.detail.show');
+    Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('admin.kegiatan.dosen.destroy');
+    Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.destroy');
+
+    // Jenis Dokumen
+    Route::get('/kegiatan/jenis-dokumen', [JenisDokumenController::class, 'index'])->name('admin.kegiatan.jenis-dokumen');
+    Route::post('/kegiatan/jenis-dokumen', [JenisDokumenController::class, 'store'])->name('admin.kegiatan.jenis-dokumen.store');
+    Route::put('/kegiatan/jenis-dokumen/{id}', [JenisDokumenController::class, 'update'])->name('admin.kegiatan.jenis-dokumen.update');
+    Route::delete('/kegiatan/jenis-dokumen/{id}', [JenisDokumenController::class, 'destroy'])->name('admin.kegiatan.jenis-dokumen.destroy');
+
+    // Kategori Kegiatan
+    Route::get('/kegiatan/kategori-kegiatan', [KategoriKegiatanController::class, 'index'])->name('admin.kegiatan.kategori-kegiatan');
+    Route::get('/kegiatan/kategori-kegiatan/tambah', [KategoriKegiatanController::class, 'create'])->name('admin.kegiatan.kategori-kegiatan.create');
+    Route::get('/kegiatan/kategori-kegiatan/{id}/edit', [KategoriKegiatanController::class, 'edit'])->name('admin.kegiatan.kategori-kegiatan.edit');
+    Route::post('/kegiatan/kategori-kegiatan', [KategoriKegiatanController::class, 'store'])->name('admin.kegiatan.kategori-kegiatan.store');
+    Route::put('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'update'])->name('admin.kegiatan.kategori-kegiatan.update');
+    Route::delete('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'destroy'])->name('admin.kegiatan.kategori-kegiatan.destroy');
+
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('admin.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('admin.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('admin.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('admin.kegiatan.kelompok-bidang.destroy');
+
+    // Berita
+    Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
+    Route::get('berita/tambah', [AdminBeritaController::class, 'create'])->name('admin.berita.create');
+    Route::post('berita/gambar-konten', [AdminBeritaController::class, 'uploadGambarKonten'])->name('admin.berita.upload-gambar');
+    Route::get('berita/{id}', [AdminBeritaController::class, 'show'])->name('admin.berita.show');
+    Route::post('berita', [AdminBeritaController::class, 'store'])->name('admin.berita.store');
+    Route::get('berita/{id}/edit', [AdminBeritaController::class, 'edit'])->name('admin.berita.edit');
+    Route::put('berita/{id}', [AdminBeritaController::class, 'update'])->name('admin.berita.update');
+    Route::patch('berita/{id}/tinjau', [AdminBeritaController::class, 'tinjau'])->name('admin.berita.tinjau');
+    Route::delete('berita/{id}', [AdminBeritaController::class, 'destroy'])->name('admin.berita.destroy');
+
+    // Pengajuan
+    Route::get('/pengajuan', [AdminPengajuanController::class, 'index'])->name('admin.pengajuan');
+    Route::get('/pengajuan/{id}', [AdminTinjauPengajuanController::class, 'show'])->name('admin.pengajuan.show');
+    Route::post('/pengajuan/{id}/keputusan', [AdminTinjauPengajuanController::class, 'keputusan'])->name('admin.pengajuan.keputusan');
+
+    // Profil
+    Route::get('/profil', [AdminProfilController::class, 'index'])->name('admin.profil');
+
+    // Prestasi
+    Route::get('/prestasi', [AdminPrestasiController::class, 'index'])->name('admin.prestasi');
+    Route::get('/prestasi/tambah', [AdminPrestasiController::class, 'create'])->name('admin.prestasi.create');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('admin.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('admin.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('admin.prestasi.mahasiswa.laporan');
+    Route::post('/prestasi', [AdminPrestasiController::class, 'store'])->name('admin.prestasi.store');
+    Route::get('/prestasi/{id}', [AdminPrestasiController::class, 'show'])->name('admin.prestasi.show');
+    Route::get('/prestasi/{id}/edit', [AdminPrestasiController::class, 'edit'])->name('admin.prestasi.edit');
+    Route::put('/prestasi/{id}', [AdminPrestasiController::class, 'update'])->name('admin.prestasi.update');
+    Route::delete('/prestasi/{id}', [AdminPrestasiController::class, 'destroy'])->name('admin.prestasi.destroy');
+
+    // Placeholder otomatis dari config/admin.php
+    $sudahAda = [
+        'admin.dashboard',
+        'admin.kegiatan.index',
+        'admin.kegiatan.create',
+        'admin.kurikulum.trk',
+        'admin.kurikulum.mata-kuliah',
+        'admin.dosen',
+        'admin.mahasiswa',
+        'admin.kegiatan.mahasiswa',
+        'admin.kegiatan.dosen',
+        'admin.kegiatan.jenis-dokumen',
+        'admin.kegiatan.kategori-kegiatan',
+        'admin.kegiatan.kelompok-bidang',
+        'admin.pengajuan',
+        'admin.berita',
+        'admin.pengajuan.show',
+        'admin.pengajuan.keputusan',
+        'admin.akreditasi',
+        'admin.profil',
+        'admin.prestasi',
+        'admin.prestasi.create',
+        'admin.prestasi.show',
+        'admin.prestasi.edit',
+    ];
+
+    foreach (config('admin.menu') as $m) {
+        foreach ($m['children'] ?? [$m] as $c) {
+            if (($c['route'] ?? null) && ! in_array($c['route'], $sudahAda)) {
+                Route::get($c['url'], [LandingDashboardController::class, 'placeholder'])->name($c['route']);
+            }
+        }
+    }
+});
+
+// ---------- Kaprodi (dijaga KaprodiOnly) ----------
+Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
+    Route::get('/dashboard', [KaprodiDashboardController::class, 'index'])->name('kaprodi.dashboard');
+    Route::post('/keluar', [AdminAuthController::class, 'logout'])->name('kaprodi.logout');
+
+    Route::get('/kurikulum/trk', [KaprodiKurikulumController::class, 'index'])->name('kaprodi.kurikulum.trk');
+    Route::post('/kurikulum/trk', [KaprodiKurikulumController::class, 'store'])->name('kaprodi.kurikulum.store');
+    Route::put('/kurikulum/trk/{id}', [KaprodiKurikulumController::class, 'update'])->name('kaprodi.kurikulum.update');
+    Route::patch('/kurikulum/trk/{id}/status', [KaprodiKurikulumController::class, 'status'])->name('kaprodi.kurikulum.status');
+    Route::delete('/kurikulum/trk/{id}', [KaprodiKurikulumController::class, 'destroy'])->name('kaprodi.kurikulum.destroy');
+
+    Route::get('/kurikulum/mata-kuliah', [KaprodiMataKuliahController::class, 'index'])->name('kaprodi.kurikulum.mata-kuliah');
+    Route::get('/kurikulum/mata-kuliah/tambah', [KaprodiMataKuliahController::class, 'create'])->name('kaprodi.kurikulum.mata-kuliah.create');
+    Route::post('/kurikulum/mata-kuliah', [KaprodiMataKuliahController::class, 'store'])->name('kaprodi.kurikulum.mata-kuliah.store');
+    Route::get('/kurikulum/mata-kuliah/{id}/edit', [KaprodiMataKuliahController::class, 'edit'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.edit');
+    Route::put('/kurikulum/mata-kuliah/{id}', [KaprodiMataKuliahController::class, 'update'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.update');
+    Route::delete('/kurikulum/mata-kuliah/{id}', [KaprodiMataKuliahController::class, 'destroy'])->whereNumber('id')->name('kaprodi.kurikulum.mata-kuliah.destroy');
+    // Tahun Akademik (Kaprodi: Read-Only, hanya GET)
+    Route::get('/kurikulum/tahun-akademik', [TahunAkademikController::class, 'index'])->name('kaprodi.kurikulum.tahun-akademik');
+
+    Route::get('/dosen', [KaprodiDosenController::class, 'index'])->name('kaprodi.dosen');
+    Route::get('/mahasiswa', [KaprodiMahasiswaController::class, 'index'])->name('kaprodi.mahasiswa');
+    Route::get('/dosen/{id}', [KaprodiDosenController::class, 'show'])->name('kaprodi.dosen.show');
+    Route::get('/mahasiswa/{id}', [KaprodiMahasiswaController::class, 'show'])->name('kaprodi.mahasiswa.show');
+
+    // Kegiatan gabungan (Dosen | Mahasiswa | Prodi). URL lama dialihkan ke tab yang sesuai.
+    Route::get('/kegiatan', [KaprodiKegiatanController::class, 'index'])->name('kaprodi.kegiatan.index');
+    Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('kaprodi.kegiatan.create');
+    Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('kaprodi.kegiatan.store');
+    Route::redirect('/kegiatan/dosen', '/kaprodi/kegiatan?tab=dosen')->name('kaprodi.kegiatan.dosen');
+    Route::redirect('/kegiatan/mahasiswa', '/kaprodi/kegiatan?tab=mahasiswa')->name('kaprodi.kegiatan.mahasiswa');
+
+    Route::get('/kegiatan/dosen/laporan', [KegiatanLaporanController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.laporan');
+    Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.laporan');
+    Route::get('/kegiatan/prodi/laporan', [KegiatanLaporanController::class, 'prodi'])->name('kaprodi.kegiatan.prodi.laporan');
+    Route::get('/kegiatan/semua/laporan', [KegiatanLaporanController::class, 'semua'])->name('kaprodi.kegiatan.semua.laporan');
+    Route::get('/kegiatan/mahasiswa/{id}', [KaprodiKegiatanMahasiswaDetailShowController::class, 'show'])->name('kaprodi.kegiatan.mahasiswa.show');
+
+    Route::get('berita', [KaprodiBeritaController::class, 'index'])->name('kaprodi.berita');
+    Route::get('berita/tambah', [KaprodiBeritaController::class, 'create'])->name('kaprodi.berita.create');
+    Route::post('berita/gambar-konten', [KaprodiBeritaController::class, 'uploadGambarKonten'])->name('kaprodi.berita.upload-gambar');
+    Route::get('berita/{id}', [KaprodiBeritaController::class, 'show'])->name('kaprodi.berita.show');
+    Route::post('berita', [KaprodiBeritaController::class, 'store'])->name('kaprodi.berita.store');
+    Route::get('berita/{id}/edit', [KaprodiBeritaController::class, 'edit'])->name('kaprodi.berita.edit');
+    Route::put('berita/{id}', [KaprodiBeritaController::class, 'update'])->name('kaprodi.berita.update');
+    Route::delete('berita/{id}', [KaprodiBeritaController::class, 'destroy'])->name('kaprodi.berita.destroy');
+
+    Route::get('/kegiatan/kategori-kegiatan', [KaprodiKategoriKegiatanController::class, 'index'])->name('kaprodi.kegiatan.kategori-kegiatan');
+    Route::get('/kegiatan/jenis-dokumen', [KaprodiJenisDokumenController::class, 'index'])->name('kaprodi.kegiatan.jenis-dokumen');
+
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('kaprodi.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('kaprodi.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('kaprodi.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('kaprodi.kegiatan.kelompok-bidang.destroy');
+
+    Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
+    Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
+    Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.destroy');
+
+    Route::get('/pengajuan', [KaprodiPengajuanController::class, 'index'])->name('kaprodi.pengajuan');
+    Route::get('/pengajuan/{id}', [KaprodiPengajuanController::class, 'show'])->name('kaprodi.pengajuan.show');
+    Route::post('/pengajuan/{id}/keputusan', [KaprodiPengajuanController::class, 'keputusan'])->name('kaprodi.pengajuan.keputusan');
+
+    Route::get('/profil', [KaprodiProfilController::class, 'index'])->name('kaprodi.profil');
+
+    Route::get('/prestasi', [KaprodiPrestasiController::class, 'index'])->name('kaprodi.prestasi');
+    // Laporan Prestasi (PDF/Excel)
+    Route::get('/prestasi/semua/laporan', [PrestasiLaporanController::class, 'semua'])->name('kaprodi.prestasi.semua.laporan');
+    Route::get('/prestasi/dosen/laporan', [PrestasiLaporanController::class, 'dosen'])->name('kaprodi.prestasi.dosen.laporan');
+    Route::get('/prestasi/mahasiswa/laporan', [PrestasiLaporanController::class, 'mahasiswa'])->name('kaprodi.prestasi.mahasiswa.laporan');
+    Route::get('/prestasi/{id}', [KaprodiPrestasiController::class, 'show'])->name('kaprodi.prestasi.show');
+
+    Route::get('/pengajuan/{id}/tanda-tangan', [KaprodiPengajuanController::class, 'ttdSurat'])->name('kaprodi.pengajuan.ttd');
+    Route::get('/tanda-tangan/gambar', [KaprodiTandaTanganController::class, 'gambar'])->name('kaprodi.tanda-tangan.gambar');
+    Route::post('/tanda-tangan', [KaprodiTandaTanganController::class, 'store'])->name('kaprodi.tanda-tangan.store');
+
+    $sudahAdaKaprodi = [
+        'kaprodi.dashboard',
+        'kaprodi.kurikulum.trk',
+        'kaprodi.kurikulum.mata-kuliah',
+        'kaprodi.kurikulum.tahun-akademik',
+        'kaprodi.dosen',
+        'kaprodi.mahasiswa',
+        'kaprodi.kegiatan.index',
+        'kaprodi.kegiatan.create',
+        'kaprodi.kegiatan.dosen',
+        'kaprodi.kegiatan.mahasiswa',
+        'kaprodi.kegiatan.kategori-kegiatan',
+        'kaprodi.kegiatan.jenis-dokumen',
+        'kaprodi.kegiatan.kelompok-bidang',
+        'kaprodi.berita',
+        'kaprodi.pengajuan',
+        'kaprodi.pengajuan.show',
+        'kaprodi.prestasi',
+        'kaprodi.profil',
+    ];
+
+    foreach (config('kaprodi.menu') as $m) {
+        foreach ($m['children'] ?? [$m] as $c) {
+            if (($c['route'] ?? null) && ! in_array($c['route'], $sudahAdaKaprodi)) {
+                Route::get($c['url'], [KaprodiDashboardController::class, 'placeholder'])->name($c['route']);
+            }
+        }
+    }
+});
+
+
+===== PEMAKAIAN 'skim' =====
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:97: 'id_skim' => $data['id_skim'] ?? null,
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:165: 'tanggal_mulai', 'tanggal_selesai', 'id_kegiatan_sebelumnya', 'id_skim', 'id_kelompok_bidang'];
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:212: 'id_skim' => ['nullable', 'integer', 'exists:skim,id_skim'],
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:423: 'id_skim' => $k->id_skim,
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:473: foreach (['skim' => ['skim', 'nama_skim', 'id_skim'], 'kelompok_bidang' => ['kelompok_bidang', 'nama_kelompok_bidang', 'id_kelompok_bidang']] as $key => [$table, $name, $pk]) {
+app\BackendKel3\Kegiatan\KegiatanRisetController.php:488: // Ranah berasal dari skim, bukan jawaban yang boleh menimpa data master.
+app\Models\Kegiatan.php:23: 'id_kategori', 'id_user', 'id_skim', 'id_kelompok_bidang',
+app\Models\Kegiatan.php:122: public function skim(): BelongsTo
+app\Models\Kegiatan.php:124: return $this->belongsTo(Skim::class, 'id_skim', 'id_skim');
+app\Models\Skim.php:8: class Skim extends Model
+app\Models\Skim.php:10: protected $table = 'skim';
+app\Models\Skim.php:12: protected $primaryKey = 'id_skim';
+app\Models\Skim.php:14: protected $fillable = ['nama_skim'];
+app\Models\Skim.php:18: return $this->hasMany(Kegiatan::class, 'id_skim', 'id_skim');
+app\Repositories\DosenDbStore.php:159: * tanpa melalukan join ke tabel `kegiatan_dosen` dan `skim` yang sudah dihapus.
+app\Repositories\DosenDbStore.php:175: // Query kegiatan tanpa join ke kegiatan_dosen dan skim
+resources\views\dosen\kegiatan\_detail-kategori.blade.php:76: {{-- Terisi otomatis dari isian lain (misalnya Ranah dari Skim). Tidak bisa diketik, tetap ikut terkirim. --}}
+resources\views\dosen\kegiatan\_medan-kategori.php:22: // Skim, peta ranah, dan daftar sebelumnya berbeda per kategori, jadi dilewatkan lewat fungsi di bawah.
+resources\views\dosen\kegiatan\_medan-kategori.php:25: $isianRisetPengabdian = fn (array $skim, array $sebelumnya, string $sebutan) => [
+resources\views\dosen\kegiatan\_medan-kategori.php:28: ['nama' => 'skim', 'label' => 'Skim', 'tipe' => 'pilihan', 'wajib' => true, 'opsi' => array_keys($skim)],
+resources\views\dosen\kegiatan\_medan-kategori.php:29: ['nama' => 'ranah', 'label' => 'Ranah', 'tipe' => 'turunan', 'dari' => 'skim', 'peta' => $skim,
+resources\views\dosen\kegiatan\_medan-kategori.php:30: 'placeholder' => 'Terisi otomatis dari skim'],
+resources\views\dosen\penelitian\create.blade.php:53: <label for="skim" class="{{ $labelClass }}">Skim</label>
+resources\views\dosen\penelitian\create.blade.php:55: <select id="skim" name="skim" required x-model="skim" class="{{ $selectClass }}">
+resources\views\dosen\penelitian\create.blade.php:56: <option value="">Pilih skim</option>
+resources\views\dosen\penelitian\create.blade.php:67: placeholder="Terisi otomatis dari skim"
+resources\views\dosen\penelitian\create.blade.php:282: judul: '', afiliasi: '', skim: '', bidang: '', sebelumnya: '',
+resources\views\dosen\penelitian\create.blade.php:297: get ranah() { return this.ranahMap[this.skim] || ''; },
+resources\views\dosen\penelitian\create.blade.php:331: if (row.input === 'skim' && row.isian) this.skim = row.isian;
+resources\views\dosen\penelitian\create.blade.php:379: skim: this.skim,
+resources\views\dosen\penelitian\edit.blade.php:61: <label for="skim" class="{{ $labelClass }}">Skim</label>
+resources\views\dosen\penelitian\edit.blade.php:63: <select id="skim" name="skim" required x-model="skim" class="{{ $selectClass }}">
+resources\views\dosen\penelitian\edit.blade.php:64: <option value="">Pilih skim</option>
+resources\views\dosen\penelitian\edit.blade.php:75: placeholder="Terisi otomatis dari skim"
+resources\views\dosen\penelitian\edit.blade.php:292: judul: '', afiliasi: '', skim: '', bidang: '', sebelumnya: '',
+resources\views\dosen\penelitian\edit.blade.php:307: get ranah() { return this.ranahMap[this.skim] || ''; },
+resources\views\dosen\penelitian\edit.blade.php:359: this.skim = detailMap.skim || d.skim || '';
+resources\views\dosen\penelitian\edit.blade.php:410: if (row.input === 'skim' && row.isian) this.skim = row.isian;
+resources\views\dosen\penelitian\edit.blade.php:456: skim: this.skim,
+resources\views\dosen\penelitian\show.blade.php:66: <dt class="text-sm text-gray-500">Skim</dt>
+resources\views\dosen\penelitian\show.blade.php:67: <dd class="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[15px] text-gray-900" x-text="p.skim || '-'"></dd>
+resources\views\dosen\penelitian\show.blade.php:232: const skim = detailMap.skim || d.skim || '';
+resources\views\dosen\penelitian\show.blade.php:242: skim,
+resources\views\dosen\penelitian\show.blade.php:243: ranah: detailMap.ranah || ranahMap[skim] || '',
+resources\views\dosen\pengabdian\create.blade.php:23: Ranah terisi otomatis dari Skim, anggota dan dokumen bisa ditambah / dihapus.
+resources\views\dosen\pengabdian\create.blade.php:53: <label for="skim" class="{{ $labelClass }}">Skim</label>
+resources\views\dosen\pengabdian\create.blade.php:55: <select id="skim" name="skim" required x-model="skim" class="{{ $selectClass }}">
+resources\views\dosen\pengabdian\create.blade.php:56: <option value="">Pilih skim</option>
+resources\views\dosen\pengabdian\create.blade.php:67: placeholder="Terisi otomatis dari skim"
+resources\views\dosen\pengabdian\create.blade.php:356: judul: '', afiliasi: '', skim: '', bidang: '', sebelumnya: '',
+resources\views\dosen\pengabdian\create.blade.php:359: // Skim => Ranah
+resources\views\dosen\pengabdian\create.blade.php:365: get ranah() { return this.ranahMap[this.skim] || ''; },
+resources\views\dosen\pengabdian\create.blade.php:370: skim: 'Pengabdian Kemitraan Masyarakat', bidang: 'Teknologi Informasi', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '3' },
+resources\views\dosen\pengabdian\create.blade.php:372: skim: 'Pengabdian Kepada Masyarakat Unggulan Perguruan Tinggi', bidang: 'Pendidikan', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '2' },
+resources\views\dosen\pengabdian\edit.blade.php:34: Ranah terisi otomatis dari Skim, anggota dan dokumen bisa ditambah / dihapus. Form ini terisi data pengabdian yang diedit.
+resources\views\dosen\pengabdian\edit.blade.php:65: <label for="skim" class="{{ $labelClass }}">Skim</label>
+resources\views\dosen\pengabdian\edit.blade.php:67: <select id="skim" name="skim" required x-model="skim" class="{{ $selectClass }}">
+resources\views\dosen\pengabdian\edit.blade.php:68: <option value="">Pilih skim</option>
+resources\views\dosen\pengabdian\edit.blade.php:79: placeholder="Terisi otomatis dari skim"
+resources\views\dosen\pengabdian\edit.blade.php:370: skim: 'Pengabdian Kemitraan Masyarakat', bidang: 'Energi', sebelumnya: '',
+resources\views\dosen\pengabdian\edit.blade.php:373: // Skim => Ranah
+resources\views\dosen\pengabdian\edit.blade.php:379: get ranah() { return this.ranahMap[this.skim] || ''; },
+resources\views\dosen\pengabdian\edit.blade.php:384: skim: 'Pengabdian Kemitraan Masyarakat', bidang: 'Teknologi Informasi', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '3' },
+resources\views\dosen\pengabdian\edit.blade.php:386: skim: 'Pengabdian Kepada Masyarakat Unggulan Perguruan Tinggi', bidang: 'Pendidikan', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '2' },
+resources\views\dosen\pengabdian\show.blade.php:13: 'skim'           => 'Pengabdian dasar',
+resources\views\dosen\pengabdian\show.blade.php:77: <x-detail-field label="Skim" :value="$p['skim']" icon="chevron" />
+database\migrations\2026_10_22_000006_create_skim_table.php:11: Schema::create('skim', function (Blueprint $table) {
+database\migrations\2026_10_22_000006_create_skim_table.php:12: $table->id('id_skim');
+database\migrations\2026_10_22_000006_create_skim_table.php:13: $table->string('nama_skim', 100);
+database\migrations\2026_10_22_000006_create_skim_table.php:20: Schema::dropIfExists('skim');
+database\migrations\2026_10_22_000205_create_kegiatan_table.php:19: $table->foreignId('id_skim')
+database\migrations\2026_10_22_000205_create_kegiatan_table.php:21: ->constrained('skim', 'id_skim')
+database\migrations\2026_10_22_000304_create_kegiatan_dosen_table.php:16: $table->foreignId('id_skim')
+database\migrations\2026_10_22_000304_create_kegiatan_dosen_table.php:18: ->constrained('skim', 'id_skim')
+database\migrations\2026_11_04_000001_apply_dynamic_activity_erd.php:58: foreach (['skim' => 'pilihan', 'kelompok_bidang' => 'pilihan'] + $lecturer as $input => $type) {
+database\migrations\2026_11_04_000001_apply_dynamic_activity_erd.php:68: 'id_skim' => $activity->id_skim ?? $old->id_skim,
+database\migrations\2026_11_04_000001_apply_dynamic_activity_erd.php:74: $this->answer($activity, 'skim', 'pilihan', DB::table('skim')->where('id_skim', $old->id_skim)->value('nama_skim'));
+tests\Feature\DbStoreTest.php:183: /** Buat satu kegiatan milik $idUser tanpa memakai tabel skim & kegiatan_dosen. */
+tests\Feature\DynamicActivityErdTest.php:43: $skim = $this->field($activity, 'skim');
+tests\Feature\DynamicActivityErdTest.php:45: $activity->detail()->create(['id_isian_kategori' => $skim->getKey(), 'isian' => 'Penelitian Terapan']);
+tests\Feature\DynamicActivityErdTest.php:50: $this->assertSame('Penelitian Terapan', $activity->fresh()->nilaiIsian('skim'));
+tests\Feature\DynamicActivityErdTest.php:51: $this->assertSame($activity->getKey(), $skim->detailKegiatan->first()->kegiatan->getKey());
+tests\Feature\DynamicActivityErdTest.php:52: $this->assertSame($activity->id_kategori, $skim->kategori->getKey());
+tests\Feature\DynamicActivityErdTest.php:54: $this->assertTrue(Schema::hasTable('skim'));
+tests\Feature\DynamicActivityErdTest.php:223: $skim = DB::table('skim')->insertGetId(['nama_skim' => 'Penelitian Terapan'], 'id_skim');
+tests\Feature\DynamicActivityErdTest.php:226: 'id_kegiatan' => $activity->getKey(), 'id_skim' => $skim, 'id_kelompok_bidang' => $bidang,
+tests\Feature\DynamicActivityErdTest.php:234: $this->assertSame('Penelitian Terapan', $activity->nilaiIsian('skim'));
+tests\Feature\DynamicActivityErdTest.php:242: $this->assertEquals($skim, $activity->skim->getKey());
+tests\Feature\DynamicActivityErdTest.php:248: $this->assertDatabaseHas('skim', ['id_skim' => $skim]);
+tests\Feature\KegiatanKategoriRisetTest.php:39: foreach (['skim', 'ranah', 'kelompok_bidang', 'nomor_sk', 'tanggal_sk', 'dana_dikti', 'in_kind', 'mitra'] as $wajibAda) {
+tests\Feature\KegiatanKategoriRisetTest.php:57: // Ranah mengikuti skim: setiap skim punya ranah
+tests\Feature\KegiatanKategoriRisetTest.php:58: $skim = $medan['Penelitian']['medan'][0]['opsi'];
+tests\Feature\KegiatanKategoriRisetTest.php:60: $this->assertSame($skim, array_keys($peta));
+
+===== DATABASE =====
+--- kolom skim ---
+id_skim | bigint unsigned | null=NO | key=PRI
+nama_skim | varchar(100) | null=NO | key=
+created_at | timestamp | null=YES | key=
+updated_at | timestamp | null=YES | key=
+jumlah baris: 0
+--- kolom kelompok_bidang ---
+id_kelompok_bidang | bigint unsigned | null=NO | key=PRI
+id_rujukan | bigint unsigned | null=YES | key=MUL
+nama_kelompok_bidang | varchar(100) | null=NO | key=UNI
+created_at | timestamp | null=YES | key=
+updated_at | timestamp | null=YES | key=
+jumlah baris: 0
+--- kegiatan yang memakai skim: 0
