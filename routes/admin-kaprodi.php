@@ -49,6 +49,7 @@ use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PrestasiLaporanController;
 use App\Http\Controllers\PublicBeritaController;
+use App\Http\Controllers\SkimController;
 use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\KaprodiOnly;
@@ -169,6 +170,12 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('admin.kegiatan.kelompok-bidang.update');
     Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('admin.kegiatan.kelompok-bidang.destroy');
 
+    // Skim (admin + kaprodi: CRUD)
+    Route::get('/kegiatan/skim', [SkimController::class, 'index'])->name('admin.kegiatan.skim');
+    Route::post('/kegiatan/skim', [SkimController::class, 'store'])->name('admin.kegiatan.skim.store');
+    Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('admin.kegiatan.skim.update');
+    Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('admin.kegiatan.skim.destroy');
+
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
     Route::get('berita/tambah', [AdminBeritaController::class, 'create'])->name('admin.berita.create');
@@ -215,6 +222,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.jenis-dokumen',
         'admin.kegiatan.kategori-kegiatan',
         'admin.kegiatan.kelompok-bidang',
+        'admin.kegiatan.skim',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -292,6 +300,12 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('kaprodi.kegiatan.kelompok-bidang.update');
     Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('kaprodi.kegiatan.kelompok-bidang.destroy');
 
+    // Skim (admin + kaprodi: CRUD)
+    Route::get('/kegiatan/skim', [SkimController::class, 'index'])->name('kaprodi.kegiatan.skim');
+    Route::post('/kegiatan/skim', [SkimController::class, 'store'])->name('kaprodi.kegiatan.skim.store');
+    Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('kaprodi.kegiatan.skim.update');
+    Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('kaprodi.kegiatan.skim.destroy');
+
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
     Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.destroy');
@@ -327,6 +341,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.kategori-kegiatan',
         'kaprodi.kegiatan.jenis-dokumen',
         'kaprodi.kegiatan.kelompok-bidang',
+        'kaprodi.kegiatan.skim',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',
