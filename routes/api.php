@@ -14,6 +14,11 @@ Route::get('/ping', function () {
     ], 200);
 });
 
+/*
+|--------------------------------------------------------------------------
+| Integrasi dengan Kelompok 1 (Endpoint Kontrak)
+|--------------------------------------------------------------------------
+*/
 Route::prefix('integrasi')
     ->middleware('auth:sanctum')
     ->group(function () {});
@@ -21,3 +26,4 @@ Route::prefix('integrasi')
 require app_path('BackendKel3/routes.php');
 require app_path('BackendKel2/routes.php');
 require app_path('BackendKel1/routes.php');
+require app_path('BackendKel3/Pengajuan/routes.php');

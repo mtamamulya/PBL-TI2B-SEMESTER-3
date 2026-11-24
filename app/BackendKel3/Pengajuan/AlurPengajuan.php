@@ -21,9 +21,6 @@ class AlurPengajuan
 
     public const STATUS_SELESAI = 'selesai';
 
-    /**
-     * Mengajukan kegiatan pertama kali.
-     */
     public function ajukanBaru(int $idKegiatan, int $idUser): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser) {
@@ -51,9 +48,6 @@ class AlurPengajuan
         });
     }
 
-    /**
-     * Mengajukan ulang kegiatan setelah direvisi dan dilengkapi.
-     */
     public function ajukanUlang(int $idKegiatan, int $idUser, ?string $catatan = null): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser, $catatan) {
@@ -66,7 +60,7 @@ class AlurPengajuan
 
             $statusTerakhir = Timeline::where('id_kegiatan', $kegiatan->id_kegiatan)
                 ->orderByDesc('tanggal_status')
-                ->orderByDesc('id_timeline')
+                ->orderByDesc('id_timeline') // Asumsi primary key tabel timeline adalah id_timeline
                 ->first();
 
             if (! $statusTerakhir || $statusTerakhir->status !== self::STATUS_DIREVISI) {
@@ -86,6 +80,7 @@ class AlurPengajuan
 
     private function validasiKepemilikan(Kegiatan $kegiatan, int $idUser): void
     {
+        // Mencocokkan id_user yang sedang login dengan id_user pembuat di tabel kegiatan[cite: 7]
         if ((int) $kegiatan->id_user !== $idUser) {
             abort(403, 'Anda tidak memiliki akses untuk mengajukan kegiatan ini.');
         }
@@ -93,12 +88,14 @@ class AlurPengajuan
 
     private function validasiKelengkapan(Kegiatan $kegiatan): void
     {
+        // Memastikan id_kategori sudah terisi[cite: 7]
         if (empty($kegiatan->id_kategori)) {
             throw ValidationException::withMessages([
                 'id_kategori' => 'Kategori kegiatan wajib diisi sebelum diajukan.',
             ]);
         }
 
+        // Pastikan model Kegiatan memiliki relasi dokumen() ke tabel dokumen
         if (! $kegiatan->dokumen()->exists()) {
             throw ValidationException::withMessages([
                 'dokumen' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',

@@ -50,6 +50,8 @@ return [
                 ['label' => 'Data Kegiatan', 'route' => 'admin.kegiatan.index', 'url' => 'kegiatan'],
                 ['label' => 'Jenis Dokumen', 'route' => 'admin.kegiatan.jenis-dokumen', 'url' => 'kegiatan/jenis-dokumen'],
                 ['label' => 'Kategori Kegiatan', 'route' => 'admin.kegiatan.kategori-kegiatan', 'url' => 'kegiatan/kategori-kegiatan'],
+                ['label' => 'Kelompok Bidang', 'route' => 'admin.kegiatan.kelompok-bidang', 'url' => 'kegiatan/kelompok-bidang'],
+                ['label' => 'Skim', 'route' => 'admin.kegiatan.skim', 'url' => 'kegiatan/skim'],
             ],
         ],
 

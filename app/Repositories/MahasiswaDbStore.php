@@ -8,7 +8,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\LinkFile;
 use App\Support\SemesterAkademik;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -69,13 +68,15 @@ class MahasiswaDbStore extends MahasiswaStore
     /** Satu transaksi: users + mahasiswa + penempatan kelas pada tahun akademik aktif. */
     public function create(array $data): array
     {
-        $id = DB::transaction(function () use ($data) {
+        $statusMahasiswa = $data['status'] ?? 'Aktif';
+
+        $id = DB::transaction(function () use ($data, $statusMahasiswa) {
             $u = new User;
             $u->forceFill([
                 'id_role' => $this->idRole(),
                 'email' => $data['email'],
-                'password' => $data['password'],   // teks biasa: di-hash oleh cast 'hashed' pada model User
-                'status' => $this->aktif($data['status'] ?? null),
+                'password' => $data['password'],
+                'status' => $this->aktif($statusMahasiswa),
             ])->save();
 
             $m = new Mahasiswa;
@@ -84,13 +85,12 @@ class MahasiswaDbStore extends MahasiswaStore
                 'nim' => $data['nim'],
                 'nama' => $data['nama'],
                 'tahun_masuk' => (int) $data['angkatan'],
+                'status_mahasiswa' => $statusMahasiswa,
             ])->save();
 
-            // AMBIL BATAS TAHUN AKADEMIK AKTIF
             $taAktif = $this->penempatan->tahunAkademikAktif();
 
-            if ($taAktif) {
-                // Hitung skor kronologis tahun aktif (misal: Ganjil 2026 = 2026*2+1)
+            if ($taAktif && $statusMahasiswa === 'Aktif') {
                 $aktifParsed = SemesterAkademik::parse($taAktif->tahun_akademik);
                 $aktifNilai = ($aktifParsed['tahun_awal'] * 2) + ($aktifParsed['jenis'] === 'ganjil' ? 1 : 2);
 
@@ -99,10 +99,7 @@ class MahasiswaDbStore extends MahasiswaStore
                 foreach ($semuaTa as $ta) {
                     $taParsed = SemesterAkademik::parse($ta->tahun_akademik);
                     if ($taParsed) {
-                        // Hitung skor kronologis tahun yang sedang di-loop
                         $taNilai = ($taParsed['tahun_awal'] * 2) + ($taParsed['jenis'] === 'ganjil' ? 1 : 2);
-
-                        // Hanya buatkan kelas jika tahun tersebut <= tahun aktif (secara waktu, bukan ID)
                         if ($taNilai <= $aktifNilai) {
                             $this->penempatan->tempatkan($m, $ta);
                         }
@@ -116,7 +113,6 @@ class MahasiswaDbStore extends MahasiswaStore
         return $this->find((string) $id);
     }
 
-    /** Password hanya diganti bila terisi; foto hanya diubah bila key 'foto' ada (path baru, atau null untuk menghapus). */
     public function update(string $id, array $data): ?array
     {
         if (! ctype_digit($id)) {
@@ -130,21 +126,24 @@ class MahasiswaDbStore extends MahasiswaStore
                 return false;
             }
 
+            $statusMahasiswa = $data['status'] ?? $m->status_mahasiswa ?? 'Aktif';
+
             $m->forceFill([
                 'nama' => $data['nama'],
                 'nim' => $data['nim'],
                 'tahun_masuk' => (int) $data['angkatan'],
+                'status_mahasiswa' => $statusMahasiswa,
             ])->save();
 
             $u->forceFill([
                 'email' => $data['email'],
-                'status' => $this->aktif($data['status'] ?? null),
+                'status' => $this->aktif($statusMahasiswa),
             ]);
             if (! empty($data['password'])) {
                 $u->password = $data['password'];
             }
             if (array_key_exists('foto', $data)) {
-                $u->foto_profil = $data['foto'];   // foto lama sudah dihapus oleh controller
+                $u->foto_profil = $data['foto'];
             }
             $u->save();
 
@@ -154,52 +153,22 @@ class MahasiswaDbStore extends MahasiswaStore
         return $ok ? $this->find($id) : null;
     }
 
-    /**
-     * Hapus mahasiswa beserta akunnya dan riwayat kelasnya (satu transaksi).
-     * Hasil: 'ok' | 'dipakai' (masih dipakai data lain, mis. prestasi: nonaktifkan saja) | 'tidak-ada'.
-     */
-    public function delete(string $id): string
-    {
-        $m = ctype_digit($id) ? Mahasiswa::query()->find((int) $id) : null;
-        if (! $m) {
-            return 'tidak-ada';
-        }
-
-        $foto = null;
-
-        try {
-            DB::transaction(function () use ($m, &$foto) {
-                $u = User::query()->find($m->id_user);
-                $foto = $u?->foto_profil;
-
-                DB::table('enrollment_mahasiswa_tingkat_kelas')->where('id_mahasiswa', $m->getKey())->delete();
-                $m->delete();
-                $u?->delete();
-            });
-        } catch (QueryException) {
-            return 'dipakai';
-        }
-
-        LinkFile::hapus($foto);
-
-        return 'ok';
-    }
-
-    /** Pilihan status yang bisa disimpan database (Cuti dan Lulus belum punya kolom). */
     public function opsiStatus(): array
     {
-        return ['Aktif', 'Non-aktif'];
+        return Mahasiswa::STATUS_OPSI;
     }
 
     private function baris(Mahasiswa $m, ?array $kelas): array
     {
+        $statusMahasiswa = $m->status_mahasiswa ?: ($m->user?->status ? 'Aktif' : 'Cuti');
+
         return [
             'id' => (string) $m->id_mahasiswa,
             'nim' => $m->nim,
             'nama' => $m->nama,
             'level' => $kelas ? 'Tingkat '.$kelas['tingkat'] : '-',
             'kelas' => $kelas['label'] ?? '-',
-            'status' => $m->user?->status ? 'Aktif' : 'Non-aktif',
+            'status' => $statusMahasiswa,
             'angkatan' => (string) $m->tahun_masuk,
             'email' => (string) $m->user?->email,
             'tanggal_lahir' => null,
@@ -208,9 +177,10 @@ class MahasiswaDbStore extends MahasiswaStore
         ];
     }
 
+    /** Status yang diperbolehkan login ke sistem: Aktif & Skripsi/TA. */
     private function aktif(?string $status): bool
     {
-        return ($status ?? 'Aktif') === 'Aktif';
+        return in_array($status ?? 'Aktif', ['Aktif', 'Skripsi/TA'], true);
     }
 
     private function idRole(): int
@@ -300,8 +270,36 @@ class MahasiswaDbStore extends MahasiswaStore
     }
 
     /**
-     * Mengubah status aktif/nonaktif akun & profil mahasiswa.
+     * Hapus mahasiswa beserta akunnya dan riwayat kelasnya (satu transaksi).
+     * Hasil: 'ok' | 'dipakai' (masih dipakai data lain, mis. prestasi: nonaktifkan saja) | 'tidak-ada'.
      */
+    public function delete(string $id): string
+    {
+        $m = ctype_digit($id) ? Mahasiswa::query()->find((int) $id) : null;
+        if (! $m) {
+            return 'tidak-ada';
+        }
+
+        $foto = null;
+
+        try {
+            DB::transaction(function () use ($m, &$foto) {
+                $u = User::query()->find($m->id_user);
+                $foto = $u?->foto_profil;
+
+                DB::table('enrollment_mahasiswa_tingkat_kelas')->where('id_mahasiswa', $m->getKey())->delete();
+                $m->delete();
+                $u?->delete();
+            });
+        } catch (QueryException) {
+            return 'dipakai';
+        }
+
+        LinkFile::hapus($foto);
+
+        return 'ok';
+    }
+
     public function toggleStatus(string $id): bool
     {
         $mahasiswa = Mahasiswa::with('user')->find($id);
@@ -309,14 +307,29 @@ class MahasiswaDbStore extends MahasiswaStore
             return false;
         }
 
-        $statusBaru = ! $mahasiswa->user->status; // Toggle boolean status
+        $statusBaru = $mahasiswa->status_mahasiswa === 'Aktif' ? 'Cuti' : 'Aktif';
 
-        // Update status login user
-        $mahasiswa->user->update(['status' => $statusBaru]);
-
-        // Update status akademik mahasiswa
-        $mahasiswa->update(['status' => $statusBaru ? 'Aktif' : 'Nonaktif']);
+        $mahasiswa->user->update(['status' => $this->aktif($statusBaru)]);
+        $mahasiswa->update(['status_mahasiswa' => $statusBaru]);
 
         return true;
+    }
+
+    public function sinkronisasiKelas(): ?array
+    {
+        $ta = $this->penempatan->tahunAkademikAktif();
+        if (! $ta) {
+            return null;
+        }
+
+        $ringkasan = $this->penempatan->buatUntukSemester((int) $ta->id_tahun_akademik);
+        $ringkasan['tahun_akademik'] = $ta->tahun_akademik;
+
+        return $ringkasan;
+    }
+
+    public function luluskanSkripsiTa(): int
+    {
+        return $this->penempatan->luluskanSkripsiTa();
     }
 }

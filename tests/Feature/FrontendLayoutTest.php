@@ -58,7 +58,7 @@ class FrontendLayoutTest extends TestCase
             ->assertOk()
             ->assertViewIs('mahasiswa.kegiatan.index')
             ->assertSee('class="frontend-main min-w-0 px-3 py-4', false)
-            ->assertSee('FKBSE 2025')
+            ->assertDontSee('FKBSE 2025')
             ->assertSee('href="'.route('kegiatan.index').'"', false)
             ->assertSee('aria-current="page"', false)
             ->assertDontSee('dosen-shell', false);
