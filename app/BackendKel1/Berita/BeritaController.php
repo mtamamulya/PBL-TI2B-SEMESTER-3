@@ -4,12 +4,15 @@ namespace App\BackendKel1\Berita;
 
 use App\Http\Controllers\Controller;
 use App\Models\Berita;
+use App\Models\Dokumen;
+use App\Models\GambarBerita;
 use App\Models\Kategori;
 use App\Models\Kegiatan;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class BeritaController extends Controller
@@ -17,14 +20,29 @@ class BeritaController extends Controller
     public function opsi(): JsonResponse
     {
         $kegiatanList = Kegiatan::query()
-            ->with('kategori')
+            ->with(['kategori', 'dokumen.jenisDokumen'])
             ->orderByDesc('id_kegiatan')
             ->get()
-            ->map(fn ($k) => [
-                'id' => $k->id_kegiatan,
-                'nama' => $k->nama_kegiatan,
-                'kategori' => $k->kategori?->nama_kategori ?? 'Lainnya',
-            ])
+            ->map(function (Kegiatan $k) {
+                $dokumentasi = $k->dokumen
+                    ->filter(fn (Dokumen $d) => self::adalahDokumenGambar($d))
+                    ->map(fn (Dokumen $d) => [
+                        'id_dokumen' => $d->id_dokumen,
+                        'nama' => $d->nama_file ?: 'Dokumentasi Kegiatan',
+                        'jenis' => $d->jenisDokumen?->nama_jenis_dokumen ?? 'Dokumentasi',
+                        'url' => self::urlDokumen($d),
+                    ])
+                    ->filter(fn (array $item) => ! empty($item['url']))
+                    ->values()
+                    ->all();
+
+                return [
+                    'id' => $k->id_kegiatan,
+                    'nama' => $k->nama_kegiatan,
+                    'kategori' => $k->kategori?->nama_kategori ?? 'Lainnya',
+                    'dokumentasi' => $dokumentasi,
+                ];
+            })
             ->all();
 
         $kategori = Kategori::query()
@@ -57,9 +75,20 @@ class BeritaController extends Controller
             'gambar.max' => 'Ukuran gambar maksimal 5 MB.',
         ]);
 
-        $path = $request->file('gambar')->store('berita/konten', 'public');
+        $file = $request->file('gambar');
+        $path = $file->store('berita/konten', 'public');
+
+        $gambar = GambarBerita::create([
+            'id_berita' => null,
+            'id_dokumen' => null,
+            'id_user' => $request->user()?->id_user,
+            'nama_file' => $file->getClientOriginalName() ?: basename($path),
+            'path_gambar' => $path,
+            'sumber' => 'upload',
+        ]);
 
         return ApiResponse::ok([
+            'id_gambar_berita' => $gambar->id_gambar_berita,
             'path' => $path,
             'url' => asset('storage/'.$path),
         ], 'Gambar konten berhasil diunggah.', 201);
@@ -78,7 +107,7 @@ class BeritaController extends Controller
         $pengguna = $request->user('sanctum');
 
         $query = Berita::query()
-            ->with(['kegiatan.kategori', 'kategori', 'user'])
+            ->with(['kegiatan.kategori', 'kategori', 'user', 'gambarBerita'])
             ->when($pengguna === null, fn ($q) => $q->where('status', 'publish'))
             ->when($pengguna !== null && $request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('id_kategori'), fn ($q) => $q->where('id_kategori', (int) $request->query('id_kategori')))
@@ -99,7 +128,7 @@ class BeritaController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         $berita = Berita::query()
-            ->with(['kegiatan.kategori', 'kategori', 'user'])
+            ->with(['kegiatan.kategori', 'kategori', 'user', 'gambarBerita'])
             ->find($id);
 
         if (! $berita) {
@@ -145,12 +174,14 @@ class BeritaController extends Controller
         $data = $this->validasi($request);
         $status = strtolower($data['status']);
 
+        [$idKegiatan, $idKategori] = $this->tentukanRelasi($data);
+
         $sampulPath = null;
         if ($request->hasFile('foto')) {
             $sampulPath = $request->file('foto')->store('berita', 'public');
+        } elseif (! empty($data['sampul_dokumen_id']) && $idKegiatan !== null) {
+            $sampulPath = $this->salinSampulDariDokumen((int) $data['sampul_dokumen_id'], $idKegiatan);
         }
-
-        [$idKegiatan, $idKategori] = $this->tentukanRelasi($data);
 
         $berita = Berita::create([
             'id_user' => $request->user()->id_user,
@@ -163,7 +194,8 @@ class BeritaController extends Controller
             'sampul' => $sampulPath,
         ]);
 
-        $berita->load(['kegiatan.kategori', 'kategori', 'user']);
+        $this->sinkronkanGambarBerita($berita, $request->user()?->id_user);
+        $berita->load(['kegiatan.kategori', 'kategori', 'user', 'gambarBerita']);
 
         return ApiResponse::ok(self::bentuk($berita), 'Berita berhasil disimpan.', 201);
     }
@@ -182,14 +214,22 @@ class BeritaController extends Controller
         $data = $this->validasi($request);
         $status = strtolower($data['status']);
 
+        [$idKegiatan, $idKategori] = $this->tentukanRelasi($data, $berita);
+
         if ($request->hasFile('foto')) {
             if ($berita->sampul) {
                 Storage::disk('public')->delete($berita->sampul);
             }
             $berita->sampul = $request->file('foto')->store('berita', 'public');
+        } elseif (! empty($data['sampul_dokumen_id']) && $idKegiatan !== null) {
+            $salinan = $this->salinSampulDariDokumen((int) $data['sampul_dokumen_id'], $idKegiatan);
+            if ($salinan) {
+                if ($berita->sampul) {
+                    Storage::disk('public')->delete($berita->sampul);
+                }
+                $berita->sampul = $salinan;
+            }
         }
-
-        [$idKegiatan, $idKategori] = $this->tentukanRelasi($data, $berita);
 
         $berita->id_kegiatan = $idKegiatan;
         $berita->id_kategori = $idKategori;
@@ -204,7 +244,8 @@ class BeritaController extends Controller
         }
 
         $berita->save();
-        $berita->load(['kegiatan.kategori', 'kategori', 'user']);
+        $this->sinkronkanGambarBerita($berita, $request->user()?->id_user);
+        $berita->load(['kegiatan.kategori', 'kategori', 'user', 'gambarBerita']);
 
         return ApiResponse::ok(self::bentuk($berita), 'Berita berhasil diperbarui.');
     }
@@ -247,7 +288,7 @@ class BeritaController extends Controller
         }
 
         $berita->save();
-        $berita->load(['kegiatan.kategori', 'kategori', 'user']);
+        $berita->load(['kegiatan.kategori', 'kategori', 'user', 'gambarBerita']);
 
         return ApiResponse::ok(self::bentuk($berita), $pesan);
     }
@@ -258,13 +299,20 @@ class BeritaController extends Controller
             return ApiResponse::gagal('Hanya admin atau kaprodi yang boleh menghapus berita.', 403);
         }
 
-        $berita = Berita::query()->find($id);
+        $berita = Berita::query()->with('gambarBerita')->find($id);
         if (! $berita) {
             return ApiResponse::gagal('Berita tidak ditemukan.');
         }
 
         if ($berita->sampul) {
             Storage::disk('public')->delete($berita->sampul);
+        }
+
+        // Hanya hapus berkas fisik yang berasal dari upload baru milik berita ini (dokumen kegiatan tetap aman)
+        foreach ($berita->gambarBerita as $gb) {
+            if ($gb->sumber === 'upload' && $gb->path_gambar) {
+                Storage::disk('public')->delete($gb->path_gambar);
+            }
         }
 
         if (preg_match_all('#/storage/(berita/konten/[^"\'\s>]+)#i', (string) $berita->isi_berita, $matches)) {
@@ -282,6 +330,17 @@ class BeritaController extends Controller
     {
         $ekstensi = $b->sampul ? strtolower(pathinfo($b->sampul, PATHINFO_EXTENSION)) : '';
         $isGambar = in_array($ekstensi, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+        $gambarKonten = $b->relationLoaded('gambarBerita')
+            ? $b->gambarBerita->map(fn (GambarBerita $g) => [
+                'id_gambar_berita' => $g->id_gambar_berita,
+                'id_dokumen' => $g->id_dokumen,
+                'nama_file' => $g->nama_file,
+                'sumber' => $g->sumber,
+                'url' => preg_match('#^https?://#i', $g->path_gambar)
+                    ? $g->path_gambar
+                    : asset('storage/'.ltrim($g->path_gambar, '/')),
+            ])->values()->all()
+            : [];
 
         return [
             'id_berita' => $b->id_berita,
@@ -298,6 +357,7 @@ class BeritaController extends Controller
             'catatan_revisi' => $b->catatan_revisi,
             'nama_kegiatan' => $b->kegiatan?->nama_kegiatan,
             'nama_kategori' => $b->kategori?->nama_kategori ?? $b->kegiatan?->kategori?->nama_kategori,
+            'gambar_konten' => $gambarKonten,
             'created_at' => $b->created_at?->toIso8601String(),
         ];
     }
@@ -310,6 +370,174 @@ class BeritaController extends Controller
         $clean = preg_replace('/(href|src)\s*=\s*(["\'])\s*javascript:[^"\']*\2/i', '$1=$2#$2', $clean) ?? $clean;
 
         return trim($clean);
+    }
+
+    private function sinkronkanGambarBerita(Berita $berita, ?int $idUser): void
+    {
+        $isi = (string) $berita->isi_berita;
+
+        // 1. Kumpulkan semua path upload berita/konten/... yang dipakai di isi_berita
+        $uploadPaths = [];
+        if (preg_match_all('#/storage/(berita/konten/[^"\'\s>]+)#i', $isi, $matches)) {
+            $uploadPaths = array_values(array_unique($matches[1]));
+        }
+
+        // Kaitkan record upload yang masih dipakai (yang baru diunggah id_berita=null atau milik berita ini)
+        foreach ($uploadPaths as $path) {
+            $sudahAda = GambarBerita::query()
+                ->where('id_berita', $berita->id_berita)
+                ->where('sumber', 'upload')
+                ->where('path_gambar', $path)
+                ->exists();
+
+            if (! $sudahAda) {
+                $tercatat = GambarBerita::query()
+                    ->whereNull('id_berita')
+                    ->where('sumber', 'upload')
+                    ->where('path_gambar', $path)
+                    ->first();
+
+                if ($tercatat) {
+                    $tercatat->update(['id_berita' => $berita->id_berita]);
+                } else {
+                    GambarBerita::create([
+                        'id_berita' => $berita->id_berita,
+                        'id_dokumen' => null,
+                        'id_user' => $idUser,
+                        'nama_file' => basename($path),
+                        'path_gambar' => $path,
+                        'sumber' => 'upload',
+                    ]);
+                }
+            }
+        }
+
+        // Hapus record upload milik berita ini yang sudah dihapus penulis dari editor
+        $uploadDihapus = GambarBerita::query()
+            ->where('id_berita', $berita->id_berita)
+            ->where('sumber', 'upload')
+            ->when($uploadPaths !== [], fn ($q) => $q->whereNotIn('path_gambar', $uploadPaths))
+            ->get();
+
+        foreach ($uploadDihapus as $item) {
+            if ($item->path_gambar) {
+                Storage::disk('public')->delete($item->path_gambar);
+            }
+            $item->delete();
+        }
+
+        // 2. Sinkronkan gambar yang diambil dari dokumentasi kegiatan
+        GambarBerita::query()
+            ->where('id_berita', $berita->id_berita)
+            ->where('sumber', 'kegiatan')
+            ->delete();
+
+        if ($berita->id_kegiatan !== null) {
+            $dokumenKegiatan = Dokumen::query()
+                ->where('id_kegiatan', $berita->id_kegiatan)
+                ->get();
+
+            foreach ($dokumenKegiatan as $dok) {
+                if (! self::adalahDokumenGambar($dok)) {
+                    continue;
+                }
+
+                $url = self::urlDokumen($dok);
+                $relPath = self::pathPublikDariDokumen($dok);
+
+                $dipakaiDiIsi = ($url && str_contains($isi, $url))
+                    || ($relPath && str_contains($isi, $relPath));
+
+                if ($dipakaiDiIsi) {
+                    GambarBerita::create([
+                        'id_berita' => $berita->id_berita,
+                        'id_dokumen' => $dok->id_dokumen,
+                        'id_user' => $idUser,
+                        'nama_file' => $dok->nama_file ?: basename((string) ($relPath ?: $url)),
+                        'path_gambar' => $relPath ?: (string) $url,
+                        'sumber' => 'kegiatan',
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function salinSampulDariDokumen(int $idDokumen, int $idKegiatan): ?string
+    {
+        $dok = Dokumen::query()
+            ->where('id_dokumen', $idDokumen)
+            ->where('id_kegiatan', $idKegiatan)
+            ->first();
+
+        if (! $dok || ! self::adalahDokumenGambar($dok)) {
+            return null;
+        }
+
+        $srcPath = self::pathPublikDariDokumen($dok);
+        if ($srcPath && Storage::disk('public')->exists($srcPath)) {
+            $ext = pathinfo($srcPath, PATHINFO_EXTENSION) ?: 'jpg';
+            $destPath = 'berita/'.Str::random(40).'.'.$ext;
+            Storage::disk('public')->copy($srcPath, $destPath);
+
+            return $destPath;
+        }
+
+        return null;
+    }
+
+    private static function adalahDokumenGambar(Dokumen $d): bool
+    {
+        $tipe = strtolower((string) $d->tipe_dokumen);
+        if (str_starts_with($tipe, 'image/')) {
+            return true;
+        }
+
+        $pathUrl = parse_url((string) $d->link_dokumen, PHP_URL_PATH) ?: (string) $d->link_dokumen;
+        $extLink = strtolower(pathinfo($pathUrl, PATHINFO_EXTENSION));
+        $extNama = strtolower(pathinfo((string) $d->nama_file, PATHINFO_EXTENSION));
+
+        return in_array($extLink, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)
+            || in_array($extNama, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+    }
+
+    private static function pathPublikDariDokumen(Dokumen $d): ?string
+    {
+        $link = trim((string) $d->link_dokumen);
+        if ($link === '') {
+            return null;
+        }
+
+        if (preg_match('#/storage/(.+)$#i', $link, $m)) {
+            return ltrim($m[1], '/');
+        }
+
+        if (! preg_match('#^https?://#i', $link) && ! str_starts_with($link, 'dokumen/')) {
+            return ltrim($link, '/');
+        }
+
+        return null;
+    }
+
+    private static function urlDokumen(Dokumen $d): ?string
+    {
+        $link = trim((string) $d->link_dokumen);
+        if ($link === '') {
+            return null;
+        }
+
+        if (preg_match('#/storage/(.+)$#i', $link, $m)) {
+            return asset('storage/'.ltrim($m[1], '/'));
+        }
+
+        if (preg_match('#^https?://#i', $link)) {
+            return $link;
+        }
+
+        if (str_starts_with($link, 'dokumen/')) {
+            return asset($link);
+        }
+
+        return asset('storage/'.ltrim($link, '/'));
     }
 
     private function bukanPengelola(Request $request): bool
@@ -336,6 +564,7 @@ class BeritaController extends Controller
             'kegiatan_id' => ['nullable', 'integer', Rule::exists('kegiatan', 'id_kegiatan')],
             'kategori' => ['nullable', 'string', 'max:100'],
             'foto' => ['nullable', 'mimes:jpeg,png,jpg,pdf', 'max:5120'],
+            'sampul_dokumen_id' => ['nullable', 'integer', Rule::exists('dokumen', 'id_dokumen')],
         ], [
             'judul.required' => 'Judul berita wajib diisi.',
             'isi.required' => 'Isi berita wajib diisi.',
