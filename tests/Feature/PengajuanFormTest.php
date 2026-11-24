@@ -183,6 +183,24 @@ class PengajuanFormTest extends TestCase
             $id = DB::table('kegiatan')->where('nama_kegiatan', $expectedTitle)->value('id_kegiatan');
             $this->assertNotNull($id);
 
+            $this->assertDatabaseHas('timeline', [
+                'id_kegiatan' => $id,
+                'status' => 'diajukan',
+            ]);
+            $this->assertDatabaseHas('dokumen', [
+                'id_kegiatan' => $id,
+                'nama_file' => 'Dokumen pendukung',
+                'link_dokumen' => 'https://example.com/dokumen',
+            ]);
+            $this->assertSame(
+                'Semarang',
+                DB::table('detail_kegiatan')
+                    ->join('isian_kategori', 'isian_kategori.id_isian_kategori', '=', 'detail_kegiatan.id_isian_kategori')
+                    ->where('detail_kegiatan.id_kegiatan', $id)
+                    ->where('isian_kategori.input', 'lokasi')
+                    ->value('detail_kegiatan.isian')
+            );
+
             $response->assertRedirect(route('pengajuan.show', $id));
             $this->get(route('pengajuan.show', $id))
                 ->assertOk()
@@ -349,8 +367,33 @@ class PengajuanFormTest extends TestCase
             'location' => 'Semarang',
             'start_date' => '2026-10-30',
             'end_date' => '2026-10-31',
+            'description' => 'Kegiatan langsung masuk ke riwayat database.',
+            'documents' => [[
+                'name' => 'Bukti kegiatan',
+                'type' => 'Dokumentasi',
+                'url' => 'https://example.com/bukti-kegiatan',
+            ]],
         ])
             ->assertRedirect(route('kegiatan.index'));
+
+        $idKegiatan = DB::table('kegiatan')
+            ->where('nama_kegiatan', 'Kegiatan yang langsung dicatat')
+            ->value('id_kegiatan');
+        $details = DB::table('detail_kegiatan')
+            ->join('isian_kategori', 'isian_kategori.id_isian_kategori', '=', 'detail_kegiatan.id_isian_kategori')
+            ->where('detail_kegiatan.id_kegiatan', $idKegiatan)
+            ->pluck('detail_kegiatan.isian', 'isian_kategori.input');
+
+        $this->assertSame('Semarang', $details['lokasi']);
+        $this->assertSame('2026-10-30', $details['tanggal_mulai']);
+        $this->assertSame('Program Studi', $details['penyelenggara']);
+        $this->assertSame('Kegiatan langsung masuk ke riwayat database.', $details['deskripsi']);
+        $this->assertSame(0, DB::table('timeline')->where('id_kegiatan', $idKegiatan)->count());
+        $this->assertDatabaseHas('dokumen', [
+            'id_kegiatan' => $idKegiatan,
+            'nama_file' => 'Bukti kegiatan',
+            'link_dokumen' => 'https://example.com/bukti-kegiatan',
+        ]);
 
         $this->get(route('kegiatan.index'))
             ->assertOk()
@@ -365,8 +408,54 @@ class PengajuanFormTest extends TestCase
             ->assertOk()
             ->assertSee('Lomba yang ditag');
 
-        $this->get(route('kegiatan.index'))
-            ->assertOk();
+        $response = $this->get(route('kegiatan.index'))
+            ->assertOk()
+            ->assertSee('Lomba yang ditag')
+            ->assertDontSee('FKBSE 2025');
+
+        $this->assertSame(1, $response->viewData('categoryCounts')['LOMBA']);
+        $this->assertCount(1, $response->viewData('allActivities'));
+    }
+
+    public function test_student_dashboard_uses_activity_aggregates_for_active_and_completed_work(): void
+    {
+        $this->createKegiatanInDb('Pengajuan aktif', 'direview', 'Lomba');
+        $this->createKegiatanInDb('Kegiatan selesai', 'selesai', 'Pengabdian');
+
+        $response = $this->get(route('mahasiswa.index'))->assertOk();
+
+        $this->assertSame(1, $response->viewData('ringkasan')['pengajuan_aktif']);
+        $this->assertSame(0, $response->viewData('ringkasan')['dokumen_siap']);
+        $this->assertCount(1, $response->viewData('kegiatanSelesai'));
+    }
+
+    public function test_dashboard_cards_and_recent_submissions_use_owned_database_records(): void
+    {
+        $ownedId = $this->createKegiatanInDb('Pengajuan milik dashboard', 'diajukan', 'Lomba');
+        $otherUserId = DB::table('users')->insertGetId([
+            'id_role' => 4,
+            'email' => 'dashboard-other-'.uniqid().'@test.local',
+            'password' => bcrypt('password'),
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('kegiatan')->insert([
+            'id_kategori' => DB::table('kategori')->where('nama_kategori', 'Lomba')->value('id_kategori'),
+            'id_user' => $otherUserId,
+            'nama_kegiatan' => 'Pengajuan milik orang lain',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get(route('mahasiswa.dashboard'))->assertOk();
+
+        $this->assertSame(1, $response->viewData('totalPengajuan'));
+        $this->assertSame(1, $response->viewData('totalKegiatan'));
+        $this->assertSame(0, $response->viewData('totalPrestasi'));
+        $this->assertSame([$ownedId], $response->viewData('pengajuanTerbaru')->pluck('id_kegiatan')->all());
+        $response->assertSee('Pengajuan milik dashboard')
+            ->assertDontSee('Pengajuan milik orang lain');
     }
 
     public function test_detail_page_does_not_show_surat_preview(): void
@@ -590,9 +679,12 @@ class PengajuanFormTest extends TestCase
 
     public function test_berita_form_lists_existing_and_new_pengajuan_activities(): void
     {
+        $this->createKegiatanInDb('Kegiatan milik mahasiswa aktif', 'selesai', 'Lomba');
+
         $this->get(route('pengajuan.berita.create'))
             ->assertOk()
-            ->assertSee('Pengajuan Lomba KMPIN VII 2026');
+            ->assertSee('Kegiatan milik mahasiswa aktif')
+            ->assertDontSee('Pengajuan Lomba KMPIN VII 2026');
 
         $response = $this->post(route('pengajuan.store'), [
             'category' => 'Pengabdian',
@@ -609,8 +701,67 @@ class PengajuanFormTest extends TestCase
 
         $this->get(route('pengajuan.berita.create'))
             ->assertOk()
-            ->assertSee('Pengajuan Lomba KMPIN VII 2026')
+            ->assertSee('Kegiatan milik mahasiswa aktif')
+            ->assertSee('Pengabdian Desa Digital')
             ->assertDontSee('Lomba UI/UX Design Festival Mahasiswa 2026');
+    }
+
+    public function test_student_get_routes_do_not_expose_another_users_activities(): void
+    {
+        $this->createKegiatanInDb('Kegiatan privat pemilik');
+        $otherUserId = DB::table('users')->insertGetId([
+            'id_role' => 4,
+            'email' => 'other-'.uniqid().'@test.local',
+            'password' => bcrypt('password'),
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs(User::findOrFail($otherUserId))
+            ->get(route('pengajuan.index'))
+            ->assertOk()
+            ->assertDontSee('Kegiatan privat pemilik')
+            ->assertViewHas('all', fn ($activities) => $activities->isEmpty());
+
+        $this->get(route('pengajuan.show', DB::table('kegiatan')->where('nama_kegiatan', 'Kegiatan privat pemilik')->value('id_kegiatan')))
+            ->assertNotFound();
+    }
+
+    public function test_api_submission_uses_authenticated_owner_and_restricts_reads(): void
+    {
+        $otherUserId = DB::table('users')->insertGetId([
+            'id_role' => 4,
+            'email' => 'api-other-'.uniqid().'@test.local',
+            'password' => bcrypt('password'),
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $idKategori = DB::table('kategori')->where('nama_kategori', 'Pengabdian')->value('id_kategori');
+
+        $this->postJson('/api/v1/pengajuan-mahasiswa', [
+            'id_kategori' => $idKategori,
+            'id_user' => $otherUserId,
+            'nama_kegiatan' => 'API milik akun login',
+        ])->assertCreated()
+            ->assertJsonPath('data.id_user', $this->userId);
+
+        $idKegiatan = DB::table('kegiatan')
+            ->where('nama_kegiatan', 'API milik akun login')
+            ->value('id_kegiatan');
+        $this->assertDatabaseHas('kegiatan', [
+            'id_kegiatan' => $idKegiatan,
+            'id_user' => $this->userId,
+        ]);
+
+        $this->actingAs(User::findOrFail($otherUserId))
+            ->getJson('/api/v1/pengajuan-mahasiswa/'.$idKegiatan)
+            ->assertNotFound();
+
+        $this->app['auth']->guard('web')->logout();
+        $this->app['auth']->forgetGuards();
+        $this->getJson('/api/v1/pengajuan-mahasiswa')->assertUnauthorized();
     }
 
     public function test_berita_submission_requires_complete_fields_and_cover_photo(): void

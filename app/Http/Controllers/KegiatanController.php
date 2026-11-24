@@ -12,59 +12,49 @@ class KegiatanController extends Controller
     public function index(Request $request)
     {
         $isDosen = $request->routeIs('dosen.*');
-        if (! $isDosen) {
-            $submittedActivities = app(PengajuanController::class)->activityOptions()
-                ->map(fn (array $activity) => array_merge($activity, ['id' => 'pengajuan-'.$activity['id']]));
-
-            return view('mahasiswa.kegiatan.index', [
-                'categoryCounts' => [],
-                'categories' => collect([
-                    'Lomba', 'Pengabdian', 'Volunteer', 'Kunjungan Industri',
-                    'Kuliah Kerja Lapangan', 'Magang', 'Pelatihan', 'Seminar', 'Penelitian',
-                ])->merge($submittedActivities->pluck('type'))->unique()->sort()->values(),
-                'semesters' => collect(),
-                'chartMax' => 20,
-                'allActivities' => $submittedActivities,
-            ]);
-        }
-
         $kegiatan = Kegiatan::untukUser($request->user())
             ->with(['kategori.jenisKegiatan', 'statusTerkini', 'detail.isianKategori', 'prestasi', 'dokumen', 'anggota.user.mahasiswa', 'anggota.user.dosen'])
             ->withCount('anggota')->denganTanggal()->orderByDesc('tanggal_mulai')->orderByDesc('id_kegiatan')->get();
-        $databaseActivities = $kegiatan->map(fn ($k) => [
-            'id' => $isDosen ? $k->getKey() : 'kegiatan-'.$k->getKey(),
-            'name' => $k->nama_kegiatan,
-            'type' => $k->kategori?->nama_kategori ?? '—',
-            'date' => $k->tanggal_mulai?->locale('id')->translatedFormat('d M Y') ?? '—',
-            'raw_date' => $k->tanggal_mulai?->toDateString() ?? '',
-            'status' => match ($k->statusTerkini?->status) {
-                'diajukan' => 'Diajukan',
-                'direview' => 'Direview',
-                'diterima' => 'Disetujui',
-                'direvisi' => 'Perlu revisi',
-                'ditolak' => 'Ditolak',
-                'selesai' => 'Selesai',
-                default => 'Belum diajukan',
-            },
-            'note' => $k->statusTerkini?->catatan_revisi,
-            'capaian' => $k->nilaiIsian('posisi_dalam_kegiatan') ?? '—',
-            'tingkat' => ucfirst($k->nilaiIsian('tingkat_kejuaraan') ?? '—'),
-            'penyelenggara' => $k->nilaiIsian('penyelenggara') ?? '—',
-            'jenis' => $k->prestasi->first()?->jenis_prestasi ?? '—',
-            'bentuk' => $k->anggota_count > 1 ? 'Tim' : 'Individu',
-            'detail_url' => $isDosen ? route('dosen.kegiatan.show', $k->getKey()) : null,
-            'file_name' => $k->dokumen->first()?->nama_file,
-            'members' => $k->anggota->map(fn ($member) => [
+        $allActivities = $kegiatan->map(function ($k) use ($isDosen) {
+            $members = $k->anggota->map(fn ($member) => [
                 'name' => $member->user?->mahasiswa?->nama ?? $member->user?->dosen?->nama ?? $member->user?->email ?? '—',
                 'role' => $member->peran,
-            ]),
-            'documents' => $k->dokumen->map(fn ($document) => [
-                'name' => $document->nama_file,
-                'type' => $document->tipe_dokumen,
-                'url' => $this->documentUrl($document->link_dokumen),
-            ]),
-        ]);
-        $allActivities = $databaseActivities->values();
+            ])->values();
+            if ($members->isEmpty() && $k->nilaiIsian('anggota')) {
+                $members = collect(json_decode($k->nilaiIsian('anggota'), true) ?? []);
+            }
+
+            return [
+                'id' => $isDosen ? $k->getKey() : 'kegiatan-'.$k->getKey(),
+                'name' => $k->nama_kegiatan,
+                'type' => $k->kategori?->nama_kategori ?? '—',
+                'date' => $k->tanggal_mulai?->locale('id')->translatedFormat('d M Y') ?? '—',
+                'raw_date' => $k->tanggal_mulai?->toDateString() ?? '',
+                'status' => match ($k->statusTerkini?->status) {
+                    'diajukan' => 'Diajukan',
+                    'direview' => 'Direview',
+                    'diterima' => 'Disetujui',
+                    'direvisi' => 'Perlu revisi',
+                    'ditolak' => 'Ditolak',
+                    'selesai' => 'Selesai',
+                    default => 'Tercatat',
+                },
+                'note' => $k->nilaiIsian('deskripsi') ?? $k->statusTerkini?->catatan_revisi,
+                'capaian' => $k->nilaiIsian('posisi_dalam_kegiatan') ?? '—',
+                'tingkat' => ucfirst($k->nilaiIsian('tingkat_kejuaraan') ?? '—'),
+                'penyelenggara' => $k->nilaiIsian('penyelenggara') ?? '—',
+                'jenis' => $k->prestasi->first()?->jenis_prestasi ?? '—',
+                'bentuk' => $k->nilaiIsian('bentuk_partisipasi') ?? ($k->anggota_count > 1 ? 'Tim' : 'Individu'),
+                'detail_url' => $isDosen ? route('dosen.kegiatan.show', $k->getKey()) : null,
+                'file_name' => $k->dokumen->first()?->nama_file,
+                'members' => $members,
+                'documents' => $k->dokumen->map(fn ($document) => [
+                    'name' => $document->nama_file,
+                    'type' => $document->tipe_dokumen,
+                    'url' => $this->documentUrl($document->link_dokumen),
+                ]),
+            ];
+        })->sortByDesc('raw_date')->values();
         $counts = $allActivities->countBy(fn ($activity) => mb_strtolower($activity['type']));
         $categoryCounts = [
             'LOMBA' => $counts->get('lomba', 0),
@@ -91,7 +81,7 @@ class KegiatanController extends Controller
             'categoryCounts' => $categoryCounts,
             'categories' => $allActivities->pluck('type')->filter(fn ($category) => $category !== '—')->unique()->sort()->values(),
             'semesters' => $semesters,
-            'chartMax' => max(20, (int) (ceil($semesters->max('value') / 4) * 4)),
+            'chartMax' => max(20, (int) (ceil((int) $semesters->max('value') / 4) * 4)),
             'allActivities' => $allActivities,
         ]);
     }
