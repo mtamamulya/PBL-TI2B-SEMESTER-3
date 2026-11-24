@@ -225,18 +225,20 @@
 <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
 <script>
 (() => {
-    // Data dummy awal (akan otomatis memakai $rows dari controller jika tersedia)
-    const serverRows = @json($rows ?? []);
-    const rows = serverRows.length > 0 ? serverRows.map((r, idx) => ({
-        id: r.id_kelompok_bidang ?? r.id ?? (idx + 1),
+    const BASE_URL = window.location.pathname.replace(/\/$/, '');
+    const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const mapRow = (r) => ({
+        id: r.id_kelompok_bidang,
         nama_kelompok_bidang: r.nama_kelompok_bidang ?? 'Tanpa Nama',
         id_rujukan: r.id_rujukan ?? null,
-        nama_rujukan: r.nama_rujukan ?? (r.id_rujukan === 1 ? 'Rekayasa Perangkat Lunak' : null),
-        total_turunan: r.total_turunan ?? (idx === 0 ? 2 : 0)
-    })) : [
-        { id: 1, nama_kelompok_bidang: 'Rekayasa Perangkat Lunak', id_rujukan: null, nama_rujukan: null, total_turunan: 2 },
-        { id: 2, nama_kelompok_bidang: 'Pengembangan Web & Mobile', id_rujukan: 1, nama_rujukan: 'Rekayasa Perangkat Lunak', total_turunan: 0 }
-    ];
+        nama_rujukan: r.rujukan ?? null,
+        total_turunan: Number(r.total_turunan ?? 0),
+        total_kegiatan: Number(r.total_kegiatan ?? 0),
+    });
+
+    const serverRows = @json($rows ?? []);
+    const rows = serverRows.map(mapRow);
 
     let editingId = null;
     let idHapus = null;
@@ -306,6 +308,29 @@
 
     const cariBaris = (id) => table.row((idx, data) => String(data.id) === String(id));
 
+    function sinkronkanTurunan() {
+        const semua = table.rows().data().toArray();
+        const hitung = {};
+        const namaById = {};
+
+        semua.forEach((item) => {
+            namaById[String(item.id)] = item.nama_kelompok_bidang;
+            if (item.id_rujukan !== null && item.id_rujukan !== undefined && item.id_rujukan !== '') {
+                const key = String(item.id_rujukan);
+                hitung[key] = (hitung[key] || 0) + 1;
+            }
+        });
+
+        table.rows().every(function () {
+            const d = this.data();
+            d.total_turunan = hitung[String(d.id)] || 0;
+            d.nama_rujukan = d.id_rujukan ? (namaById[String(d.id_rujukan)] ?? d.nama_rujukan) : null;
+            this.data(d);
+        });
+
+        table.draw(false);
+    }
+
     function pindahJikaHalamanKosong() {
         const i = table.page.info();
         if (i.pages > 0 && i.page >= i.pages) table.page(i.pages - 1).draw('page');
@@ -323,7 +348,15 @@
         });
     }
 
-    // ---------- Pop-up tambah / edit (Mode Dummy Frontend) ----------
+    function ambilPesanError(json, fallback) {
+        if (json?.errors) {
+            const first = Object.values(json.errors).flat()[0];
+            if (first) return first;
+        }
+        return json?.message || fallback;
+    }
+
+    // ---------- Pop-up tambah / edit ----------
     function bukaModal(row) {
         editingId = row ? row.id : null;
         $('kb-modal-judul').textContent = row ? 'Edit Kelompok Bidang' : 'Tambah Kelompok Bidang';
@@ -350,42 +383,59 @@
         el.classList.toggle('hidden', !pesan);
     }
 
-    function simpanDummy() {
+    async function simpan() {
         const nama = $('kb-nama').value.trim();
         const indukVal = $('kb-induk').value;
         if (!nama) { tampilError('Nama kelompok bidang wajib diisi.'); return; }
 
-        let namaInduk = null;
-        if (indukVal) {
-            const indukRow = cariBaris(indukVal).data();
-            namaInduk = indukRow ? indukRow.nama_kelompok_bidang : null;
-        }
+        const btn = $('kb-simpan');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+        tampilError('');
 
-        if (editingId === null) {
-            const newRow = {
-                id: Date.now(),
-                nama_kelompok_bidang: nama,
-                id_rujukan: indukVal ? Number(indukVal) : null,
-                nama_rujukan: namaInduk,
-                total_turunan: 0
-            };
-            table.order([]);
-            table.row.add(newRow).draw();
-            table.page('last').draw('page');
-        } else {
-            const existing = cariBaris(editingId).data();
-            const updatedRow = {
-                ...existing,
-                nama_kelompok_bidang: nama,
-                id_rujukan: indukVal ? Number(indukVal) : null,
-                nama_rujukan: namaInduk
-            };
-            cariBaris(editingId).data(updatedRow).draw(false);
+        const isEdit = editingId !== null;
+        const url = isEdit ? `${BASE_URL}/${editingId}` : BASE_URL;
+
+        try {
+            const res = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': CSRF,
+                },
+                body: JSON.stringify({
+                    nama_kelompok_bidang: nama,
+                    id_rujukan: indukVal ? Number(indukVal) : null,
+                }),
+            });
+
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                tampilError(ambilPesanError(json, 'Gagal menyimpan kelompok bidang.'));
+                return;
+            }
+
+            const saved = mapRow(json.data ?? {});
+            if (!isEdit) {
+                table.order([]);
+                table.row.add(saved);
+                sinkronkanTurunan();
+                table.page('last').draw('page');
+            } else {
+                cariBaris(editingId).data(saved);
+                sinkronkanTurunan();
+            }
+            tutupModal();
+        } catch {
+            tampilError('Tidak dapat terhubung ke server.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
         }
-        tutupModal();
     }
 
-    // ---------- Modal konfirmasi hapus (Mode Dummy Frontend) ----------
+    // ---------- Modal konfirmasi hapus ----------
     const modalHapus = $('modalHapus'), btnHapusYa = $('modalHapusYa');
 
     function bukaHapus(id) {
@@ -397,25 +447,53 @@
         modalHapus.showModal();
     }
 
-    function prosesHapusDummy() {
+    async function prosesHapus() {
         if (idHapus === null) return;
-        cariBaris(idHapus).remove().draw(false);
-        pindahJikaHalamanKosong();
-        if (modalHapus.open) modalHapus.close();
+        btnHapusYa.disabled = true;
+        btnHapusYa.textContent = 'Menghapus...';
+        $('modalHapusError').hidden = true;
+
+        try {
+            const res = await fetch(`${BASE_URL}/${idHapus}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': CSRF,
+                },
+            });
+
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                $('modalHapusError').textContent = ambilPesanError(json, 'Gagal menghapus kelompok bidang.');
+                $('modalHapusError').hidden = false;
+                return;
+            }
+
+            cariBaris(idHapus).remove();
+            sinkronkanTurunan();
+            pindahJikaHalamanKosong();
+            if (modalHapus.open) modalHapus.close();
+        } catch {
+            $('modalHapusError').textContent = 'Tidak dapat terhubung ke server.';
+            $('modalHapusError').hidden = false;
+        } finally {
+            btnHapusYa.disabled = false;
+            btnHapusYa.textContent = 'Hapus';
+        }
     }
 
     $('modalHapusBatal').addEventListener('click', () => modalHapus.close());
     modalHapus.addEventListener('click', (e) => { if (e.target === modalHapus) modalHapus.close(); });
     modalHapus.addEventListener('close', () => { idHapus = null; });
-    btnHapusYa.addEventListener('click', prosesHapusDummy);
+    btnHapusYa.addEventListener('click', prosesHapus);
 
     // ---------- Event ----------
     $('kb-tambah').addEventListener('click', () => bukaModal(null));
     $('kb-batal').addEventListener('click', tutupModal);
-    $('kb-simpan').addEventListener('click', simpanDummy);
+    $('kb-simpan').addEventListener('click', simpan);
     $('kb-modal').addEventListener('click', (e) => { if (e.target === $('kb-modal')) tutupModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tutupModal(); });
-    $('kb-nama').addEventListener('keydown', (e) => { if (e.key === 'Enter') simpanDummy(); });
+    $('kb-nama').addEventListener('keydown', (e) => { if (e.key === 'Enter') simpan(); });
 
     $('kb-cari').addEventListener('input', (e) => table.column(1).search(e.target.value.trim()).draw());
 
