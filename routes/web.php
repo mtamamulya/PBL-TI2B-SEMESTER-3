@@ -1,7 +1,9 @@
 <?php
 
 use App\BackendKel3\Dashboard\DosenDashboardController;
+use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DosenPengabdianController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\MahasiswaController;
@@ -27,17 +29,20 @@ Route::view('/prestasi/{id}/edit', 'dosen.prestasi.edit')->whereNumber('id')->na
 Route::view('/verifikasi/{id}', 'pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('verifikasi.show');
 
 Route::view('/profil', 'dosen.profil.show')->name('profil');
-Route::view('/notifikasi', 'dosen.notifikasi.index')->name('notifikasi');
+Route::get('/notifikasi', [NotifikasiController::class, 'web'])->name('notifikasi');
+Route::redirect('/dosen/notifikasi', '/notifikasi');
 
 Route::view('/penelitian', 'dosen.penelitian.index')->name('penelitian.index');
 Route::view('/penelitian/create', 'dosen.penelitian.create')->name('penelitian.create');
 Route::view('/penelitian/{id}', 'dosen.penelitian.show')->whereNumber('id')->name('penelitian.show');
 Route::view('/penelitian/{id}/edit', 'dosen.penelitian.edit')->whereNumber('id')->name('penelitian.edit');
 
-Route::view('/pengabdian', 'dosen.pengabdian.index')->name('pengabdian.index');
-Route::view('/pengabdian/create', 'dosen.pengabdian.create')->name('pengabdian.create');
-Route::view('/pengabdian/{id}', 'dosen.pengabdian.show')->whereNumber('id')->name('pengabdian.show');
-Route::view('/pengabdian/{id}/edit', 'dosen.pengabdian.edit')->whereNumber('id')->name('pengabdian.edit');
+Route::get('/pengabdian', [DosenPengabdianController::class, 'index'])->name('pengabdian.index');
+Route::get('/pengabdian/create', [DosenPengabdianController::class, 'create'])->name('pengabdian.create');
+Route::post('/pengabdian', [DosenPengabdianController::class, 'store'])->name('pengabdian.store');
+Route::get('/pengabdian/{id}', [DosenPengabdianController::class, 'show'])->whereNumber('id')->name('pengabdian.show');
+Route::get('/pengabdian/{id}/edit', [DosenPengabdianController::class, 'edit'])->whereNumber('id')->name('pengabdian.edit');
+Route::put('/pengabdian/{id}', [DosenPengabdianController::class, 'update'])->whereNumber('id')->name('pengabdian.update');
 
 // KODE BARU (Menggunakan Route::view karena data diambil via API):
 Route::view('/pengajaran', 'dosen.pengajaran.index')->name('pengajaran.index');
