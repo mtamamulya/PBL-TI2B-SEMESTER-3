@@ -32,7 +32,7 @@ class HomeController extends Controller
                         'juara 3' => '#AD5C00',
                         default => '#0B3A8C',
                     },
-                    'title' => $event ?: ($record->bidang_lomba ?: 'Prestasi'),
+                    'title' => $event ?: $record->nama_lomba,
                     'sub' => $record->bidang_lomba,
                     'catatan' => $record->catatan,
                 ];

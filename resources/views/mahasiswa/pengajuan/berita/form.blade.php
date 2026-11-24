@@ -89,14 +89,18 @@
                 @error('title')<span class="text-xs text-[#DC2626]">{{ $message }}</span>@enderror
             </label>
 
-            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-[#374151]">
-                Isi berita <span class="text-[#FF3F3F]">*</span>
-                <textarea name="content" rows="7" maxlength="5000"
-                          class="w-full resize-y rounded-lg border border-[#E5E7EB] bg-white p-3 text-[13px] outline-none placeholder:text-[#9CA3AF] focus:border-[#2277FF]"
-                          placeholder="Tuliskan isi berita">{{ $value('content') }}</textarea>
-                <span class="text-xs text-[#6B7280]">Maksimal 5.000 karakter.</span>
+            <div class="flex flex-col gap-1.5 text-[13px] font-medium text-[#374151]">
+                <div id="berita-content-label">Isi berita <span class="text-[#FF3F3F]">*</span></div>
+                <div class="berita-editor" data-rich-text-editor aria-labelledby="berita-content-label">
+                    <div class="min-h-64 bg-white"></div>
+                </div>
+                <textarea name="content" class="hidden" data-rich-text-input>{{ $value('content') }}</textarea>
+                <div class="flex justify-between gap-3 text-xs text-[#6B7280]">
+                    <span>Gunakan toolbar untuk merapikan paragraf dan penekanan isi berita.</span>
+                    <span><span data-content-count aria-live="polite">0</span>/5.000 karakter</span>
+                </div>
                 @error('content')<span class="text-xs text-[#DC2626]">{{ $message }}</span>@enderror
-            </label>
+            </div>
         </section>
 
         <section class="flex flex-col gap-2">
@@ -123,4 +127,5 @@
         </div>
     </form>
 </div>
+@vite('resources/js/mahasiswa-berita-editor.js')
 @endsection
