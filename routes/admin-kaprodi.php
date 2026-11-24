@@ -145,7 +145,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.laporan');
     Route::get('/kegiatan/prodi/laporan', [KegiatanLaporanController::class, 'prodi'])->name('admin.kegiatan.prodi.laporan');
     Route::get('/kegiatan/semua/laporan', [KegiatanLaporanController::class, 'semua'])->name('admin.kegiatan.semua.laporan');
-    Route::get('/kegiatan/mahasiswa/{id}', [AdminKegiatanDetailShowController::class, 'show']) ->defaults('jenis', 'mahasiswa')->name('admin.kegiatan.mahasiswa.detail.show');
+    Route::get('/kegiatan/mahasiswa/{id}', [AdminKegiatanDetailShowController::class, 'show'])->defaults('jenis', 'mahasiswa')->name('admin.kegiatan.mahasiswa.detail.show');
     Route::get('/kegiatan/dosen/{id}', [AdminKegiatanDetailShowController::class, 'show'])->defaults('jenis', 'dosen')->name('admin.kegiatan.dosen.detail.show');
     Route::get('/kegiatan/prodi/{id}', [AdminKegiatanDetailShowController::class, 'show'])->defaults('jenis', 'prodi')->name('admin.kegiatan.prodi.detail.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('admin.kegiatan.dosen.destroy');
