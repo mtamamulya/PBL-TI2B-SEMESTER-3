@@ -145,6 +145,7 @@
             info: { nama: '', kategori: '' },
 
             warnaStatus: {
+                Draft:    'border-gray-200 bg-gray-100 text-gray-700',
                 Diajukan: 'border-blue-200 bg-blue-100 text-blue-700',
                 Direview: 'border-blue-200 bg-blue-100 text-blue-700',
                 Direvisi: 'border-orange-200 bg-orange-100 text-orange-700',
@@ -177,14 +178,17 @@
 
             ambilTimeline() {
                 this.loading = true;
-                // Sesuaikan menjadi '/api/dosen/pengajuan/...' jika route didaftarkan di routes/api.php
-                fetch(`/dosen/pengajuan/${pengajuanId}/timeline`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/timeline`, {
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
-                    }
+                    },
+                    credentials: 'same-origin'
                 })
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                })
                 .then(res => {
                     if (res.status === 'success' && res.data) {
                         this.info.nama = res.data.nama_kegiatan;
@@ -221,8 +225,7 @@
                 this.galat = '';
                 this.submitting = true;
 
-                // Sesuaikan menjadi '/api/dosen/pengajuan/...' jika route didaftarkan di routes/api.php
-                fetch(`/dosen/pengajuan/${pengajuanId}/ajukan-ulang`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/ajukan-ulang`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
@@ -230,6 +233,7 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         catatan: this.catatanPerbaikan.trim() || null
                     })
