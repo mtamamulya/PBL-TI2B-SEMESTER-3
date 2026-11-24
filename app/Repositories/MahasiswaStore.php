@@ -22,7 +22,14 @@ class MahasiswaStore
 {
     public const TINGKAT = ['Tingkat 1', 'Tingkat 2', 'Tingkat 3', 'Tingkat 4'];
 
-    public const STATUS = ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'];
+    public const STATUS = [
+        'Aktif',
+        'Cuti',
+        'Drop Out',
+        'Skripsi/TA',
+        'Lulus',
+        'Meninggal Dunia',
+    ];
 
     private const PATH = 'admin/mahasiswa.json';
 
@@ -181,5 +188,10 @@ class MahasiswaStore
     public function sinkronisasiKelas(): ?array
     {
         return null;
+    }
+
+    public function luluskanSkripsiTa(): int
+    {
+        return 0;
     }
 }
