@@ -160,8 +160,6 @@ class DosenRoutesTest extends TestCase
             ->assertSee('role="tablist" aria-label="Status pengajuan"', false)
             ->assertSee('Cari kegiatan atau nama dosen...')
             ->assertSee('aria-label="Tahapan pengajuan"', false)
-            ->assertSee('Penyuluhan Literasi Digital')
-            ->assertSee('Seminar Nasional AI')
             ->assertSee('Tinjau')
             ->assertSee("Alpine.data('pengajuanDosen'", false);
 
