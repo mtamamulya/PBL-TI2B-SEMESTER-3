@@ -13,5 +13,5 @@ Route::get('pengabdian', [PengabdianController::class, 'index'])->name('pengabdi
 Route::post('pengabdian', [PengabdianController::class, 'store'])->name('pengabdian.store');
 Route::get('pengabdian/{id}', [PengabdianController::class, 'show'])
     ->whereNumber('id')->name('pengabdian.show');
-Route::patch('pengabdian/{id}', [PengabdianController::class, 'update'])
+Route::match(['put', 'patch'], 'pengabdian/{id}', [PengabdianController::class, 'update'])
     ->whereNumber('id')->name('pengabdian.update');
