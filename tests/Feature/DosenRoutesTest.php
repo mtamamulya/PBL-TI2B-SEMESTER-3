@@ -44,8 +44,6 @@ class DosenRoutesTest extends TestCase
             ['penelitian.edit', ['id' => 1]],
             ['pengabdian.index'],
             ['pengabdian.create'],
-            ['pengabdian.show', ['id' => 1]],
-            ['pengabdian.edit', ['id' => 1]],
             ['pengajaran.index'],
             ['pengajaran.create'],
             // ['pengajaran.show', ['id' => 1]],
@@ -65,6 +63,9 @@ class DosenRoutesTest extends TestCase
             ['notifikasi'],
             ['profil'],
         ];
+
+        $this->get(route('pengabdian.show', ['id' => 1]))->assertNotFound();
+        $this->get(route('pengabdian.edit', ['id' => 1]))->assertNotFound();
 
         foreach ($routes as $route) {
             $routeName = $route[0];

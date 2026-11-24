@@ -26,10 +26,11 @@ class DosenDashboardController extends Controller
         $perluRevisi = $this->ringkasan->perluRevisi($semua);
 
         $stats = [
-            ['label' => 'Total Kegiatan', 'value' => $semua->count(), 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
+            ['label' => 'Pengajaran', 'value' => $kelasDiampu->count(), 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
             ['label' => 'Penelitian', 'value' => $this->ringkasan->hitungJenis($semua, 'penelitian'), 'url' => url('/penelitian'), 'aria' => 'Lihat detail penelitian', 'alert' => false],
             ['label' => 'Pengabdian', 'value' => $this->ringkasan->hitungJenis($semua, 'pengabdian'), 'url' => url('/pengabdian'), 'aria' => 'Lihat detail pengabdian', 'alert' => false],
-            ['label' => 'Pengajaran', 'value' => $kelasDiampu->count(), 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
+            ['label' => 'Menunggu Verifikasi', 'value' => $this->ringkasan->menunggu($semua)->count(), 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat pengajuan menunggu verifikasi', 'alert' => true],
+            ['label' => 'Total Kegiatan', 'value' => $semua->count(), 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
             ['label' => 'Perlu Revisi', 'value' => $perluRevisi, 'url' => url('/dosen/kegiatan?status=direvisi'), 'aria' => 'Lihat kegiatan yang perlu direvisi', 'alert' => $perluRevisi > 0],
         ];
 
