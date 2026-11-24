@@ -33,6 +33,10 @@ class JenisDokumenSeeder extends Seeder
                 'nama_jenis_dokumen' => 'Surat Keterangan',
                 'keterangan' => 'Surat keterangan pendukung kegiatan',
             ],
+            [
+                'nama_jenis_dokumen' => 'Surat hasil',
+                'keterangan' => 'Surat hasil pengajuan',
+            ],
         ];
 
         foreach ($items as $item) {

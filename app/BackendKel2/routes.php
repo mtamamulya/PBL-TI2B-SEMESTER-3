@@ -24,3 +24,4 @@ require __DIR__.'/Laporan/routes.php';
 require __DIR__.'/MataKuliah/routes.php';
 require __DIR__.'/PengajuanMahasiswa/routes.php';
 require __DIR__.'/Prestasi/routes.php';
+require __DIR__.'/Dokumen/routes.php';
