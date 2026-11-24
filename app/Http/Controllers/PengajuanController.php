@@ -6,6 +6,8 @@ use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,10 +16,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use App\BackendKel1\KategoriKegiatan\PilihanBaku;
-use App\Models\Kategori;
-use App\Support\ApiClient;
-use App\Support\ApiException;
 
 class PengajuanController extends Controller
 {
@@ -55,18 +53,18 @@ class PengajuanController extends Controller
     }
 
     private function databaseKegiatan(): Collection
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    if (! $user) {
-        return collect();
+        if (! $user) {
+            return collect();
+        }
+
+        return Kegiatan::untukUser($user)
+            ->with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa'])
+            ->orderByDesc('id_kegiatan')
+            ->get();
     }
-
-    return Kegiatan::untukUser($user)
-        ->with(['kategori', 'statusTerkini', 'timeline', 'user.mahasiswa'])
-        ->orderByDesc('id_kegiatan')
-        ->get();
-}
 
     private function items(): array
     {
@@ -664,8 +662,8 @@ class PengajuanController extends Controller
     public function show(int $id)
     {
         $kegiatan = Kegiatan::untukUser(Auth::user())
-    ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
-    ->findOrFail($id);
+            ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
+            ->findOrFail($id);
 
         $student = $this->studentProfile($kegiatan->user);
 
@@ -1022,6 +1020,7 @@ class PengajuanController extends Controller
             if ($jenisInput === 'berkas') {
                 $rules["detail_files.{$idIsian}"] = [$wajib && ! $isUpdate ? 'required' : 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'];
                 $messages["detail_files.{$idIsian}.required"] = "{$label} wajib diunggah.";
+
                 continue;
             }
 
