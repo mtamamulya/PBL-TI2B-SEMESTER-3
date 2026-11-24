@@ -38,9 +38,13 @@
     .berita-konten li { margin-bottom: 0.35rem; }
     .berita-konten blockquote { border-left: 4px solid #2277FF; background: #F8FAFC; padding: 0.875rem 1.25rem; border-radius: 0 0.5rem 0.5rem 0; color: #334155; margin: 1.25rem 0; }
     .berita-konten a { color: #2277FF; text-decoration: underline; }
-    .berita-konten figure.image { margin: 1.5rem auto; text-align: center; }
+    .berita-konten figure.image { margin: 1.5rem auto; text-align: center; max-width: 100%; }
+    .berita-konten figure.image.image-style-side { float: right; margin: 0 0 1.25rem 1.5rem; max-width: 50%; }
+    /* Batasi skala gambar default jika belum di-resize */
+    .berita-konten figure.image:not(.image_resized) { max-width: 680px; }
+    .berita-konten figure.image:not(.image_resized) img { max-height: 440px; object-fit: contain; }
     .berita-konten figure.image img,
-    .berita-konten img { max-width: 100%; height: auto; border-radius: 0.75rem; margin: 1rem auto; display: block; border: 1px solid #E5E7EB; }
+    .berita-konten img { max-width: 100%; height: auto; border-radius: 0.75rem; margin: 0 auto; display: block; border: 1px solid #E5E7EB; }
     .berita-konten figure.image figcaption { margin-top: 0.5rem; font-size: 0.875rem; color: #64758A; font-style: italic; }
 </style>
 

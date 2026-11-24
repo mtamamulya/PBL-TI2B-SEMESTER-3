@@ -67,7 +67,7 @@ class KaprodiJenisDokumenTest extends TestCase
         $response->assertViewHas('rows');
 
         $rows = $response->viewData('rows');
-        $this->assertCount(5, $rows);
+        $this->assertCount(6, $rows);
         $this->assertSame('Sertifikat', $rows[0]['name']);
         $this->assertSame('Sertifikat keikutsertaan atau penghargaan kegiatan', $rows[0]['description']);
     }

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
@@ -109,11 +110,21 @@ class PemulihanSandiTest extends TestCase
             $t->unsignedInteger('id_user');
             $t->string('tujuan', 30);
             $t->string('code_hash');
+            $t->string('recipient_email', 150)->nullable();
             $t->unsignedTinyInteger('attempts')->default(0);
             $t->timestamp('expires_at');
             $t->timestamp('last_sent_at')->nullable();
             $t->timestamp('verified_at')->nullable();
             $t->timestamp('consumed_at')->nullable();
+            $t->timestamps();
+        });
+
+        Schema::create('mahasiswa', function ($t) {
+            $t->increments('id_mahasiswa');
+            $t->unsignedInteger('id_user')->unique();
+            $t->string('nim')->unique();
+            $t->string('nama');
+            $t->unsignedSmallInteger('tahun_masuk');
             $t->timestamps();
         });
 
@@ -194,6 +205,125 @@ class PemulihanSandiTest extends TestCase
         $this->assertSame(0, DB::table('otp_codes')->count());
     }
 
+    public function test_invalid_profile_email_change_otp_does_not_update_email(): void
+    {
+        $emailBaru = 'ivan.43325111@mhs.polines.ac.id';
+        Sanctum::actingAs(User::findOrFail($this->idUser));
+
+        $this->postJson('/api/v1/profil/ganti-email/kirim-otp', ['email' => $emailBaru])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $kode = null;
+        Mail::assertSent(PasswordResetOtp::class, function ($mail) use (&$kode, $emailBaru) {
+            $kode = $mail->code;
+
+            return $mail->hasTo($emailBaru);
+        });
+        $this->assertSame($this->email, DB::table('users')->where('id_user', $this->idUser)->value('email'));
+
+        $this->postJson('/api/v1/profil/ganti-email/verifikasi', ['otp' => $kode === '000000' ? '000001' : '000000'])
+            ->assertUnprocessable();
+        $this->assertSame($this->email, DB::table('users')->where('id_user', $this->idUser)->value('email'));
+    }
+
+    public function test_valid_email_change_otp_updates_the_account_email(): void
+    {
+        $emailBaru = 'ivan.43325111@mhs.polines.ac.id';
+        Sanctum::actingAs(User::findOrFail($this->idUser));
+
+        $this->postJson('/api/v1/profil/ganti-email/kirim-otp', ['email' => $emailBaru])->assertOk();
+
+        $kode = null;
+        Mail::assertSent(PasswordResetOtp::class, function ($mail) use (&$kode, $emailBaru) {
+            $kode = $mail->code;
+
+            return $mail->hasTo($emailBaru);
+        });
+
+        $this->postJson('/api/v1/profil/ganti-email/verifikasi', ['otp' => $kode])
+            ->assertOk()
+            ->assertJsonPath('data.email', $emailBaru);
+
+        $this->assertSame($emailBaru, DB::table('users')->where('id_user', $this->idUser)->value('email'));
+        $this->assertNotNull(DB::table('otp_codes')->where('tujuan', 'ganti_email')->value('consumed_at'));
+    }
+
+    public function test_student_profile_otp_uses_local_recipient_override(): void
+    {
+        $emailOtp = 'ivan.43325111@mhs.polines.ac.id';
+        DB::table('users')->where('id_user', $this->idUser)->update(['id_role' => 4]);
+        DB::table('mahasiswa')->insert([
+            'id_user' => $this->idUser,
+            'nim' => '43325111',
+            'nama' => 'Mahasiswa Tes',
+            'tahun_masuk' => 2024,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->app->detectEnvironment(fn () => 'local');
+        config([
+            'mahasiswa.otp_email' => $emailOtp,
+            'mahasiswa.otp_test_nim' => '43325111',
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.transport' => 'smtp',
+        ]);
+        Sanctum::actingAs(User::findOrFail($this->idUser));
+
+        $this->postJson('/api/v1/profil/ganti-sandi/kirim-otp')->assertOk();
+
+        Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo($emailOtp));
+    }
+
+    public function test_password_recovery_otp_uses_local_override_only_for_the_designated_student(): void
+    {
+        $emailOtp = 'ivan.43325111@mhs.polines.ac.id';
+        DB::table('users')->where('id_user', $this->idUser)->update(['id_role' => 4]);
+        DB::table('mahasiswa')->insert([
+            'id_user' => $this->idUser,
+            'nim' => '43325111',
+            'nama' => 'Mahasiswa Tes',
+            'tahun_masuk' => 2024,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->app->detectEnvironment(fn () => 'local');
+        config([
+            'mahasiswa.otp_email' => $emailOtp,
+            'mahasiswa.otp_test_nim' => '43325111',
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.transport' => 'smtp',
+        ]);
+
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])->assertOk();
+
+        Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo($emailOtp));
+    }
+
+    public function test_non_student_password_recovery_keeps_its_account_email(): void
+    {
+        $this->app->detectEnvironment(fn () => 'local');
+        config([
+            'mahasiswa.otp_email' => 'ivan.43325111@mhs.polines.ac.id',
+            'mahasiswa.otp_test_nim' => '43325111',
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.transport' => 'smtp',
+        ]);
+
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])->assertOk();
+
+        Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo($this->email));
+    }
+
+    public function test_student_profile_otp_uses_logged_in_email_outside_local(): void
+    {
+        Sanctum::actingAs(User::findOrFail($this->idUser));
+
+        $this->postJson('/api/v1/profil/ganti-sandi/kirim-otp')->assertOk();
+
+        Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo($this->email));
+    }
+
     public function test_inactive_account_gets_no_otp(): void
     {
         $this->buatUser('nonaktif@trk.ac.id', false);
@@ -223,8 +353,23 @@ class PemulihanSandiTest extends TestCase
             ->assertStatus(500)
             ->assertJsonPath('success', false);
 
-        // OTP yang gagal terkirim tidak boleh tetap bisa dipakai.
         $this->assertNotNull($this->otp()->consumed_at);
+    }
+
+    public function test_local_log_mailer_is_not_reported_as_delivered(): void
+    {
+        $this->app->detectEnvironment(fn () => 'local');
+        config([
+            'mail.default' => 'log',
+            'mail.mailers.log.transport' => 'log',
+        ]);
+
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Layanan email belum dikonfigurasi. Hubungi administrator.');
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, DB::table('otp_codes')->count());
     }
 
     public function test_otp_of_another_purpose_is_never_touched(): void
