@@ -195,6 +195,9 @@
                     <x-pengajuan.field label="Durasi Magang (Bulan)" required hint="Masukkan durasi dalam bulan." name="duration_months">
                         <input type="number" min="1" max="60" name="duration_months" value="{{ $v('duration_months') }}" class="{{ $input }}" placeholder="Contoh: 6">
                     </x-pengajuan.field>
+                    <x-pengajuan.field label="Dosen Pendamping" optional hint="Cantumkan nama dosen pendamping jika sudah ditentukan." name="advisor">
+                        <input name="advisor" x-model="advisor" value="{{ $v('advisor') }}" class="{{ $input }}" placeholder="Masukkan nama dosen pendamping">
+                    </x-pengajuan.field>
                 </div>
             </template>
 

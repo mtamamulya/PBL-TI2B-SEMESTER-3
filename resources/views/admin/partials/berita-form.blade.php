@@ -1,68 +1,115 @@
 {{--
     resources/views/admin/partials/berita-form.blade.php
-    Isi form berita, dipakai bersama oleh berita-tambah & berita-edit.
+    Isi form berita, dipakai bersama oleh berita-tambah & berita-edit (admin & kaprodi).
     Variabel: $action, $method ('POST'|'PUT'), $berita (array|null), $kategori, $kegiatanList, $max.
 --}}
 @php
     $b = $berita ?? [];
-    $labelCls = 'text-[13px] font-semibold leading-[1.5] text-[#111827]';
-    $selectCls = 'h-10 w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white px-3 pr-10 text-sm text-[#111827] outline-none focus:border-[#2277FF] disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF]';
+    $prefix = request()->routeIs('kaprodi.*') ? 'kaprodi' : 'admin';
+    $labelCls = 'text-[14px] font-medium leading-[1.5] text-[#111827]';
+    $inputCls = 'h-11 w-full rounded-lg border border-[#E5E7EB] bg-white px-3.5 text-[15px] text-[#111827] outline-none placeholder:text-[#9CA3AF] focus:border-[#2277FF] disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF]';
+    $selectCls = 'h-11 w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white px-3.5 pr-10 text-[15px] text-[#111827] outline-none focus:border-[#2277FF] disabled:cursor-not-allowed disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF] cursor-pointer';
+    $radioKartu = 'flex cursor-pointer items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-[15px] font-medium text-[#111827] transition-colors has-[:checked]:border-[#2277FF] has-[:checked]:bg-[#EFF6FF]';
+    $sectionCls = 'flex flex-col gap-4 rounded-xl border border-[#E5E7EB] bg-white p-5';
+    $numCls = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-[#2277FF] text-[13px] font-semibold text-white';
     $hint = 'text-xs leading-[1.5] text-[#6B7280]';
-    $chev = '<svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+    $chev = '<svg class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6B7280]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+
     $isiAwal = old('isi', $b['isi'] ?? '');
     $sumber = old('sumber', $b['sumber'] ?? 'none');
     $adaFoto = ! empty($b['foto']);
+    $maxKarakter = max((int) ($max ?? 5000), 5000);
+    $urlUploadGambar = \Illuminate\Support\Facades\Route::has($prefix.'.berita.upload-gambar')
+        ? route($prefix.'.berita.upload-gambar')
+        : '';
 @endphp
 
-<form method="POST" action="{{ $action }}" enctype="multipart/form-data"
-      class="rounded-lg bg-white p-4 pb-6 shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]">
+{{-- Styling CKEditor 5 agar menyatu dengan Tailwind & mendukung foto dokumentasi --}}
+<style>
+    .ck-editor__top .ck-sticky-panel .ck-toolbar {
+        border-color: #E5E7EB !important;
+        border-radius: 0.5rem 0.5rem 0 0 !important;
+        background-color: #F9FAFB !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable {
+        min-height: 240px;
+        border-color: #E5E7EB !important;
+        border-radius: 0 0 0.5rem 0.5rem !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 15px;
+        line-height: 1.7;
+        color: #111827;
+        box-shadow: none !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable.ck-focused {
+        border-color: #2277FF !important;
+    }
+    .ck-editor__editable .ck-placeholder::before {
+        color: #9CA3AF !important;
+        font-style: normal !important;
+    }
+    .ck-content h2 { font-size: 1.35rem; font-weight: 700; margin: 0.65rem 0 0.35rem; color: #071E38; }
+    .ck-content h3 { font-size: 1.15rem; font-weight: 600; margin: 0.5rem 0 0.3rem; color: #071E38; }
+    .ck-content h4 { font-size: 1rem; font-weight: 600; margin: 0.4rem 0 0.25rem; color: #071E38; }
+    .ck-content p { margin: 0.4rem 0; }
+    .ck-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
+    .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
+    .ck-content blockquote { border-left: 3px solid #2277FF; padding-left: 0.875rem; color: #4B5563; margin: 0.6rem 0; }
+    .ck-content a { color: #2277FF; text-decoration: underline; }
+    .ck-content figure.image { margin: 1rem auto; text-align: center; }
+    .ck-content figure.image img { max-width: 100%; border-radius: 0.5rem; margin: 0 auto; }
+    .ck-content figure.image figcaption { font-size: 0.8125rem; color: #6B7280; margin-top: 0.375rem; }
+</style>
+
+<form id="form-berita-utama" method="POST" action="{{ $action }}" enctype="multipart/form-data"
+      class="flex flex-col gap-5 rounded-xl bg-white p-5 shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]">
     @csrf
     @if ($method !== 'POST') @method($method) @endif
 
-    <div class="flex flex-col gap-5 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white p-6">
-        <p class="{{ $hint }}">* Wajib diisi • Kolom bertanda opsional dapat dikosongkan.</p>
+    <p class="{{ $hint }}">* Wajib diisi &bull; Kolom bertanda opsional dapat dikosongkan.</p>
 
-        @if ($errors->any())
-            <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                Berita belum disimpan. Periksa isian yang bertanda merah di bawah.
+    @if ($errors->any())
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+            {{ $errors->first() }}
+        </div>
+    @endif
+
+    {{-- 1. SUMBER KEGIATAN --}}
+    <section class="{{ $sectionCls }}">
+        <div class="flex items-center gap-2.5">
+            <span class="{{ $numCls }}">1</span>
+            <div>
+                <h2 class="text-[16px] font-bold text-[#111827]">Sumber Kegiatan</h2>
+                <p class="{{ $hint }}">Kegiatan terkait bersifat opsional. Anda tetap dapat mencatat berita secara mandiri.</p>
             </div>
-        @endif
-
-        {{-- Sumber kegiatan --}}
-        <div class="flex flex-col gap-1">
-            <h3 class="text-[18px] font-bold leading-[1.4] text-[#111827]">Sumber kegiatan</h3>
-            <p class="text-[13px] leading-[1.5] text-[#6B7280]">Kegiatan terkait bersifat opsional. Anda tetap dapat mencatat berita secara mandiri.</p>
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:gap-5">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             @foreach ([['prev', 'Dari kegiatan sebelumnya'], ['none', 'Tanpa kegiatan sebelumnya']] as [$v, $l])
-                <label class="flex flex-1 cursor-pointer items-center gap-2">
-                    <input type="radio" name="sumber" value="{{ $v }}" class="peer sr-only" @checked($sumber === $v)>
-                    <span class="relative size-5 shrink-0 rounded-full border border-[#A8A8A8] bg-[#F0F0F0]
-                                 peer-checked:after:absolute peer-checked:after:left-1/2 peer-checked:after:top-1/2
-                                 peer-checked:after:size-2.5 peer-checked:after:-translate-x-1/2 peer-checked:after:-translate-y-1/2
-                                 peer-checked:after:rounded-full peer-checked:after:bg-[#2277FF] peer-checked:after:content-['']"></span>
-                    <span class="text-sm font-medium leading-5 tracking-[-0.16px] text-[#111827]">{{ $l }}</span>
+                <label class="{{ $radioKartu }}">
+                    <input type="radio" name="sumber" value="{{ $v }}" class="size-4 accent-[#2277FF]" @checked($sumber === $v)>
+                    <span>{{ $l }}</span>
                 </label>
             @endforeach
         </div>
 
-        <div class="flex flex-col gap-2.5 overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-            <div class="flex flex-col gap-[7px]">
-                <label for="kegiatan_id" class="{{ $labelCls }}">Kegiatan sebelumnya (opsional)</label>
+        <div class="grid grid-cols-1 gap-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 md:grid-cols-2">
+            <div class="flex flex-col gap-1.5">
+                <label for="kegiatan_id" class="{{ $labelCls }}">Kegiatan sebelumnya <span class="font-normal text-[#6B7280]">(opsional)</span></label>
                 <div class="relative">
                     <select id="kegiatan_id" name="kegiatan_id" class="{{ $selectCls }}">
                         <option value="">Cari dan pilih kegiatan</option>
                         @foreach ($kegiatanList as $k)
-                            <option value="{{ $k['id'] }}" data-kategori="{{ $k['kategori'] }}" @selected(old('kegiatan_id', $b['kegiatan_id'] ?? '') === $k['id'])>{{ $k['nama'] }} • {{ $k['kategori'] }}</option>
+                            <option value="{{ $k['id'] }}" data-kategori="{{ $k['kategori'] }}" @selected((string) old('kegiatan_id', $b['kegiatan_id'] ?? '') === (string) $k['id'])>{{ $k['nama'] }} &bull; {{ $k['kategori'] }}</option>
                         @endforeach
                     </select>
                     {!! $chev !!}
                 </div>
-                <span class="{{ $hint }}">Aktif jika memilih ‘Dari kegiatan sebelumnya’</span>
+                <span class="{{ $hint }}">Aktif jika memilih &lsquo;Dari kegiatan sebelumnya&rsquo;.</span>
                 @error('kegiatan_id') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
             </div>
-            <div class="flex flex-col gap-[7px]">
+
+            <div class="flex flex-col gap-1.5">
                 <label for="kategori" class="{{ $labelCls }}">Kategori Kegiatan *</label>
                 <div class="relative">
                     <select id="kategori" name="kategori" class="{{ $selectCls }}">
@@ -73,93 +120,245 @@
                     </select>
                     {!! $chev !!}
                 </div>
-                <span class="{{ $hint }}">Aktif ketika memilih ‘Tanpa kegiatan sebelumnya’. Bila memilih kegiatan sebelumnya, kategori mengikuti kegiatan itu.</span>
+                <span class="{{ $hint }}">Aktif ketika memilih &lsquo;Tanpa kegiatan sebelumnya&rsquo;.</span>
                 @error('kategori') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
             </div>
         </div>
+    </section>
 
-        <div class="h-px bg-[#E5E7EB]"></div>
-
-        {{-- Informasi berita --}}
-        <div class="flex flex-col gap-1">
-            <h3 class="text-[18px] font-bold leading-[1.4] text-[#111827]">Informasi berita</h3>
-            <p class="text-[13px] leading-[1.5] text-[#6B7280]">Isikan judul dan isi berita sesuai dokumen bukti.</p>
-        </div>
-
-        <div class="flex flex-col gap-1">
-            <label for="judul" class="text-[13px] font-semibold leading-[22px] tracking-[-0.18px] text-[#111827]">Judul Berita *</label>
-            <input id="judul" name="judul" type="text" value="{{ old('judul', $b['judul'] ?? '') }}"
-                   placeholder="Mahasiswa TRK Borong Juara di Kompetisi IT Nasional"
-                   class="h-[33px] rounded-md border border-[#E4E4E7] bg-white px-[17px] text-base outline-none placeholder:text-[#B3B3B8] focus:border-[#2277FF]">
-            @error('judul') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
-        </div>
-
-        <div class="flex flex-col gap-2">
-            <label for="isi" class="{{ $labelCls }}">Isi Berita *</label>
-            <textarea id="isi" name="isi" maxlength="{{ $max }}" placeholder="Tuliskan isi berita di sini"
-                      class="min-h-[116px] resize-y rounded-lg border border-[#E5E7EB] bg-white p-3 text-sm leading-5 outline-none placeholder:text-[#6B7280] focus:border-[#2277FF]">{{ $isiAwal }}</textarea>
-            <span class="{{ $hint }}">Maksimal 1.000 karakter • <span id="char-count">{{ mb_strlen($isiAwal) }}</span>/1.000</span>
-            @error('isi') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
-        </div>
-
-        <div class="h-px bg-[#E5E7EB]"></div>
-
-        {{-- Foto sampul --}}
-        <div class="flex flex-col gap-1">
-            <h3 class="text-[18px] font-bold leading-[1.4] text-[#111827]">Foto Sampul Berita</h3>
-            <p class="text-[13px] leading-[1.5] text-[#6B7280]">Unggah foto yang menunjukkan nama, capaian, atau bukti kegiatan.</p>
-        </div>
-
-        <div class="flex flex-col items-center gap-3 overflow-hidden rounded-lg border border-dashed border-[#AAC8F8] bg-[#F9FAFB] p-6 text-center">
-            <svg class="text-[#0B3A8C]" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5"/><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.99"/><path d="M6 9l12 0"/><path d="M6 12l3 0"/></svg>
-            <p class="text-sm font-semibold leading-[1.5] text-[#111827]">Unggah foto bukti kegiatan{{ $adaFoto ? '' : ' *' }}</p>
-            <p class="text-[13px] leading-[1.5] text-[#6B7280]">Pilih berkas dari perangkat Anda{{ $adaFoto ? '. Biarkan kosong untuk tetap memakai foto saat ini.' : '' }}</p>
-            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 py-[11px] text-sm font-semibold text-[#0062FF]">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/></svg>
-                Pilih berkas
-                <input id="foto" name="foto" type="file" accept=".pdf,.jpg,.jpeg,.png" class="sr-only">
-            </label>
-            <p class="{{ $hint }}">PDF, JPG, atau PNG • Maksimal 5 MB per berkas</p>
-        </div>
-        <p id="file-status" class="{{ $hint }}">{{ $adaFoto ? 'Foto saat ini: '.basename($b['foto']) : 'Belum ada berkas diunggah. Pastikan bukti dapat dibaca dengan jelas.' }}</p>
-        @error('foto') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
-
-        <div class="h-px bg-[#E5E7EB]"></div>
-
-        {{-- Aksi --}}
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p class="{{ $hint }}">Periksa kembali sebelum menyimpan.</p>
-            <div class="flex flex-wrap gap-3 text-sm font-semibold">
-                <a href="{{ $batal ?? route('admin.berita') }}" class="flex h-10 items-center rounded-lg border border-[#E5E7EB] bg-white px-4 text-[#0062FF]">Batal</a>
-                <button type="submit" name="status" value="Draft" class="h-10 rounded-lg bg-[#CDDEF9] px-4 text-[#2277FF]">Simpan Draft</button>
-                <button type="submit" name="status" value="Publish" class="h-10 rounded-lg border border-[#2277FF] bg-[#2277FF] px-4 text-white">Publish Berita</button>
+    {{-- 2. INFORMASI BERITA (RICH TEXT + SISIP FOTO) --}}
+    <section class="{{ $sectionCls }}">
+        <div class="flex items-center gap-2.5">
+            <span class="{{ $numCls }}">2</span>
+            <div>
+                <h2 class="text-[16px] font-bold text-[#111827]">Informasi Berita</h2>
+                <p class="{{ $hint }}">Isikan judul dan isi berita. Anda dapat memformat teks dan menyisipkan foto dokumentasi langsung di dalam isi berita.</p>
             </div>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+                <label for="judul" class="{{ $labelCls }}">Judul Berita *</label>
+                <input id="judul" name="judul" type="text" required value="{{ old('judul', $b['judul'] ?? '') }}"
+                       placeholder="Mahasiswa TRK Borong Juara di Kompetisi IT Nasional"
+                       class="{{ $inputCls }}">
+                @error('judul') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <label for="isi" class="{{ $labelCls }}">Isi Berita *</label>
+                    <span class="text-xs font-medium text-[#2277FF]">Gunakan ikon gambar pada toolbar untuk menyisipkan foto dokumentasi</span>
+                </div>
+                <textarea id="isi" name="isi" placeholder="Tuliskan isi berita di sini"
+                          class="min-h-[200px] w-full rounded-lg border border-[#E5E7EB] bg-white p-3.5 text-[15px] text-[#111827] outline-none focus:border-[#2277FF]">{{ $isiAwal }}</textarea>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span id="upload-konten-status" class="{{ $hint }}">Mendukung format paragraf, subjudul, daftar poin, tautan, dan sisipan gambar (JPG/PNG/WebP maks. 5 MB).</span>
+                    <span class="{{ $hint }}">Jumlah karakter teks: <strong id="char-count">0</strong></span>
+                </div>
+                @error('isi') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
+            </div>
+        </div>
+    </section>
+
+    {{-- 3. FOTO SAMPUL BERITA --}}
+    <section class="{{ $sectionCls }}">
+        <div class="flex items-center gap-2.5">
+            <span class="{{ $numCls }}">3</span>
+            <div>
+                <h2 class="text-[16px] font-bold text-[#111827]">Foto Sampul Berita</h2>
+                <p class="{{ $hint }}">Unggah foto utama yang ditampilkan pada kartu berita dan bagian atas halaman detail.</p>
+            </div>
+        </div>
+
+        <div class="overflow-hidden rounded-lg border border-[#E5E7EB]">
+            <div class="bg-[#071E38] px-4 py-2.5 text-white">
+                <h3 class="text-sm font-semibold">Berkas Sampul Utama</h3>
+            </div>
+            <div class="flex flex-col gap-3 p-4">
+                <label class="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-[#AAC8F8] bg-[#F9FAFB] px-4 py-6 text-center transition-colors hover:bg-[#EFF6FF]">
+                    <svg class="text-[#2277FF]" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/></svg>
+                    <span class="text-sm font-semibold text-[#2277FF]">Pilih berkas sampul dari perangkat</span>
+                    <span class="{{ $hint }}">PDF, JPG, atau PNG &bull; Maksimal 5 MB per berkas</span>
+                    <input id="foto" name="foto" type="file" accept=".pdf,.jpg,.jpeg,.png" class="sr-only">
+                </label>
+
+                <div id="sampul-preview-wrap" class="{{ $adaFoto && preg_match('/\.(jpe?g|png|webp)$/i', (string) ($b['foto'] ?? '')) ? 'flex' : 'hidden' }} items-center gap-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-3">
+                    <img id="sampul-preview-img" src="{{ $adaFoto ? $b['foto'] : '' }}" alt="Pratinjau sampul" class="h-20 w-32 rounded-md object-cover">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold text-[#111827]">Pratinjau Foto Sampul</p>
+                        <p id="file-status" class="truncate {{ $hint }}">{{ $adaFoto ? 'Berkas saat ini: '.basename($b['foto']) : 'Belum ada berkas diunggah.' }}</p>
+                    </div>
+                </div>
+                @if (! $adaFoto)
+                    <p id="file-status-empty" class="{{ $hint }}">Belum ada berkas diunggah. Biarkan kosong jika tidak ingin mengganti sampul.</p>
+                @endif
+                @error('foto') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
+            </div>
+        </div>
+    </section>
+
+    {{-- TOMBOL AKSI --}}
+    <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <p class="{{ $hint }}">Periksa kembali judul, isi berita, dan foto sebelum menyimpan.</p>
+        <div class="flex flex-wrap gap-3 text-sm font-semibold">
+            <a href="{{ $batal ?? route($prefix.'.berita') }}" class="flex h-10 items-center rounded-lg border border-[#E5E7EB] bg-white px-4 text-[#55555C] hover:bg-[#F9FAFB]">Batal</a>
+            <button type="submit" name="status" value="Draft" class="h-10 cursor-pointer rounded-lg bg-[#CDDEF9] px-4 text-[#2277FF] hover:bg-[#BBD2F6]">Simpan Draft</button>
+            <button type="submit" name="status" value="Publish" class="h-10 cursor-pointer rounded-lg bg-[#2277FF] px-5 text-white hover:bg-[#1A66E0]">Publish Berita</button>
         </div>
     </div>
 </form>
 
 @push('scripts')
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
 <script>
 (function () {
-    var isi = document.getElementById('isi'), counter = document.getElementById('char-count');
-    isi.addEventListener('input', function () { counter.textContent = isi.value.length; });
+    var uploadUrl = @js($urlUploadGambar);
+    var csrfToken = @js(csrf_token());
+    var textarea = document.getElementById('isi');
+    var counter = document.getElementById('char-count');
+    var statusKonten = document.getElementById('upload-konten-status');
+    var ckInstance = null;
 
-    var foto = document.getElementById('foto'), status = document.getElementById('file-status'), awal = status.textContent;
-    foto.addEventListener('change', function () {
-        status.textContent = foto.files.length ? 'Berkas dipilih: ' + foto.files[0].name : awal;
-    });
+    function hitungTeks(html) {
+        var div = document.createElement('div');
+        div.innerHTML = html || '';
+        return (div.textContent || div.innerText || '').trim().length;
+    }
 
-    // Aktif/nonaktif sesuai sumber kegiatan
+    function BeritaImageUploadAdapter(loader) {
+        this.loader = loader;
+    }
+    BeritaImageUploadAdapter.prototype.upload = function () {
+        var loader = this.loader;
+        return loader.file.then(function (file) {
+            return new Promise(function (resolve, reject) {
+                if (!uploadUrl) {
+                    reject('Endpoint unggah gambar belum tersedia.');
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    reject('Ukuran gambar maksimal 5 MB.');
+                    return;
+                }
+                statusKonten.textContent = 'Mengunggah gambar dokumentasi...';
+                var data = new FormData();
+                data.append('upload', file);
+
+                fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: data
+                })
+                .then(function (res) {
+                    return res.json().then(function (json) {
+                        if (!res.ok || !json.url) {
+                            throw new Error((json.error && json.error.message) || json.message || 'Gagal mengunggah gambar.');
+                        }
+                        statusKonten.textContent = 'Gambar dokumentasi berhasil disisipkan ke dalam isi berita.';
+                        resolve({ default: json.url });
+                    });
+                })
+                .catch(function (err) {
+                    statusKonten.textContent = 'Gagal mengunggah gambar: ' + err.message;
+                    reject(err.message);
+                });
+            });
+        });
+    };
+    BeritaImageUploadAdapter.prototype.abort = function () {};
+
+    function BeritaUploadAdapterPlugin(editor) {
+        editor.plugins.get('FileRepository').createUploadAdapter = function (loader) {
+            return new BeritaImageUploadAdapter(loader);
+        };
+    }
+
+    counter.textContent = hitungTeks(textarea.value);
+
+    if (typeof ClassicEditor !== 'undefined' && textarea) {
+        ClassicEditor.create(textarea, {
+            placeholder: 'Tuliskan isi berita atau sisipkan foto dokumentasi kegiatan di sini...',
+            extraPlugins: [BeritaUploadAdapterPlugin],
+            toolbar: [
+                'heading', '|',
+                'bold', 'italic', 'link', 'uploadImage', '|',
+                'bulletedList', 'numberedList', 'blockQuote', '|',
+                'undo', 'redo'
+            ]
+        }).then(function (editor) {
+            ckInstance = editor;
+            counter.textContent = hitungTeks(editor.getData());
+            editor.model.document.on('change:data', function () {
+                var html = editor.getData();
+                textarea.value = html;
+                counter.textContent = hitungTeks(html);
+            });
+        }).catch(function (err) {
+            console.error('Gagal memuat CKEditor:', err);
+        });
+    } else if (textarea) {
+        textarea.addEventListener('input', function () {
+            counter.textContent = hitungTeks(textarea.value);
+        });
+    }
+
+    var form = document.getElementById('form-berita-utama');
+    if (form) {
+        form.addEventListener('submit', function () {
+            if (ckInstance) {
+                textarea.value = ckInstance.getData();
+            }
+        });
+    }
+
+    // Pratinjau foto sampul
+    var foto = document.getElementById('foto');
+    var previewWrap = document.getElementById('sampul-preview-wrap');
+    var previewImg = document.getElementById('sampul-preview-img');
+    var fileStatus = document.getElementById('file-status');
+    var fileStatusEmpty = document.getElementById('file-status-empty');
+
+    if (foto) {
+        foto.addEventListener('change', function () {
+            if (!foto.files.length) return;
+            var f = foto.files[0];
+            if (fileStatusEmpty) fileStatusEmpty.classList.add('hidden');
+            previewWrap.classList.remove('hidden');
+            previewWrap.classList.add('flex');
+            if (fileStatus) fileStatus.textContent = 'Berkas dipilih: ' + f.name;
+
+            if (f.type && f.type.indexOf('image/') === 0) {
+                var reader = new FileReader();
+                reader.onload = function (ev) {
+                    previewImg.src = ev.target.result;
+                    previewImg.classList.remove('hidden');
+                };
+                reader.readAsDataURL(f);
+            } else {
+                previewImg.classList.add('hidden');
+            }
+        });
+    }
+
+    // Sinkronisasi sumber kegiatan
     var radios = document.querySelectorAll('input[name="sumber"]');
-    var kegiatan = document.getElementById('kegiatan_id'), kategori = document.getElementById('kategori');
+    var kegiatan = document.getElementById('kegiatan_id');
+    var kategori = document.getElementById('kategori');
+
     function sync() {
-        var prev = document.querySelector('input[name="sumber"]:checked').value === 'prev';
+        var checked = document.querySelector('input[name="sumber"]:checked');
+        var prev = checked && checked.value === 'prev';
         kegiatan.disabled = !prev;
         kategori.disabled = prev;
         if (prev && kegiatan.selectedOptions[0] && kegiatan.selectedOptions[0].dataset.kategori) {
             kategori.value = kegiatan.selectedOptions[0].dataset.kategori;
         }
     }
+
     radios.forEach(function (r) { r.addEventListener('change', sync); });
     kegiatan.addEventListener('change', sync);
     sync();
