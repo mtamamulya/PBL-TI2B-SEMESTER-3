@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Kegiatan;
 use App\Models\DetailKegiatan;
 use App\Models\Dokumen;
+use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
 use Carbon\Carbon;
@@ -315,31 +315,31 @@ class PengajuanController extends Controller
     public function activityOptions(): Collection
     {
         return $this->databaseKegiatan()->map(function (Kegiatan $kegiatan) {
-                $category = $kegiatan->kategori?->nama_kategori ?? 'Kegiatan';
-                $date = $kegiatan->tanggal_mulai?->toDateString() ?? Carbon::parse($kegiatan->created_at)->toDateString();
+            $category = $kegiatan->kategori?->nama_kategori ?? 'Kegiatan';
+            $date = $kegiatan->tanggal_mulai?->toDateString() ?? Carbon::parse($kegiatan->created_at)->toDateString();
 
-                return [
-                    'id' => $kegiatan->getKey(),
-                    'title' => $kegiatan->nama_kegiatan,
-                    'name' => $kegiatan->nama_kegiatan,
-                    'category' => $category,
-                    'type' => $category,
-                    'date' => Carbon::parse($date)->locale('id')->translatedFormat('d M Y'),
-                    'raw_date' => $date,
-                    'status' => $this->mapStatusLabel($kegiatan->statusTerkini?->status),
-                    'note' => $kegiatan->nilaiIsian('deskripsi'),
-                    'capaian' => $kegiatan->nilaiIsian('posisi_dalam_kegiatan') ?? 'Peserta',
-                    'tingkat' => $kegiatan->nilaiIsian('tingkat_kejuaraan') ?? '—',
-                    'penyelenggara' => $kegiatan->nilaiIsian('penyelenggara') ?? '—',
-                    'file_name' => $kegiatan->dokumen->first()?->nama_file,
-                    'members' => $kegiatan->nilaiIsian('anggota') ? json_decode($kegiatan->nilaiIsian('anggota'), true) : [],
-                    'documents' => $kegiatan->dokumen->map(fn ($document) => [
-                        'name' => $document->nama_file,
-                        'type' => $document->tipe_dokumen,
-                        'url' => $document->link_dokumen,
-                    ])->all(),
-                ];
-            })
+            return [
+                'id' => $kegiatan->getKey(),
+                'title' => $kegiatan->nama_kegiatan,
+                'name' => $kegiatan->nama_kegiatan,
+                'category' => $category,
+                'type' => $category,
+                'date' => Carbon::parse($date)->locale('id')->translatedFormat('d M Y'),
+                'raw_date' => $date,
+                'status' => $this->mapStatusLabel($kegiatan->statusTerkini?->status),
+                'note' => $kegiatan->nilaiIsian('deskripsi'),
+                'capaian' => $kegiatan->nilaiIsian('posisi_dalam_kegiatan') ?? 'Peserta',
+                'tingkat' => $kegiatan->nilaiIsian('tingkat_kejuaraan') ?? '—',
+                'penyelenggara' => $kegiatan->nilaiIsian('penyelenggara') ?? '—',
+                'file_name' => $kegiatan->dokumen->first()?->nama_file,
+                'members' => $kegiatan->nilaiIsian('anggota') ? json_decode($kegiatan->nilaiIsian('anggota'), true) : [],
+                'documents' => $kegiatan->dokumen->map(fn ($document) => [
+                    'name' => $document->nama_file,
+                    'type' => $document->tipe_dokumen,
+                    'url' => $document->link_dokumen,
+                ])->all(),
+            ];
+        })
             ->values();
     }
 
@@ -602,11 +602,13 @@ class PengajuanController extends Controller
             $decoded = json_decode($value, true);
             if (! is_array($decoded) || count($decoded) < 1) {
                 $fail('Tambahkan minimal satu anggota tim.');
+
                 return;
             }
             foreach ($decoded as $member) {
                 if (! is_array($member) || empty(trim((string) ($member['name'] ?? ''))) || empty(trim((string) ($member['role'] ?? '')))) {
                     $fail('Setiap anggota tim harus memiliki nama dan peran.');
+
                     return;
                 }
             }
@@ -811,6 +813,7 @@ class PengajuanController extends Controller
                 DetailKegiatan::where('id_kegiatan', $kegiatan->getKey())
                     ->where('id_isian_kategori', $idIsian)
                     ->delete();
+
                 continue;
             }
 
