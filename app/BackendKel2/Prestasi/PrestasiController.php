@@ -5,15 +5,13 @@ namespace App\BackendKel2\Prestasi;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class PrestasiController extends Controller
 {
     public function simpan(Request $request)
     {
-        // 1. VALIDASI (mendukung tautan cloud storage ATAU unggahan file PDF)
-        $validated = $request->validate([
+        // 1. VALIDASI (khusus tautan Google Drive / OneDrive)
+        $request->validate([
             'sumber' => 'required|in:sebelumnya,mandiri',
             'id_kegiatan' => 'required_if:sumber,sebelumnya',
             'kegiatan' => 'required_if:sumber,sebelumnya',
@@ -26,16 +24,12 @@ class PrestasiController extends Controller
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'bentuk' => 'required|in:Individu,Tim',
-            'dokumen' => 'required|array|min:1',
+            'dokumen' => 'required|array|min:1|max:5',
             'dokumen.*.jenis' => 'required|string',
             'dokumen.*.url' => [
-                'nullable',
-                'required_without:dokumen.*.file',
+                'required',
                 'url',
                 function ($attribute, $value, $fail) {
-                    if (empty($value)) {
-                        return;
-                    }
                     $host = strtolower(parse_url($value, PHP_URL_HOST) ?? '');
                     $allowed = ['drive.google.com', 'docs.google.com', '1drv.ms', 'onedrive.live.com'];
                     if (! in_array($host, $allowed) && ! str_ends_with($host, '.sharepoint.com')) {
@@ -43,7 +37,6 @@ class PrestasiController extends Controller
                     }
                 },
             ],
-            'dokumen.*.file' => 'nullable|required_without:dokumen.*.url|file|mimes:pdf|max:5120',
         ]);
 
         // Validasi kegiatan yang dipilih harus milik user & sudah diterima
@@ -91,7 +84,7 @@ class PrestasiController extends Controller
                 'updated_at' => now(),
             ], 'id_prestasi');
 
-            foreach ($request->dokumen as $index => $dok) {
+            foreach ($request->dokumen as $dok) {
                 $idJenisDokumen = DB::table('jenis_dokumen')
                     ->where('nama_jenis_dokumen', $dok['jenis'])
                     ->value('id_jenis_dokumen');
@@ -102,24 +95,11 @@ class PrestasiController extends Controller
                     ], 'id_jenis_dokumen');
                 }
 
-                $uploadedFile = $request->file("dokumen.{$index}.file");
-
-                if ($uploadedFile) {
-                    $originalBase = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_FILENAME);
-                    $sanitizedName = (Str::slug($originalBase) ?: 'sertifikat').'.pdf';
-                    $storedName = time().'_'.$index.'_'.$sanitizedName;
-                    $linkOrPath = $uploadedFile->storeAs('bukti-prestasi', $storedName, 'local');
-                    $namaFile = $sanitizedName;
-                } else {
-                    $linkOrPath = $dok['url'];
-                    $namaFile = 'Bukti '.$dok['jenis'];
-                }
-
                 DB::table('bukti_prestasi')->insert([
                     'id_prestasi' => $idPrestasi,
                     'id_jenis_dokumen' => $idJenisDokumen,
-                    'link' => $linkOrPath,
-                    'nama_file' => $namaFile,
+                    'link' => $dok['url'],
+                    'nama_file' => 'Bukti '.$dok['jenis'],
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -133,40 +113,5 @@ class PrestasiController extends Controller
 
             return back()->withInput()->withErrors(['error' => 'Gagal menyimpan data: '.$e->getMessage()]);
         }
-    }
-
-    public function lihatBukti($id)
-    {
-        $bukti = DB::table('bukti_prestasi')
-            ->join('prestasi', 'bukti_prestasi.id_prestasi', '=', 'prestasi.id_prestasi')
-            ->where('bukti_prestasi.id_bukti_prestasi', $id)
-            ->select('bukti_prestasi.*', 'prestasi.id_user')
-            ->first();
-
-        if (! $bukti) {
-            abort(404, 'Bukti prestasi tidak ditemukan.');
-        }
-
-        $user = auth()->user();
-        $roleName = strtolower((string) DB::table('roles')
-            ->where('id_role', $user->id_role)
-            ->value('nama_role'));
-
-        $isOwner = (int) $bukti->id_user === (int) auth()->id();
-        $isPrivileged = in_array($roleName, ['admin', 'superadmin', 'dosen', 'verifikator'], true);
-
-        if (! $isOwner && ! $isPrivileged) {
-            abort(403, 'Anda tidak memiliki izin mengakses file ini.');
-        }
-
-        if (str_starts_with($bukti->link, 'http://') || str_starts_with($bukti->link, 'https://')) {
-            return redirect()->away($bukti->link);
-        }
-
-        if (! Storage::disk('local')->exists($bukti->link)) {
-            abort(404, 'File sertifikat tidak ditemukan.');
-        }
-
-        return Storage::disk('local')->response($bukti->link, $bukti->nama_file);
     }
 }
