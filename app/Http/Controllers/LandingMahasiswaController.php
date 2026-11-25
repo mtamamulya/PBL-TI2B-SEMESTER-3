@@ -74,12 +74,14 @@ class LandingMahasiswaController extends Controller
     public function edit(string $id)
     {
         $detail = ApiClient::pengguna()->get("/mahasiswa/{$id}");
+        $mhs = $detail['data'] ?? [];
 
         return view('admin.mahasiswa-edit', [
-            'mahasiswa' => $detail['data'] ?? [],
+            'mahasiswa' => $mhs,
             'fotoUrl' => $detail['fotoUrl'] ?? null,
             'tahun' => range((int) date('Y'), (int) date('Y') - 9),
-            'statusAkad' => self::STATUS_OPSI,
+            'statusAkad' => $mhs['allowed_statuses'] ?? ['Aktif', 'Cuti', 'Drop Out', 'Meninggal Dunia'],
+            'semuaStatusAkad' => self::STATUS_OPSI,
         ]);
     }
 
@@ -131,16 +133,5 @@ class LandingMahasiswaController extends Controller
         }
 
         return back()->with('status', $hasil['message'] ?? 'Sinkronisasi kelas selesai.');
-    }
-
-    public function luluskanTa(): RedirectResponse
-    {
-        try {
-            $hasil = ApiClient::pengguna()->post('/mahasiswa/luluskan-ta');
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage() ?: 'Gagal memproses kelulusan Skripsi/TA.');
-        }
-
-        return back()->with('status', $hasil['message'] ?? 'Status Skripsi/TA berhasil diperbarui menjadi Lulus.');
     }
 }
