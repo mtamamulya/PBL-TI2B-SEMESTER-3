@@ -14,16 +14,16 @@ class UpdateProfilRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nama' => ['required', 'string', 'max:255'],
+            'foto_profil' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'nama.required' => 'Nama wajib diisi.',
-            'nama.string' => 'Nama harus berupa teks.',
-            'nama.max' => 'Nama maksimal 255 karakter.',
+            'foto_profil.image' => 'File foto profil harus berupa gambar.',
+            'foto_profil.mimes' => 'Format foto profil harus jpg, jpeg, png, atau webp.',
+            'foto_profil.max' => 'Ukuran foto profil maksimal 2 MB.',
         ];
     }
 }

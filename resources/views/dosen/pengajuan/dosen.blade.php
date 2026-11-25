@@ -111,14 +111,16 @@
                 aktif: 'Semua',
                 cari: '',
                 warnaBadge: {
+                    Draft:    'border border-gray-200 bg-gray-100 text-gray-700',
                     Diajukan: 'border border-blue-200 bg-blue-100 text-blue-700',
                     Direview: 'border border-blue-200 bg-blue-100 text-blue-700',
                     Direvisi: 'border border-orange-200 bg-orange-100 text-orange-700',
-                    Ditolak: 'border border-red-200 bg-red-100 text-red-600',
+                    Ditolak:  'border border-red-200 bg-red-100 text-red-600',
                     Diterima: 'border border-green-200 bg-green-100 text-green-700',
-                    Selesai: 'border border-green-200 bg-green-100 text-green-700',
+                    Selesai:  'border border-green-200 bg-green-100 text-green-700',
                 },
                 alurMap: {
+                    Draft:    { langkah: ['m', 'm', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
                     Diajukan: { langkah: ['a', 'm', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
                     Direview: { langkah: ['d', 'a', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
                     Direvisi: { langkah: ['d', 'd', 'a', 'm'], warna: 'oranye', label3: 'Direvisi' },
@@ -133,19 +135,23 @@
 
                 fetchData() {
                     this.loading = true;
-                    fetch('/dosen/pengajuan', {
+                    fetch('/api/v1/dosen/pengajuan', {
                         headers: {
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
-                        }
+                        },
+                        credentials: 'same-origin'
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                    })
                     .then(res => {
                         if (res.status === 'success' && Array.isArray(res.data)) {
                             this.daftar = res.data.map(item => {
-                                const rawStatus = item.status_terkini?.status || 'diajukan';
+                                const rawStatus = item.status_terkini?.status || 'draft';
                                 const statusFormatted = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
-                                const alur = this.alurMap[statusFormatted] || this.alurMap['Diajukan'];
+                                const alur = this.alurMap[statusFormatted] || this.alurMap['Draft'];
 
                                 const rawDate = item.status_terkini?.tanggal_status || item.created_at;
                                 const tanggalFormatted = rawDate 

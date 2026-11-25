@@ -5,29 +5,11 @@
 @section('content')
 
 @php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    $pengabdian = [
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Seminar Nasional AI',  'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2026],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Pelatihan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2026],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Kunjungan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2026],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Pelatihan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2025],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Kuliah Tamu',          'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2025],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Seminar Nasional AI',  'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2025],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Pelatihan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2025],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Kunjungan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2024],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Pelatihan Industri',   'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2024],
-        ['nomor_sk' => '39/SK-REK/SP/1/2022', 'judul' => 'Kuliah Tamu',          'kategori' => 'Pengabdian Masyarakat', 'tahun' => 2024],
-    ];
-
-    // id tetap (1, 2, 3, ...) supaya tautan ke Detail / Edit tidak berubah saat tabel dicari, difilter, atau diurutkan.
-    foreach ($pengabdian as $n => &$d) { $d['id'] = $n + 1; }
-    unset($d);
-
-    $daftarTahun = [2026, 2025, 2024, 2023, 2022];
+    // Data dari DosenPengabdianController (API /dosen/pengabdian). Tiap baris: id, nomor_sk, judul, kategori, tahun.
+    $daftarTahun = collect($pengabdian)->pluck('tahun')->filter()->unique()->sortDesc()->values()->all();
 
     $selectClass = 'h-10 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-9 pl-3.5 text-[15px] text-gray-900';
 @endphp
-
     {{-- Judul halaman + tombol tambah --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
@@ -42,6 +24,11 @@
 
     {{-- Pencarian, filter, urut kolom, dan pagination berjalan di browser (Alpine.js + quick sort pada data tiruan).
          Kalau backend sudah ada, pencarian / filter / urutan bisa diganti parameter ?q=...&urut=... dan pagination dari Laravel. --}}
+
+        @if ($galat)
+        <p role="alert" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{{ $galat }}</p>
+    @endif
+    
     <section class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm"
              x-data="pengabdian(@js($pengabdian))">
  

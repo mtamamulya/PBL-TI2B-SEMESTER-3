@@ -9,25 +9,16 @@ use App\Support\SemesterAkademik;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
-/**
- * Menempatkan mahasiswa ke kelas pada satu tahun akademik, mengikuti aturan NIM:
- * huruf kelas dari NIM (tetap selama kuliah), tingkat dari tahun masuk dan tahun akademik.
- * Hasilnya baris di enrollment_tingkat_kelas (prodi + tingkat + kelas + tahun akademik) dan
- * enrollment_mahasiswa_tingkat_kelas. Baris itu adalah kebenaran sebenarnya: aturan hanya nilai bawaan,
- * jadi mahasiswa yang SUDAH punya baris pada tahun akademik itu (mis. diubah manual admin) tidak ditimpa.
- * Aman dijalankan berulang.
- */
 class PenempatanKelasMahasiswa
 {
-    /** Tahun akademik dengan status aktif (bila ada beberapa, yang terbaru). */
     public function tahunAkademikAktif(): ?object
     {
         return DB::table('tahun_akademik')->where('status', true)->orderByDesc('id_tahun_akademik')->first();
     }
 
     /**
-     * Tempatkan satu mahasiswa pada tahun akademik $ta (baris tabel tahun_akademik).
-     * Hasil: 'dibuat' | 'sudah-ada' | 'lulus' | 'belum-mulai' | 'nim-tidak-valid'.
+     * Tempatkan satu mahasiswa pada tahun akademik $ta.
+     * Hasil: 'dibuat' | 'sudah-ada' | 'skripsi-ta' | 'belum-mulai' | 'nim-tidak-valid'.
      */
     public function tempatkan(Mahasiswa $m, object $ta): string
     {
@@ -47,11 +38,21 @@ class PenempatanKelasMahasiswa
             return 'belum-mulai';
         }
 
-        // JIKA SEMESTER MELEBIHI BATAS (LULUS)
+        // Tingkat 4 yang sudah melewati semester reguler (sinkronisasi Juli) -> status berubah jadi Skripsi/TA (belum Lulus)
         if ($semester > NimMahasiswa::maxSemester($nim['jenjang_kode'] ?? $nim['jenjang'] ?? '4')) {
-            DB::table('users')->where('id_user', $m->id_user)->update(['status' => false]);
+            DB::table('mahasiswa')
+                ->where('id_mahasiswa', $m->id_mahasiswa)
+                ->update([
+                    'status_mahasiswa' => 'Skripsi/TA',
+                    'updated_at' => now(),
+                ]);
 
-            return 'lulus';
+            // Akun tetap aktif agar mahasiswa Skripsi/TA masih bisa login untuk pengajuan/bimbingan
+            DB::table('users')
+                ->where('id_user', $m->id_user)
+                ->update(['status' => true]);
+
+            return 'skripsi-ta';
         }
 
         $sudahAda = DB::table('enrollment_mahasiswa_tingkat_kelas as emt')
@@ -78,9 +79,9 @@ class PenempatanKelasMahasiswa
     }
 
     /**
-     * Tempatkan SEMUA mahasiswa aktif (users.status) pada satu tahun akademik.
+     * Tempatkan SEMUA mahasiswa berstatus 'Aktif' pada satu tahun akademik.
      *
-     * @return array{dibuat: int, 'sudah-ada': int, lulus: int, 'belum-mulai': int, 'nim-tidak-valid': int}
+     * @return array{dibuat: int, 'sudah-ada': int, 'skripsi-ta': int, 'belum-mulai': int, 'nim-tidak-valid': int}
      */
     public function buatUntukSemester(int $idTahunAkademik): array
     {
@@ -89,9 +90,16 @@ class PenempatanKelasMahasiswa
             throw new RuntimeException('Tahun akademik tidak ditemukan.');
         }
 
-        $ringkasan = ['dibuat' => 0, 'sudah-ada' => 0, 'lulus' => 0, 'belum-mulai' => 0, 'nim-tidak-valid' => 0];
+        $ringkasan = [
+            'dibuat' => 0,
+            'sudah-ada' => 0,
+            'skripsi-ta' => 0,
+            'belum-mulai' => 0,
+            'nim-tidak-valid' => 0,
+        ];
 
         Mahasiswa::query()
+            ->where('status_mahasiswa', 'Aktif')
             ->whereHas('user', fn ($q) => $q->where('status', true))
             ->orderBy('id_mahasiswa')
             ->get()
@@ -102,7 +110,35 @@ class PenempatanKelasMahasiswa
         return $ringkasan;
     }
 
-    /** Kelas mahasiswa pada tahun akademik $ta (bawaan: yang aktif): tingkat, kelas, label "TI-2B". Null bila belum ditempatkan. */
+    /**
+     * Ubah semua mahasiswa berstatus 'Skripsi/TA' menjadi 'Lulus' (dipakai saat yudisium/wisuda sekitar September).
+     */
+    public function luluskanSkripsiTa(): int
+    {
+        $target = Mahasiswa::query()
+            ->where('status_mahasiswa', 'Skripsi/TA')
+            ->get(['id_mahasiswa', 'id_user']);
+
+        if ($target->isEmpty()) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($target) {
+            Mahasiswa::query()
+                ->whereIn('id_mahasiswa', $target->pluck('id_mahasiswa'))
+                ->update([
+                    'status_mahasiswa' => 'Lulus',
+                    'updated_at' => now(),
+                ]);
+
+            DB::table('users')
+                ->whereIn('id_user', $target->pluck('id_user'))
+                ->update(['status' => false]);
+        });
+
+        return $target->count();
+    }
+
     public function kelasSaatIni(int $idMahasiswa, ?object $ta = null): ?array
     {
         $ta ??= $this->tahunAkademikAktif();
@@ -121,11 +157,6 @@ class PenempatanKelasMahasiswa
         return $r ? $this->bentukKelas((int) $r->tingkat, $r->jenis_kelas, $ta) : null;
     }
 
-    /**
-     * Kelas SEMUA mahasiswa pada tahun akademik $ta (bawaan: aktif) dalam satu query, untuk daftar.
-     *
-     * @return array<int, array> id_mahasiswa => bentuk yang sama dengan kelasSaatIni()
-     */
     public function kelasSaatIniSemua(?object $ta = null): array
     {
         $ta ??= $this->tahunAkademikAktif();
@@ -158,12 +189,11 @@ class PenempatanKelasMahasiswa
         ];
     }
 
-    /** Cari (atau buat) baris enrollment_tingkat_kelas. Tabel kelas dan tingkat harus sudah terisi. */
     private function idEnrollmentTingkatKelas(string $huruf, int $tingkat, int $idTahunAkademik): int
     {
         $idKelas = DB::table('kelas')->where('jenis_kelas', $huruf)->value('id_kelas');
         $idTingkat = DB::table('tingkat')->where('tingkat', $tingkat)->value('id_tingkat');
-        $idProdi = Prodi::query()->orderBy('id_prodi')->value('id_prodi');   // satu prodi (TRK), sama seperti KurikulumDbStore
+        $idProdi = Prodi::query()->orderBy('id_prodi')->value('id_prodi');
 
         if (! $idKelas) {
             throw new RuntimeException("Tabel kelas belum berisi kelas '{$huruf}'.");

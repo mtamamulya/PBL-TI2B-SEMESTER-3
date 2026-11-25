@@ -36,7 +36,6 @@ use App\Http\Controllers\KaprodiProfilController;
 use App\Http\Controllers\KaprodiTandaTanganController;
 // ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KategoriKegiatanController;
-use App\Http\Controllers\KegiatanDosenController;
 use App\Http\Controllers\KegiatanHapusController;
 use App\Http\Controllers\KegiatanLaporanController;
 use App\Http\Controllers\KegiatanMahasiswaController;
@@ -48,6 +47,7 @@ use App\Http\Controllers\MataKuliahController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PrestasiLaporanController;
+use App\Http\Controllers\ProfilProdiController;
 use App\Http\Controllers\PublicBeritaController;
 use App\Http\Controllers\SkimController;
 use App\Http\Controllers\TahunAkademikController;
@@ -129,6 +129,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
     Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
     Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+    Route::post('/mahasiswa/luluskan-ta', [LandingMahasiswaController::class, 'luluskanTa'])->name('admin.mahasiswa.luluskan-ta');
     Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
@@ -140,7 +141,6 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::redirect('/kegiatan/mahasiswa', '/admin/kegiatan?tab=mahasiswa')->name('admin.kegiatan.mahasiswa');
 
     Route::get('/kegiatan/mahasiswa', [KegiatanMahasiswaController::class, 'index'])->name('admin.kegiatan.mahasiswa');
-    Route::get('/kegiatan/dosen', [KegiatanDosenController::class, 'index'])->name('admin.kegiatan.dosen');
     Route::get('/kegiatan/dosen/laporan', [KegiatanLaporanController::class, 'dosen'])->name('admin.kegiatan.dosen.laporan');
     Route::get('/kegiatan/mahasiswa/laporan', [KegiatanLaporanController::class, 'mahasiswa'])->name('admin.kegiatan.mahasiswa.laporan');
     Route::get('/kegiatan/prodi/laporan', [KegiatanLaporanController::class, 'prodi'])->name('admin.kegiatan.prodi.laporan');
@@ -175,6 +175,9 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::post('/kegiatan/skim', [SkimController::class, 'store'])->name('admin.kegiatan.skim.store');
     Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('admin.kegiatan.skim.update');
     Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('admin.kegiatan.skim.destroy');
+
+    // Profil Prodi
+    Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('admin.prodi.profil');
 
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
@@ -223,6 +226,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.kategori-kegiatan',
         'admin.kegiatan.kelompok-bidang',
         'admin.kegiatan.skim',
+        'admin.prodi.profil',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -306,6 +310,9 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('kaprodi.kegiatan.skim.update');
     Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('kaprodi.kegiatan.skim.destroy');
 
+    // Profil Prodi
+    Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('kaprodi.prodi.profil');
+
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
     Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.destroy');
@@ -342,6 +349,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.jenis-dokumen',
         'kaprodi.kegiatan.kelompok-bidang',
         'kaprodi.kegiatan.skim',
+        'kaprodi.prodi.profil',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',

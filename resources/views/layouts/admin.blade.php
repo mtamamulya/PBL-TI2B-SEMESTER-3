@@ -37,7 +37,7 @@
             {{-- Logo: public/images/logo_trk remove.png (dibuat putih lewat filter supaya terbaca di atas sidebar biru) --}}
                <img src="{{ asset('images/logo-trk new.png') }}" alt="Teknologi Rekayasa Komputer" class="h-14 w-auto object-contain">
         </a>
-        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto pb-10">
+        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto pb-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <x-admin.sidebar />    
         </div>
     </aside>
