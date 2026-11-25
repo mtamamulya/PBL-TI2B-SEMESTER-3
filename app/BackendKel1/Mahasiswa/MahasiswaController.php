@@ -234,6 +234,13 @@ class MahasiswaController extends Controller
             ], 404);
         }
 
+        if (($lama['status'] ?? '') === 'Lulus') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data mahasiswa yang sudah berstatus Lulus tidak dapat diubah lagi.',
+            ], 422);
+        }
+
         $user = $request->user();
         $isAdmin = ($user->role->nama_role ?? $user->role ?? '') === 'admin'
             || (int) ($user->id_role ?? 0) === 1;
@@ -337,6 +344,13 @@ class MahasiswaController extends Controller
                 'success' => false,
                 'message' => 'Data mahasiswa tidak ditemukan.',
             ], 404);
+        }
+
+        if (($lama['status'] ?? '') === 'Lulus') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data mahasiswa yang sudah berstatus Lulus tidak dapat diubah lagi.',
+            ], 422);
         }
 
         $angkatan = isset($lama['angkatan']) && is_numeric($lama['angkatan']) ? (int) $lama['angkatan'] : null;
