@@ -3,7 +3,7 @@
 use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('pengajuan-mahasiswa')->group(function () {
+Route::prefix('pengajuan-mahasiswa')->middleware('auth:sanctum')->group(function () {
     Route::get('/', [PengajuanMahasiswaController::class, 'apiIndex']);
     Route::post('/', [PengajuanMahasiswaController::class, 'apiStore']);
     Route::get('/{id}', [PengajuanMahasiswaController::class, 'apiShow']);

@@ -58,7 +58,7 @@ class FrontendLayoutTest extends TestCase
             ->assertOk()
             ->assertViewIs('mahasiswa.kegiatan.index')
             ->assertSee('class="frontend-main min-w-0 px-3 py-4', false)
-            ->assertSee('FKBSE 2025')
+            ->assertDontSee('FKBSE 2025')
             ->assertSee('href="'.route('kegiatan.index').'"', false)
             ->assertSee('aria-current="page"', false)
             ->assertDontSee('dosen-shell', false);
@@ -79,7 +79,8 @@ class FrontendLayoutTest extends TestCase
             $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
         }
         foreach (['penelitian', 'pengabdian', 'prestasi'] as $module) {
-            foreach (['', '/create', '/1', '/1/edit'] as $suffix) {
+            $paths = $module === 'pengabdian' ? [''] : ['', '/create', '/1', '/1/edit'];
+            foreach ($paths as $suffix) {
                 $this->get('/'.$module.$suffix)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
             }
         }

@@ -19,3 +19,6 @@ require __DIR__.'/PengajuanAdmin/routes.php';
 require __DIR__.'/JenisDokumen/routes.php';
 require __DIR__.'/PengajuanKaprodi/routes.php';
 require __DIR__.'/KegiatanAdmin/routes.php';
+require __DIR__.'/KelompokBidang/routes.php';
+require __DIR__.'/Skim/routes.php';
+require __DIR__.'/Kelas/routes.php';

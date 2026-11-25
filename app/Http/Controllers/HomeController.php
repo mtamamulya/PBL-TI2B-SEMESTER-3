@@ -27,12 +27,12 @@ class HomeController extends Controller
                     'slug' => null,
                     'badge' => $badge,
                     'color' => match (strtolower($badge)) {
-                        'juara 1' => '#FFCA00',
+                        'juara 1' => '#c09900',
                         'juara 2' => '#949494',
                         'juara 3' => '#AD5C00',
                         default => '#0B3A8C',
                     },
-                    'title' => $event ?: ($record->bidang_lomba ?: 'Prestasi'),
+                    'title' => $event ?: $record->nama_lomba,
                     'sub' => $record->bidang_lomba,
                     'catatan' => $record->catatan,
                 ];

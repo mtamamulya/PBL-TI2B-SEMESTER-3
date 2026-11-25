@@ -23,12 +23,6 @@ return [
             'icon' => '<path d="M4 4h6v6h-6z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6h-6z" /><path d="M14 14h6v6h-6z" />',
         ],
         [
-            'label' => 'Akreditasi',
-            'route' => 'admin.akreditasi',
-            'url' => 'akreditasi',
-            'icon' => '<path d="M12 9m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" /><path d="M12 15l3.4 5.89l1.6 -3.355l3.6 -.534l-3.4 -5.89" /><path d="M6.4 11l-3.4 5.89l3.6 .534l1.6 3.355l3.4 -5.89" />',
-        ],
-        [
             'label' => 'Kurikulum',
             'icon' => '<path d="M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" /><path d="M4 20l14 0" />',
             'children' => [
@@ -36,6 +30,15 @@ return [
                 ['label' => 'Mata Kuliah', 'route' => 'admin.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
                 ['label' => 'Tahun Akademik', 'url' => '/admin/kurikulum/tahun-akademik', 'route' => 'admin.kurikulum.tahun-akademik'],
             ]],
+
+        [
+            'label' => 'Data Prodi',
+            'icon' => '<path d="M3 21l18 0" /><path d="M9 8l1 0" /><path d="M9 12l1 0" /><path d="M9 16l1 0" /><path d="M14 8l1 0" /><path d="M14 12l1 0" /><path d="M14 16l1 0" /><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16" />',
+            'children' => [
+                ['label' => 'Profil Prodi', 'route' => 'admin.prodi.profil', 'url' => 'prodi/profil'],
+                ['label' => 'Akreditasi', 'route' => 'admin.akreditasi', 'url' => 'akreditasi'],
+            ],
+        ],
 
         ['label' => 'Data Dosen', 'route' => 'admin.dosen', 'url' => 'dosen',
             'icon' => '<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'],
@@ -50,6 +53,8 @@ return [
                 ['label' => 'Data Kegiatan', 'route' => 'admin.kegiatan.index', 'url' => 'kegiatan'],
                 ['label' => 'Jenis Dokumen', 'route' => 'admin.kegiatan.jenis-dokumen', 'url' => 'kegiatan/jenis-dokumen'],
                 ['label' => 'Kategori Kegiatan', 'route' => 'admin.kegiatan.kategori-kegiatan', 'url' => 'kegiatan/kategori-kegiatan'],
+                ['label' => 'Kelompok Bidang', 'route' => 'admin.kegiatan.kelompok-bidang', 'url' => 'kegiatan/kelompok-bidang'],
+                ['label' => 'Skim', 'route' => 'admin.kegiatan.skim', 'url' => 'kegiatan/skim'],
             ],
         ],
 

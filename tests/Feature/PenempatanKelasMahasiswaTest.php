@@ -107,7 +107,7 @@ class PenempatanKelasMahasiswaTest extends TestCase
 
         $idTa = (int) $this->ta('Ganjil 2026/2027')->id_tahun_akademik;
         $this->assertSame(
-            ['dibuat' => 2, 'sudah-ada' => 0, 'lulus' => 1, 'belum-mulai' => 0, 'nim-tidak-valid' => 1],
+            ['dibuat' => 2, 'sudah-ada' => 0, 'skripsi-ta' => 1, 'belum-mulai' => 0, 'nim-tidak-valid' => 1],
             $svc->buatUntukSemester($idTa)
         );
 
@@ -116,7 +116,7 @@ class PenempatanKelasMahasiswaTest extends TestCase
 
         // diulang: tidak membuat baris ganda
         $this->assertSame(
-            ['dibuat' => 0, 'sudah-ada' => 2, 'lulus' => 0, 'belum-mulai' => 0, 'nim-tidak-valid' => 1],
+            ['dibuat' => 0, 'sudah-ada' => 2, 'skripsi-ta' => 0, 'belum-mulai' => 0, 'nim-tidak-valid' => 1],
             $svc->buatUntukSemester($idTa)
         );
         $this->assertSame(2, DB::table('enrollment_mahasiswa_tingkat_kelas')->count());

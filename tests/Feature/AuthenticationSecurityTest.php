@@ -127,9 +127,9 @@ class AuthenticationSecurityTest extends TestCase
         Mail::fake();
         $user = $this->user(4);
 
-        $this->post(route('password.email'), ['email' => $user->email])
-            ->assertRedirect(route('password.request'))
-            ->assertSessionHas('pemulihan.step', 2);
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])
+            ->assertOk()
+            ->assertJsonPath('success', true);
 
         Mail::assertSent(PasswordResetOtp::class, fn (PasswordResetOtp $mail) => $mail->hasTo($user->email));
         $mail = Mail::sent(PasswordResetOtp::class)->first();
@@ -147,8 +147,9 @@ class AuthenticationSecurityTest extends TestCase
         Mail::fake();
         $user = $this->user(4);
 
-        $this->post(route('password.email'), ['email' => $user->email]);
-        $this->post(route('password.kirim-ulang'));
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
+        // Masih dalam jeda 60 detik: dijawab sama (tidak membocorkan email terdaftar), tapi tidak mengirim email baru.
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
 
         Mail::assertSent(PasswordResetOtp::class, 1);
         $this->assertDatabaseCount('otp_codes', 1);
@@ -158,13 +159,15 @@ class AuthenticationSecurityTest extends TestCase
     {
         Mail::fake();
         $user = $this->user(4);
-        $this->post(route('password.email'), ['email' => $user->email]);
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
 
         $code = Mail::sent(PasswordResetOtp::class)->first()->code;
         $wrongCode = $code === '000000' ? '000001' : '000000';
         foreach (range(1, 3) as $attempt) {
-            $this->post(route('password.otp'), ['otp' => $wrongCode])
-                ->assertSessionHasErrors('otp');
+            $this->postJson('/api/v1/lupa-sandi/verifikasi', [
+                'email' => $user->email,
+                'otp' => $wrongCode,
+            ])->assertUnprocessable();
         }
 
         $otp = DB::table('otp_codes')->first();
@@ -172,27 +175,32 @@ class AuthenticationSecurityTest extends TestCase
         $this->assertNotNull($otp->consumed_at);
 
         $this->travel(6)->minutes();
-        $this->post(route('password.email'), ['email' => $user->email]);
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
         $this->travel(6)->minutes();
-        $this->post(route('password.otp'), ['otp' => Mail::sent(PasswordResetOtp::class)->last()->code])
-            ->assertSessionHasErrors('otp');
+        $this->postJson('/api/v1/lupa-sandi/verifikasi', [
+            'email' => $user->email,
+            'otp' => Mail::sent(PasswordResetOtp::class)->last()->code,
+        ])->assertUnprocessable();
     }
 
     public function test_verified_otp_can_reset_password_once(): void
     {
         Mail::fake();
         $user = $this->user(4);
-        $this->post(route('password.email'), ['email' => $user->email]);
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
         $code = Mail::sent(PasswordResetOtp::class)->first()->code;
 
-        $this->post(route('password.otp'), ['otp' => $code])
-            ->assertRedirect(route('password.request'))
-            ->assertSessionHas('pemulihan.step', 3);
+        $res = $this->postJson('/api/v1/lupa-sandi/verifikasi', [
+            'email' => $user->email,
+            'otp' => $code,
+        ])->assertOk();
 
-        $this->post(route('password.simpan'), [
+        $this->postJson('/api/v1/lupa-sandi/simpan', [
+            'email' => $user->email,
+            'otp_id' => $res->json('data.otp_id'),
             'password' => 'new-secure-password',
             'password_confirmation' => 'new-secure-password',
-        ])->assertRedirect(route('password.request'));
+        ])->assertOk();
 
         $this->assertTrue(Hash::check('new-secure-password', $user->fresh()->password));
         $this->assertNotNull(DB::table('otp_codes')->value('consumed_at'));
@@ -202,10 +210,9 @@ class AuthenticationSecurityTest extends TestCase
     {
         Mail::fake();
 
-        $this->post(route('password.email'), ['email' => 'unknown@test.local'])
-            ->assertRedirect(route('password.request'))
-            ->assertSessionHas('pemulihan.step', 2)
-            ->assertSessionHas('status');
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => 'unknown@test.local'])
+            ->assertOk()
+            ->assertJsonPath('success', true);
 
         Mail::assertNothingSent();
         $this->assertDatabaseCount('otp_codes', 0);

@@ -50,6 +50,32 @@ class IntegrasiKelompok3Test extends TestCase
         Timeline::create(['id_kegiatan' => $k->getKey(), 'status' => $status, 'tanggal_status' => now()->addMinutes($minutes)]);
     }
 
+    public function test_login_pengajuan_review_admin_kaprodi_sampai_unduh_surat(): void
+    {
+        $token = $this->postJson('/api/v1/login', [
+            'email' => $this->owner->email, 'password' => 'password', 'device_name' => 'integrasi',
+        ])->assertOk()->json('data.token');
+        $id = $this->withToken($token)->postJson('/api/v1/dosen/penelitian', [
+            'id_kategori' => $this->category, 'nama_kegiatan' => 'Riset untuk surat',
+        ])->assertCreated()->json('data.id_kegiatan');
+        $url = "/api/v1/dosen/pengajuan/$id";
+        $this->postJson("$url/dokumen", ['link_dokumen' => 'https://example.org/proposal.pdf'])->assertCreated();
+        $this->postJson("$url/ajukan")->assertCreated()->assertJsonPath('data.status', 'diajukan');
+        foreach (['admin' => 'direview', 'kaprodi' => 'diterima'] as $role => $status) {
+            $reviewer = User::create([
+                'id_role' => DB::table('roles')->insertGetId(['nama_role' => $role], 'id_role'),
+                'email' => "$role@test.local", 'password' => 'password', 'status' => true,
+            ]);
+            $this->travel(1)->minutes();
+            $this->actingAs($reviewer, 'sanctum')->postJson("/api/v1/$role/pengajuan/$id/keputusan", [
+                'aksi' => 'setujui', 'nomor_sk' => 'SK/Integrasi/1', 'tanggal_sk' => now()->toDateString(),
+            ])->assertOk()->assertJsonPath('data.status', $status);
+        }
+        $pdf = $this->actingAs($this->owner, 'sanctum')->get("$url/surat/pdf-final")
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+    }
+
     public function test_semua_modul_baru_memerlukan_dosen_aktif(): void
     {
         foreach (['penelitian', 'pengabdian', 'dashboard', 'notifikasi', 'berita', 'pengajuan/1/dokumen'] as $path) {
