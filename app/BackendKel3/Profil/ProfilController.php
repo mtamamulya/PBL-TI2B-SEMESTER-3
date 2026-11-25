@@ -47,7 +47,7 @@ class ProfilController extends Controller
 
     /**
      * PATCH /api/v1/dosen/profil
-     * Mengubah foto profil user yang sedang login.
+     * Mengubah foto profil user dan/atau nama dosen yang sedang login.
      */
     public function update(UpdateProfilRequest $request): JsonResponse
     {
@@ -56,6 +56,13 @@ class ProfilController extends Controller
 
         if (! $dosen || ! $user) {
             return ApiResponse::gagal('Data profil dosen tidak ditemukan untuk akun ini.', 404);
+        }
+
+        if ($request->filled('nama')) {
+            $dosen->update([
+                'nama' => $request->input('nama'),
+            ]);
+            $dosen->refresh();
         }
 
         if ($request->hasFile('foto_profil')) {
@@ -87,7 +94,7 @@ class ProfilController extends Controller
             ] : null,
         ];
 
-        return ApiResponse::ok($data, 'Foto profil berhasil diperbarui.');
+        return ApiResponse::ok($data, 'Profil berhasil diperbarui.');
     }
 
     /**
