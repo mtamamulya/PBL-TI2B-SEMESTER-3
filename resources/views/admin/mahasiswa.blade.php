@@ -9,7 +9,6 @@
 
 @php
     $statusOpsi = $statusAkad ?? ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
-    $jumlahSkripsiTa = collect($students)->where('status', 'Skripsi/TA')->count();
 @endphp
 
 @section('content')
@@ -126,13 +125,18 @@
     .modal-btn-sinkron:hover { background: #059669; }
     .modal-btn-sinkron:disabled { opacity: .7; cursor: not-allowed; }
 
-    .modal-btn-lulus { background: #4F46E5; color: #fff; }
-    .modal-btn-lulus:hover { background: #4338CA; }
+    .modal-ikon-lulus { background: #D1FAE5; color: #059669; }
+    .modal-btn-lulus { background: #10B981; color: #fff; }
+    .modal-btn-lulus:hover { background: #059669; }
     .modal-btn-lulus:disabled { opacity: .7; cursor: not-allowed; }
 
     .btn-status { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: #FBE5CB; color: #FFAA49; cursor: pointer; transition: background .15s; }
     .btn-status:hover { background: #F8D9B5; }
     .btn-status:focus-visible { outline: 2px solid #FFAA49; outline-offset: 2px; }
+
+    .btn-lulus { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: #D1FAE5; color: #059669; cursor: pointer; transition: background .15s; }
+    .btn-lulus:hover { background: #A7F3D0; }
+    .btn-lulus:focus-visible { outline: 2px solid #059669; outline-offset: 2px; }
 </style>
 
 <main class="p-4 pb-10 sm:p-6">
@@ -143,12 +147,6 @@
         </div>
         
         <div class="flex flex-wrap items-center gap-2">
-            @if ($jumlahSkripsiTa > 0 && \Illuminate\Support\Facades\Route::has('admin.mahasiswa.luluskan-ta'))
-                <button type="button" id="btnLulusTa" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-indigo-600 px-4 text-[15px] font-medium text-white shadow hover:bg-indigo-700">
-                    Luluskan Skripsi/TA ({{ $jumlahSkripsiTa }})
-                </button>
-            @endif
-
             <button type="button" id="btnSinkron" class="mt-2 flex h-10 cursor-pointer items-center gap-2 rounded-md bg-emerald-600 px-4 text-[15px] font-medium text-white shadow hover:bg-emerald-700">
                 Sinkronisasi Kelas
             </button>
@@ -215,7 +213,7 @@
     </section>
 </main>
 
-{{-- Form tersembunyi untuk ubah status, sinkronisasi, & kelulusan TA --}}
+{{-- Form tersembunyi untuk ubah status & sinkronisasi --}}
 <form id="formStatus" method="POST" style="display: none;">
     @csrf
     @method('PATCH')
@@ -226,12 +224,6 @@
     @csrf
 </form>
 
-@if (\Illuminate\Support\Facades\Route::has('admin.mahasiswa.luluskan-ta'))
-<form id="formLulus" action="{{ route('admin.mahasiswa.luluskan-ta') }}" method="POST" style="display: none;">
-    @csrf
-</form>
-@endif
-
 {{-- Modal ubah status akademik mahasiswa --}}
 <dialog id="modalStatus" aria-labelledby="modalStatusJudul" aria-describedby="modalStatusTeks">
     <div class="modal-kartu">
@@ -241,17 +233,28 @@
         <h2 id="modalStatusJudul" class="modal-judul">Ubah Status Mahasiswa</h2>
         <p id="modalStatusTeks" class="modal-teks">Pilih status akademik baru untuk <strong id="modalStatusNama"></strong>:</p>
         <div class="relative mt-4 text-left">
-            <select id="modalStatusSelect" class="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#E4E4E7] bg-white px-3.5 pr-9 text-sm font-medium text-[#0A0A0A] outline-none focus:border-[#2277FF]">
-                @foreach ($statusOpsi as $st)
-                    <option value="{{ $st }}">{{ $st }}</option>
-                @endforeach
-            </select>
+            <select id="modalStatusSelect" class="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#E4E4E7] bg-white px-3.5 pr-9 text-sm font-medium text-[#0A0A0A] outline-none focus:border-[#2277FF]"></select>
             <svg class="pointer-events-none absolute right-3 top-[11px] text-[#55555C]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
         </div>
         <p id="modalStatusHint" class="mt-2 text-left text-xs text-[#6B7280]"></p>
         <div class="modal-aksi">
             <button type="button" id="modalStatusBatal" class="modal-btn modal-btn-batal">Batal</button>
             <button type="button" id="modalStatusYa" class="modal-btn modal-btn-ya">Simpan Status</button>
+        </div>
+    </div>
+</dialog>
+
+{{-- Modal konfirmasi kelulusan mahasiswa Skripsi/TA --}}
+<dialog id="modalLulus" aria-labelledby="modalLulusJudul" aria-describedby="modalLulusTeks">
+    <div class="modal-kartu">
+        <div class="modal-ikon modal-ikon-lulus">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" /><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" /></svg>
+        </div>
+        <h2 id="modalLulusJudul" class="modal-judul">Konfirmasi Kelulusan</h2>
+        <p id="modalLulusTeks" class="modal-teks">Ubah status <strong id="modalLulusNama"></strong> dari <strong>Skripsi/TA</strong> menjadi <strong>Lulus</strong>? Akses login akun mahasiswa akan otomatis dinonaktifkan.</p>
+        <div class="modal-aksi">
+            <button type="button" id="modalLulusBatal" class="modal-btn modal-btn-batal">Batal</button>
+            <button type="button" id="modalLulusYa" class="modal-btn modal-btn-lulus">Konfirmasi Lulus</button>
         </div>
     </div>
 </dialog>
@@ -270,21 +273,6 @@
         </div>
     </div>
 </dialog>
-
-{{-- Modal konfirmasi kelulusan Skripsi/TA (September) --}}
-<dialog id="modalLulus" class="dialog-overlay" aria-labelledby="modalLulusJudul" aria-describedby="modalLulusTeks">
-    <div class="modal-kartu">
-        <div class="modal-ikon modal-ikon-indigo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" /><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" /></svg>
-        </div>
-        <h2 id="modalLulusJudul" class="modal-judul">Luluskan Mahasiswa Skripsi/TA?</h2>
-        <p id="modalLulusTeks" class="modal-teks">Sebanyak <strong>{{ $jumlahSkripsiTa }} mahasiswa</strong> berstatus <strong>Skripsi/TA</strong> akan diubah menjadi <strong>Lulus</strong> dan akses loginnya dinonaktifkan. Lanjutkan?</p>
-        <div class="modal-aksi">
-            <button type="button" id="modalLulusBatal" class="modal-btn modal-btn-batal">Batal</button>
-            <button type="button" id="modalLulusYa" class="modal-btn modal-btn-lulus">Luluskan Semua</button>
-        </div>
-    </div>
-</dialog>
 @endsection
 
 @push('scripts')
@@ -298,6 +286,9 @@
 
     var $ = function (id) { return document.getElementById(id); };
     var filter = { level: 'all', status: 'all' };
+
+    var STATUS_REGULER = ['Aktif', 'Cuti', 'Drop Out', 'Meninggal Dunia'];
+    var STATUS_SEMUA = ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
 
     var BADGE_MAP = {
         'Aktif':           'bg-[#DDF3D0] text-[#3A8A1E]',
@@ -317,6 +308,18 @@
         'Meninggal Dunia': 'Akses login akun akan dinonaktifkan permanen.'
     };
 
+    function opsiUntukMahasiswa(r) {
+        if (r && Array.isArray(r.allowed_statuses) && r.allowed_statuses.length > 0) {
+            return r.allowed_statuses;
+        }
+        var sem = r && r.semester_ke ? Number(r.semester_ke) : null;
+        var st = r && r.status ? r.status : 'Aktif';
+        if ((sem !== null && sem > 8) || st === 'Skripsi/TA' || st === 'Lulus') {
+            return STATUS_SEMUA;
+        }
+        return STATUS_REGULER;
+    }
+
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -327,6 +330,7 @@
     }
     var I_EYE  = svg(16, 1.5, '<path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />');
     var I_SYNC = svg(16, 1.5, '<path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />');
+    var I_GRAD = svg(16, 1.5, '<path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" /><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" />');
 
     var TXT = DataTable.render.text();
 
@@ -361,9 +365,18 @@
                 data: null, orderable: false, searchable: false,
                 render: function (d, type, r) {
                     var id = esc(r.id);
+                    var st = String(r.status || 'Aktif');
+                    var tombolStatus = '';
+
+                    if (st === 'Skripsi/TA') {
+                        tombolStatus = '<button type="button" title="Konfirmasi kelulusan" aria-label="Konfirmasi kelulusan" data-act="graduate" data-id="' + id + '" class="btn-lulus">' + I_GRAD + '</button>';
+                    } else if (st !== 'Lulus') {
+                        tombolStatus = '<button type="button" title="Ubah status akademik" aria-label="Ubah status akademik" data-act="status" data-id="' + id + '" class="btn-status">' + I_SYNC + '</button>';
+                    }
+
                     return '<div class="flex gap-2">' +
                         '<button type="button" title="Lihat detail" aria-label="Lihat detail" data-act="view" data-id="' + id + '" class="flex size-8 cursor-pointer items-center justify-center rounded-md bg-[#D4E3FF] text-[#1F73FF] hover:bg-[#C2D8FF]">' + I_EYE + '</button>' +
-                        '<button type="button" title="Ubah status akademik" aria-label="Ubah status akademik" data-act="status" data-id="' + id + '" class="btn-status">' + I_SYNC + '</button>' +
+                        tombolStatus +
                     '</div>';
                 }
             }
@@ -395,14 +408,17 @@
     $('fLevel').addEventListener('change', function (e) { filter.level = e.target.value; table.draw(); });
     $('fStatus').addEventListener('change', function (e) { filter.status = e.target.value; table.draw(); });
 
-    // ---------- Modal Ubah Status ----------
+    // ---------- Modal Ubah Status & Konfirmasi Kelulusan ----------
     var modal = $('modalStatus'),
         btnYa = $('modalStatusYa'),
         formStatus = $('formStatus'),
         selectStatus = $('modalStatusSelect'),
         hintStatus = $('modalStatusHint'),
-        inputStatusBaru = $('inputStatusBaru');
+        inputStatusBaru = $('inputStatusBaru'),
+        modalLulus = $('modalLulus'),
+        btnLulusYa = $('modalLulusYa');
     var idStatus = null;
+    var idLulus = null;
 
     function updateHintStatus() {
         if (!selectStatus || !hintStatus) return;
@@ -427,19 +443,39 @@
             window.location.href = URL_DETAIL.replace('__ID__', encodeURIComponent(b.dataset.id));
             return;
         }
+        if (b.dataset.act === 'graduate') {
+            idLulus = b.dataset.id;
+            var namaMhs = r ? r.name : '';
+
+            if (!modalLulus || typeof modalLulus.showModal !== 'function') {
+                if (confirm('Konfirmasi kelulusan untuk "' + namaMhs + '"?')) {
+                    submitStatus(idLulus, 'Lulus');
+                }
+                return;
+            }
+
+            $('modalLulusNama').textContent = '"' + namaMhs + '"';
+            modalLulus.showModal();
+            return;
+        }
         if (b.dataset.act === 'status') {
             idStatus = b.dataset.id;
             var nama = r ? r.name : '';
             var statusSekarang = (r && r.status) ? r.status : 'Aktif';
+            var opsi = opsiUntukMahasiswa(r);
 
             if (typeof modal.showModal !== 'function') {
-                var pilihan = prompt('Masukkan status baru untuk "' + nama + '" (Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia):', statusSekarang);
+                var pilihan = prompt('Masukkan status baru untuk "' + nama + '" (' + opsi.join(', ') + '):', statusSekarang);
                 if (pilihan) submitStatus(idStatus, pilihan.trim());
                 return;
             }
 
+            selectStatus.innerHTML = opsi.map(function (st) {
+                return '<option value="' + esc(st) + '">' + esc(st) + '</option>';
+            }).join('');
+
             $('modalStatusNama').textContent = '"' + nama + '"';
-            selectStatus.value = statusSekarang;
+            selectStatus.value = opsi.indexOf(statusSekarang) !== -1 ? statusSekarang : opsi[0];
             updateHintStatus();
             modal.showModal();
         }
@@ -455,6 +491,22 @@
         btnYa.textContent = 'Menyimpan...';
         submitStatus(idStatus, selectStatus.value);
     });
+
+    if (modalLulus) {
+        $('modalLulusBatal').addEventListener('click', function () { modalLulus.close(); });
+        modalLulus.addEventListener('click', function (e) { if (e.target === modalLulus) modalLulus.close(); });
+        modalLulus.addEventListener('close', function () {
+            idLulus = null;
+            btnLulusYa.disabled = false;
+            btnLulusYa.textContent = 'Konfirmasi Lulus';
+        });
+        btnLulusYa.addEventListener('click', function () {
+            if (!idLulus) return;
+            btnLulusYa.disabled = true;
+            btnLulusYa.textContent = 'Memproses...';
+            submitStatus(idLulus, 'Lulus');
+        });
+    }
 
     // ---------- Modal Sinkronisasi (Juli) ----------
     var modalSinkron = $('modalSinkron');
@@ -482,35 +534,6 @@
             btnYaSinkron.disabled = true;
             btnYaSinkron.textContent = 'Menyinkronkan...';
             $('formSinkron').submit();
-        });
-    }
-
-    // ---------- Modal Kelulusan Skripsi/TA (September) ----------
-    var modalLulus = $('modalLulus');
-    var btnLulusTa = $('btnLulusTa');
-    var btnYaLulus = $('modalLulusYa');
-
-    if (btnLulusTa) {
-        btnLulusTa.addEventListener('click', function () {
-            if (modalLulus && typeof modalLulus.showModal === 'function') {
-                modalLulus.showModal();
-            } else if (confirm('Ubah status seluruh mahasiswa Skripsi/TA menjadi Lulus?')) {
-                $('formLulus').submit();
-            }
-        });
-    }
-
-    if ($('modalLulusBatal')) {
-        $('modalLulusBatal').addEventListener('click', function () { modalLulus.close(); });
-    }
-    if (modalLulus) {
-        modalLulus.addEventListener('click', function (e) { if (e.target === modalLulus) modalLulus.close(); });
-    }
-    if (btnYaLulus) {
-        btnYaLulus.addEventListener('click', function () {
-            btnYaLulus.disabled = true;
-            btnYaLulus.textContent = 'Memproses...';
-            $('formLulus').submit();
         });
     }
 })();
