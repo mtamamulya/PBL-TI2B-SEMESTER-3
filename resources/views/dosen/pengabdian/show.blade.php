@@ -5,43 +5,43 @@
 @section('content')
 
 @php
-    // DATA TIRUAN. $id berasal dari alamat (/pengabdian/{id}).
-    // Nanti diganti data pengabdian dari controller / database oleh tim backend.
-    $p = [
-        'judul'          => 'Deteksi hoaks dengan ML',
-        'afiliasi'       => 'Jurusan Teknik Elektro',
-        'skim'           => 'Pengabdian dasar',
-        'ranah'          => 'Pengabdian dasar',
-        'bidang'         => 'Energi',
-        'sebelumnya'     => 'Tidak ada, Pengabdian baru',
-        'tahun_anggaran' => 2026,
-        'tahun_ke'       => 1,
-        'lama'           => 1,
-        'lokasi'         => 'Kabupaten Kendal',
-        'nomor_sk'       => '4389/UN/KP/2026',
-        'tanggal_sk'     => '04/06/2026',
-        'dana_dikti'     => 'Rp 1.000.000',
-        'dana_pt'        => 'Rp 1.000.000',
-        'dana_lain'      => 'Rp 1.000.000',
-        'in_kind'        => null,
-        'mitra'          => null,
-    ];
+    // $k = data dari DosenPengabdianController (API GET /dosen/pengabdian/{id}).
+    $tgl = function ($t) {
+        if (! $t) {
+            return null;
+        }
 
-    $anggota = [
-        ['nama' => 'Kuwat Santoso',         'peran' => 'Ketua',   'status' => 'Dosen'],
-        ['nama' => 'Wiktasari',             'peran' => 'Anggota', 'status' => 'Dosen'],
-        ['nama' => 'Mukhlis Pratama Mulya', 'peran' => 'Anggota', 'status' => 'Mahasiswa'],
-    ];
+        try {
+            return \Carbon\Carbon::parse($t)->format('d/m/Y');
+        } catch (\Throwable) {
+            return $t;
+        }
+    };
+    $rupiah = fn ($v) => 'Rp '.number_format((int) $v, 0, ',', '.');
+    $nilai = fn ($d) => match ($d['jenis_input'] ?? null) {
+        'rupiah' => $rupiah($d['isian'] ?? 0),
+        'tanggal' => $tgl($d['isian'] ?? null),
+        default => $d['isian'] ?? null,
+    };
 
-    // Dokumen pendukung. 'tautan' = alamat dokumen di cloud (Google Drive dll.), dibuka di tab baru.
-    $dokumen = [
-        [
-            'nama'       => 'Proposal Pengabdian',
-            'jenis'      => 'Proposal',
-            'keterangan' => 'Ini adalah proposal pengabdian masyarakat',
-            'tautan'     => 'https://drive.google.com/drive/folders/contoh',
-        ],
-    ];
+    $isian = $k['detail'] ?? [];
+    $anggota = $k['anggota'] ?? [];
+    $dokumen = $k['dokumen'] ?? [];
+    $timeline = $k['timeline'] ?? [];
+    $belumLengkap = $k['belum_lengkap'] ?? [];
+
+    // Data umum kegiatan. Yang kosong atau sudah muncul sebagai isian dilewati.
+    $labelIsian = collect($isian)->pluck('input')->map(fn ($s) => mb_strtolower((string) $s))->all();
+    $umum = array_filter([
+        'Nama kegiatan' => $k['nama_kegiatan'] ?? null,
+        'Status' => isset($k['status']) ? ucfirst($k['status']) : null,
+        'Tanggal mulai' => $tgl($k['tanggal_mulai'] ?? null),
+        'Tanggal selesai' => $tgl($k['tanggal_selesai'] ?? null),
+        'Lokasi' => $k['lokasi'] ?? null,
+        'Nomor SK penugasan' => $k['nomor_sk'] ?? null,
+        'Tanggal SK penugasan' => $tgl($k['tanggal_sk'] ?? null),
+        'Deskripsi' => $k['deskripsi'] ?? null,
+    ], fn ($v, $label) => $v !== null && $v !== '' && ! in_array(mb_strtolower($label), $labelIsian, true), ARRAY_FILTER_USE_BOTH);
 
     $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-white p-4.5';
     $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
@@ -60,6 +60,12 @@
         </a>
     </div>
 
+    @if (! empty($belumLengkap))
+        <p role="alert" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            Isian wajib yang belum dijawab: {{ collect($belumLengkap)->pluck('input')->implode(', ') }}.
+        </p>
+    @endif
+
     {{-- Halaman ini hanya untuk membaca, jadi tidak ada formulir atau tombol simpan --}}
     <div class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
 
@@ -71,113 +77,86 @@
             </div>
 
             <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                <div class="md:col-span-2"><x-detail-field label="Judul pengabdian" :value="$p['judul']" /></div>
-                <div class="md:col-span-2"><x-detail-field label="Afiliasi" :value="$p['afiliasi']" /></div>
-
-                <x-detail-field label="Skim" :value="$p['skim']" icon="chevron" />
-                <x-detail-field label="Ranah" :value="$p['ranah']" />
-                <x-detail-field label="Kelompok bidang" :value="$p['bidang']" icon="chevron" />
-                <x-detail-field label="Pengabdian sebelumnya (opsional)" :value="$p['sebelumnya']" icon="chevron" />
+                @foreach ($umum as $label => $isi)
+                    <div class="{{ in_array($label, ['Nama kegiatan', 'Deskripsi'], true) ? 'md:col-span-2' : '' }}">
+                        <x-detail-field :label="$label" :value="$isi" />
+                    </div>
+                @endforeach
             </dl>
         </section>
 
-        {{-- 2. PELAKSANAAN --}}
-        <section class="{{ $sectionClass }}" aria-labelledby="h-laksana">
+        {{-- 2. ISIAN PENGABDIAN (label dan nilai dari kategori, jadi mengikuti definisi isian) --}}
+        <section class="{{ $sectionClass }}" aria-labelledby="h-isian">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">2</span>
-                <h2 id="h-laksana" class="text-[15px] font-semibold">Pelaksanaan</h2>
+                <h2 id="h-isian" class="text-[15px] font-semibold">Isian Pengabdian</h2>
             </div>
 
-            <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-3">
-                <x-detail-field label="Tahun anggaran" :value="$p['tahun_anggaran']" icon="chevron" />
-                <x-detail-field label="Tahun pelaksanaan ke-" :value="$p['tahun_ke']" />
-                <x-detail-field label="Lama kegiatan (tahun)" :value="$p['lama']" />
-
-                <div class="md:col-span-3"><x-detail-field label="Lokasi" :value="$p['lokasi']" /></div>
-
-                <div class="md:col-span-3 md:grid md:grid-cols-2 md:gap-4.5">
-                    <x-detail-field label="Nomor SK penugasan" :value="$p['nomor_sk']" />
-                    <div class="mt-4.5 md:mt-0"><x-detail-field label="Tanggal SK penugasan" :value="$p['tanggal_sk']" icon="kalender" /></div>
-                </div>
-            </dl>
+            @if (count($isian) > 0)
+                <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
+                    @foreach ($isian as $d)
+                        <x-detail-field :label="$d['input']" :value="$nilai($d)" />
+                    @endforeach
+                </dl>
+            @else
+                <p class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">Belum ada isian.</p>
+            @endif
         </section>
 
-        {{-- 3. PENDANAAN DAN MITRA --}}
-        <section class="{{ $sectionClass }}" aria-labelledby="h-dana">
-            <div class="flex items-center gap-2.5">
-                <span class="{{ $numClass }}">3</span>
-                <h2 id="h-dana" class="text-[15px] font-semibold">Pendanaan dan Mitra</h2>
-            </div>
-
-            <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                <x-detail-field label="Dana DIKTI" :value="$p['dana_dikti']" />
-                <x-detail-field label="Dana perguruan tinggi" :value="$p['dana_pt']" />
-                <x-detail-field label="Dana institusi lain" :value="$p['dana_lain']" />
-                <x-detail-field label="In kind" :value="$p['in_kind']" />
-                <div class="md:col-span-2"><x-detail-field label="Mitra (opsional)" :value="$p['mitra']" /></div>
-            </dl>
-        </section>
-
-        {{-- 4. ANGGOTA PENGABDIAN --}}
+        {{-- 3. ANGGOTA PENGABDIAN --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-anggota">
             <div class="flex items-center gap-2.5">
-                <span class="{{ $numClass }}">4</span>
+                <span class="{{ $numClass }}">3</span>
                 <h2 id="h-anggota" class="text-[15px] font-semibold">Anggota Pengabdian</h2>
             </div>
 
             <div class="overflow-x-auto rounded-md border border-gray-300">
-                <table class="w-full min-w-[520px] border-collapse text-sm">
+                <table class="w-full min-w-[480px] border-collapse text-sm">
                     <thead>
                         <tr class="bg-gray-100 text-left">
-                            <th scope="col" class="w-1/3 px-2.5 py-2.5 font-medium">Nama</th>
-                            <th scope="col" class="w-1/3 px-2.5 py-2.5 font-medium">Peran</th>
-                            <th scope="col" class="w-1/3 px-2.5 py-2.5 font-medium">Status</th>
+                            <th scope="col" class="w-1/2 px-2.5 py-2.5 font-medium">Nama</th>
+                            <th scope="col" class="w-1/2 px-2.5 py-2.5 font-medium">Peran</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($anggota as $a)
+                        @forelse ($anggota as $a)
                             <tr class="border-t border-gray-300">
-                                <td class="px-2.5 py-2.5">{{ $a['nama'] }}</td>
-                                <td class="px-2.5 py-2.5">{{ $a['peran'] }}</td>
-                                <td class="px-2.5 py-2.5">{{ $a['status'] }}</td>
+                                <td class="px-2.5 py-2.5">{{ $a['nama'] ?? '-' }}</td>
+                                <td class="px-2.5 py-2.5">{{ ucfirst($a['peran'] ?? '-') }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr class="border-t border-gray-300">
+                                <td colspan="2" class="px-2.5 py-4 text-center text-gray-500">Belum ada anggota.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
         </section>
 
-        {{-- 5. DOKUMEN PENDUKUNG
-             Di halaman Detail tidak ada kotak unggah. Dokumen ditampilkan sebagai tautan yang dibuka di tab baru (tidak ada unggah file).
-             Dokumen ditambah / diganti di halaman Edit. --}}
+        {{-- 4. DOKUMEN PENDUKUNG: tautan dibuka di tab baru. Dokumen diubah di halaman Edit. --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-dokumen">
             <div class="flex items-center gap-2.5">
-                <span class="{{ $numClass }}">5</span>
+                <span class="{{ $numClass }}">4</span>
                 <h2 id="h-dokumen" class="text-[15px] font-semibold">Dokumen Pendukung</h2>
             </div>
 
             @forelse ($dokumen as $d)
+                @php $tautan = $d['link_dokumen'] ?? null; @endphp
                 <div class="overflow-hidden rounded-lg border border-gray-200">
                     <div class="bg-[#02215c] px-3.5 py-3 text-white">
                         <h3 class="text-sm font-semibold">Dokumen {{ $loop->iteration }}</h3>
                     </div>
 
                     <div class="flex flex-col gap-4 p-3.5">
-                        {{-- File: nama file + tombol Lihat dan Unduh --}}
                         <div class="flex flex-col gap-2">
                             <span class="text-[15px] font-medium">Tautan dokumen</span>
-                            @if (! empty($d['tautan']))
+                            @if ($tautan && preg_match('#^https?://#i', $tautan))
                                 <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                                    <div class="flex min-w-0 items-center gap-3">
-                                        <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-brand">
-                                            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>
-                                        </span>
-                                        <span class="truncate text-[15px]" title="{{ $d['tautan'] }}">{{ $d['tautan'] }}</span>
-                                    </div>
-                                    <a href="{{ $d['tautan'] }}" target="_blank" rel="noopener noreferrer"
+                                    <span class="min-w-0 truncate text-[15px]" title="{{ $tautan }}">{{ $tautan }}</span>
+                                    <a href="{{ $tautan }}" target="_blank" rel="noopener noreferrer"
                                        class="flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3.5 text-sm font-medium text-white hover:bg-blue-700">
                                         Buka dokumen
-                                        <svg class="size-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>
                                         <span class="sr-only">(dibuka di tab baru)</span>
                                     </a>
                                 </div>
@@ -187,14 +166,35 @@
                         </div>
 
                         <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                            <x-detail-field label="Nama dokumen" :value="$d['nama']" />
-                            <x-detail-field label="Jenis dokumen" :value="$d['jenis']" icon="chevron" />
-                            <!-- <div class="md:col-span-2"><x-detail-field label="Keterangan" :value="$d['keterangan']" multiline /></div> -->
+                            <x-detail-field label="Nama dokumen" :value="$d['nama_file'] ?? null" />
+                            <x-detail-field label="Tipe dokumen" :value="$d['tipe_dokumen'] ?? null" />
                         </dl>
                     </div>
                 </div>
             @empty
                 <p class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">Belum ada dokumen pendukung.</p>
+            @endforelse
+        </section>
+
+        {{-- 5. RIWAYAT STATUS --}}
+        <section class="{{ $sectionClass }}" aria-labelledby="h-timeline">
+            <div class="flex items-center gap-2.5">
+                <span class="{{ $numClass }}">5</span>
+                <h2 id="h-timeline" class="text-[15px] font-semibold">Riwayat Status</h2>
+            </div>
+
+            @forelse ($timeline as $t)
+                <div class="rounded-lg border border-gray-200 px-3.5 py-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-medium">{{ ucfirst($t['status'] ?? '-') }}</span>
+                        <span class="text-gray-500">{{ $tgl($t['tanggal_status'] ?? null) }}</span>
+                    </div>
+                    @if (! empty($t['catatan_revisi']))
+                        <p class="mt-1 text-gray-600">{{ $t['catatan_revisi'] }}</p>
+                    @endif
+                </div>
+            @empty
+                <p class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">Belum ada riwayat status.</p>
             @endforelse
         </section>
     </div>

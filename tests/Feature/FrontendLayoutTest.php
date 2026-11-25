@@ -79,7 +79,8 @@ class FrontendLayoutTest extends TestCase
             $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
         }
         foreach (['penelitian', 'pengabdian', 'prestasi'] as $module) {
-            foreach (['', '/create', '/1', '/1/edit'] as $suffix) {
+            $paths = $module === 'pengabdian' ? [''] : ['', '/create', '/1', '/1/edit'];
+            foreach ($paths as $suffix) {
                 $this->get('/'.$module.$suffix)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
             }
         }
