@@ -1,9 +1,4 @@
 @php
-    // Menu dropdown Kurikulum dibuat dari data (bertambah/berkurang mengikuti upload & hapus admin)
-    $kurikulumMenu = collect(app(\App\Repositories\KurikulumRepository::class)->all())
-        ->map(fn ($k) => [$k['nama'], route('kurikulum', ['kurikulum' => $k['id']])])
-        ->all();
-
     // Menu tanpa dropdown: [label, href]
     // Menu dengan dropdown: [label, [[sub-label, href], ...]]
     $menu = [
@@ -13,7 +8,7 @@
             ['Akreditasi', route('akreditasi')],
         ]],
         ['Dosen', route('home') . '#dosen'],
-        ['Kurikulum', array_merge([['Kurikulum', route('kurikulum')]], $kurikulumMenu)],
+        ['Kurikulum', route('kurikulum')],
         ['Kabar TRK', route('home') . '#kabar'],
         ['Prestasi', route('home') . '#prestasi'],
         ['Fasilitas', route('home') . '#fasilitas'],

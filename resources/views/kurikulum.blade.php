@@ -19,10 +19,10 @@
 
     <x-navbar-publik />
 
-    <div class="flex flex-1 flex-col items-center gap-6 bg-white px-4 py-8 sm:px-8 lg:px-12 min-[1728px]:px-56">
+    <div class="flex flex-1 flex-col items-center gap-6 bg-white px-4 py-8 sm:px-8 lg:px-20 xl:px-28 min-[1728px]:px-56">
 
         {{-- Header --}}
-        <header class="flex w-full max-w-[1280px] flex-col items-center justify-center gap-2.5 py-4 text-center">
+        <header class="flex w-full max-w-[1120px] flex-col items-center justify-center gap-2.5 py-4 text-center">
             <p class="text-xs tracking-[-0.18px] text-[#737C8D] sm:text-base">
                 <a href="{{ route('home') }}" class="hover:text-[#2277FF]">Beranda</a> /
                 <a href="{{ route('kurikulum') }}" class="hover:text-[#2277FF]">Kurikulum</a> /
@@ -35,7 +35,7 @@
 
         @if ($aktif)
             {{-- Tab kurikulum (dibuat dari data, jadi bertambah/berkurang mengikuti upload & hapus admin) --}}
-            <nav class="thin-scroll flex w-full max-w-[1280px] items-center gap-3 overflow-x-auto py-1" aria-label="Pilih kurikulum">
+            <nav class="thin-scroll flex w-full max-w-[1120px] items-center gap-3 overflow-x-auto py-1" aria-label="Pilih kurikulum">
                 @foreach ($daftar as $k)
                     <button type="button"
                             data-tab="{{ $k['id'] }}"
@@ -51,7 +51,7 @@
 
             {{-- PDF viewer --}}
             <section id="pdf-viewer"
-                     class="flex h-[450px] w-full max-w-[1280px] flex-col overflow-hidden rounded-[20px] border border-[#DCE6F7] bg-[#E0E8F5] sm:h-[656px] [&:fullscreen]:h-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0">
+                     class="flex h-[450px] w-full max-w-[1120px] flex-col overflow-hidden rounded-[20px] border border-[#DCE6F7] bg-[#E0E8F5] sm:h-[560px] [&:fullscreen]:h-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0">
 
                 {{-- Toolbar --}}
                 <div class="flex h-12 sm:h-16 shrink-0 items-center justify-between gap-2 sm:gap-3 overflow-x-auto bg-[#0B3A8C] px-3 sm:px-5">
@@ -88,11 +88,11 @@
             </section>
 
             {{-- Baris bawah --}}
-            <div class="flex w-full max-w-[1280px] flex-col items-center justify-center gap-4 sm:flex-row sm:justify-between sm:gap-10">
+            <div class="flex w-full max-w-[1120px] flex-col items-center justify-center gap-4 sm:flex-row sm:justify-between sm:gap-10">
                 <div class="flex w-full items-center justify-between gap-4 sm:w-auto">
                     <a href="{{ route('home') }}"
-                       class="flex h-[40px] sm:h-[45px] w-auto shrink-0 items-center gap-1 rounded-full bg-[#2277FF] p-0.5 px-3 text-base sm:text-2xl font-semibold text-white">
-                        <span class="flex size-[32px] sm:size-[41px] items-center justify-center rounded-full bg-[#5695FB]">
+                       class="flex h-[36px] sm:h-[40px] w-auto shrink-0 items-center gap-1 rounded-full bg-[#2277FF] p-0.5 px-3 text-sm sm:text-base font-semibold text-white">
+                        <span class="flex size-[28px] sm:size-[34px] items-center justify-center rounded-full bg-[#5695FB]">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FEFEFE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6" /></svg>
                         </span>
                         Kembali
@@ -105,13 +105,13 @@
                 </div>
 
                 <button type="button" data-action="download"
-                        class="flex h-[44px] sm:h-[52px] w-full items-center justify-center gap-3 rounded-xl border border-[#2277FF] bg-white text-sm sm:text-[17px] font-medium text-[#2277FF] transition-colors hover:bg-[#EAF2FD] sm:w-[220px]">
+                        class="flex h-[38px] sm:h-[42px] w-full items-center justify-center gap-2 rounded-lg border border-[#2277FF] bg-white text-sm font-medium text-[#2277FF] transition-colors hover:bg-[#EAF2FD] sm:w-[170px]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2 M7 11l5 5l5 -5 M12 4l0 12" /></svg>
                     Unduh PDF
                 </button>
             </div>
         @else
-            <div class="flex min-h-[320px] w-full max-w-[1280px] flex-col items-center justify-center gap-4 rounded-[22px] border border-[#E4ECF9] bg-[#F1F6FE] px-6 text-center">
+            <div class="flex min-h-[320px] w-full max-w-[1120px] flex-col items-center justify-center gap-4 rounded-[22px] border border-[#E4ECF9] bg-[#F1F6FE] px-6 text-center">
                 <p class="text-lg font-semibold text-[#0B3A8C]">Dokumen kurikulum belum tersedia</p>
                 <p class="max-w-md text-[#5B6B86]">Dokumen akan tampil di sini setelah diunggah oleh admin program studi.</p>
                 <a href="{{ route('home') }}" class="rounded-full bg-[#2277FF] px-6 py-2.5 font-semibold text-white">Kembali ke Beranda</a>
@@ -129,7 +129,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     var APP_NAME = @js(config('app.name'));
-    var BASE_W = 704, PAD = 64, THUMB_W = 76;
+    var BASE_W = 600, PAD = 64, THUMB_W = 76;
     var ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
 

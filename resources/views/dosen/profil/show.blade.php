@@ -3,38 +3,8 @@
 @section('title', 'Profil')
 
 @section('content')
-
 @php
-    // DATA TIRUAN. Nanti diganti data user yang login dari controller / database oleh tim backend.
-    $user = [
-        'nama'    => 'Kuwat Santoso',
-        'inisial' => 'KS',
-        'nip'     => '198407192019031008',
-        'status'  => 'Aktif',
-        'email'   => 'kuwatsantoso@polines.ac.id',
-        'role'    => 'Dosen',
-        'pangkat' => 'Lektor Kepala, IV/a',
-        'akun'    => 'Aktif',
-    ];
-
-    // Foto: dipakai kalau file public/images/kuwat.jpeg ada, kalau tidak tampil inisial.
-    $foto = file_exists(public_path('images/kuwat.jpeg')) ? asset('images/kuwat.jpeg') : null;
-
-    $info = [
-        'Email akun'               => $user['email'],
-        'Role'                     => $user['role'],
-        'Pangkat / golongan saat ini' => $user['pangkat'],
-        'Akun login'               => $user['akun'],
-    ];
-
-    $riwayat = [
-        ['pangkat' => 'Ketua Prodi',  'golongan' => 'IV/a', 'sk' => '1042/UN/KP/2022', 'tanggal' => '12 Januari 2022', 'sekarang' => true],
-        ['pangkat' => 'Lektor',       'golongan' => 'III/d', 'sk' => '0788/UN/KP/2018', 'tanggal' => '1 Oktober 2018',  'sekarang' => false],
-        ['pangkat' => 'Lektor',       'golongan' => 'III/c', 'sk' => '0415/UN/KP/2015', 'tanggal' => '1 April 2015',    'sekarang' => false],
-        ['pangkat' => 'Asisten Ahli', 'golongan' => 'III/b', 'sk' => '0120/UN/KP/2012', 'tanggal' => '1 Maret 2012',    'sekarang' => false],
-    ];
-
-    // Aktivitas per tab. 'peran' tampil sebagai badge di kanan.
+    // Aktivitas per tab (tetap dipertahankan jika belum terhubung ke API aktivitas).
     $aktivitas = [
         'Penelitian' => [
             ['judul' => 'Deteksi hoaks dengan machine learning',  'meta' => '2026 • Penelitian Terapan',       'peran' => 'Ketua'],
@@ -54,19 +24,11 @@
         ],
     ];
 
-    // TUJUAN "Simpan Kata Sandi": web master milik kelompok lain.
-    // Isi dengan alamatnya kalau sudah diberi tahu, misalnya 'https://alamat-web-master/ubah-sandi'.
-    // Selama masih '#', tombolnya hanya simulasi dan tidak mengirim apa-apa.
-    $urlSimpanSandi = '#';
-
-    // Email disamarkan untuk teks "Kode OTP akan dikirim ke ..."
-    [$emailNama, $emailDomain] = explode('@', $user['email']);
-    $emailSamar = substr($emailNama, 0, 1) . str_repeat('*', 11) . '@' . $emailDomain;
-
     $badge = 'rounded-full border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-[13px] text-brand';
 @endphp
 
-    {{-- Judul halaman + tombol --}}
+<div x-data="profilDosen()" x-init="muatData()" class="flex flex-col gap-6">
+    {{-- Judul halaman + tombol kembali --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
             <h1 class="text-3xl font-bold tracking-tight">Profil</h1>
@@ -78,46 +40,82 @@
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
                 Kembali
             </a>
-            {{-- Membuka modal Ubah Kata Sandi (ada di bagian bawah halaman ini) --}}
-            <button type="button" x-data x-on:click="$dispatch('buka-sandi')"
-                    class="flex h-11 cursor-pointer items-center gap-2 rounded-md bg-brand px-4 text-base font-medium text-white hover:bg-blue-700">
-                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
-                Ubah Kata Sandi
-            </button>
         </div>
     </div>
 
+    {{-- Pesan sukses / error --}}
+    <template x-if="sukses">
+        <div role="status" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700" x-text="sukses"></div>
+    </template>
+    <template x-if="error">
+        <div role="alert" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" x-text="error"></div>
+    </template>
+
     {{-- Kartu identitas --}}
     <section class="flex flex-col gap-8 rounded-lg bg-white p-5 shadow-sm">
-        <div class="flex items-center gap-5">
-            {{-- Foto ikut berubah kalau modal "Ubah foto profil" menyimpan foto baru (simulasi) --}}
-            <div class="relative shrink-0" x-data="{ src: @js($foto) }" x-on:foto-diganti.window="src = $event.detail">
-                <img x-show="src" :src="src" alt="Foto {{ $user['nama'] }}" class="size-[88px] rounded-full object-cover" @if (! $foto) x-cloak @endif>
-                <span x-show="!src" @if ($foto) x-cloak @endif
-                      class="flex size-[88px] items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white" aria-hidden="true">{{ $user['inisial'] }}</span>
-                {{-- Tombol pensil: membuka modal Ubah foto profil (di bagian bawah halaman ini) --}}
-                <button type="button" aria-label="Ganti foto profil" x-on:click="$dispatch('buka-foto')"
-                        class="absolute right-0 bottom-0 flex size-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-blue-200 text-brand hover:bg-blue-300">
-                    <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
-                </button>
-            </div>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-5">
+                {{-- Avatar dengan ikon pensil saat hover --}}
+                <div class="group relative size-[88px] shrink-0 overflow-hidden rounded-full">
+                    <template x-if="profil.foto_profil">
+                        <img :src="profil.foto_profil" :alt="profil.nama || 'Foto Profil'" class="size-full rounded-full object-cover">
+                    </template>
+                    <template x-if="!profil.foto_profil">
+                        <span class="flex size-full items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white"
+                              aria-hidden="true" x-text="inisial(profil.nama)"></span>
+                    </template>
 
-            <div class="flex min-w-0 flex-col gap-1">
-                <div class="flex flex-wrap items-center gap-4">
-                    <h2 class="text-2xl font-semibold">{{ $user['nama'] }}</h2>
-                    <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">{{ $user['status'] }}</span>
+                    <button type="button"
+                            :disabled="mengupload"
+                            x-on:click="bukaPilihFoto()"
+                            title="Ganti foto profil"
+                            aria-label="Ganti foto profil"
+                            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-not-allowed">
+                        <template x-if="!mengupload">
+                            <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                        </template>
+                        <template x-if="mengupload">
+                            <span class="text-xs font-medium">...</span>
+                        </template>
+                    </button>
+
+                    <input x-ref="inputFoto"
+                           type="file"
+                           accept="image/png,image/jpeg,image/jpg,image/webp"
+                           x-on:change="pilihFileUntukCrop($event)"
+                           class="hidden">
                 </div>
-                <p class="text-xl text-gray-400">NIP {{ $user['nip'] }}</p>
+
+                <div class="flex min-w-0 flex-col gap-1">
+                    <div class="flex flex-wrap items-center gap-4">
+                        <h2 class="text-2xl font-semibold" x-text="loading ? 'Memuat...' : (profil.nama || '-')"></h2>
+                        <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">Aktif</span>
+                    </div>
+                    <p class="text-xl text-gray-400" x-text="profil.nip ? `NIP ${profil.nip}` : 'NIP -'"></p>
+                </div>
             </div>
         </div>
 
         <dl class="grid grid-cols-1 gap-5 rounded-lg bg-blue-50 px-5 py-5 sm:grid-cols-2 lg:grid-cols-[1.8fr_0.8fr_1.4fr_0.8fr]">
-            @foreach ($info as $label => $nilai)
-                <div class="flex min-w-0 flex-col gap-1.5">
-                    <dt class="text-lg text-gray-400">{{ $label }}</dt>
-                    <dd class="text-xl font-medium break-words">{{ $nilai }}</dd>
-                </div>
-            @endforeach
+            <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-lg text-gray-400">Email akun</dt>
+                <dd class="text-xl font-medium break-words" x-text="profil.email || '-'"></dd>
+            </div>
+            <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-lg text-gray-400">Role</dt>
+                <dd class="text-xl font-medium break-words">Dosen</dd>
+            </div>
+            <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-lg text-gray-400">Pangkat / golongan saat ini</dt>
+                <dd class="text-xl font-medium break-words" x-text="formatPangkatTerakhir()"></dd>
+            </div>
+            <div class="flex min-w-0 flex-col gap-1.5">
+                <dt class="text-lg text-gray-400">Akun login</dt>
+                <dd class="text-xl font-medium break-words">Aktif</dd>
+            </div>
         </dl>
     </section>
 
@@ -136,21 +134,31 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($riwayat as $r)
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="4" class="px-2.5 py-4 text-center text-gray-400">Memuat riwayat pangkat...</td>
+                        </tr>
+                    </template>
+                    <template x-if="!loading && riwayat.length === 0">
+                        <tr>
+                            <td colspan="4" class="px-2.5 py-4 text-center text-gray-400">Belum ada data riwayat pangkat.</td>
+                        </tr>
+                    </template>
+                    <template x-for="(r, idx) in riwayat" :key="r.id_histori_pangkat_golongan ?? idx">
                         <tr class="border-b border-gray-300 last:border-b-0">
                             <td class="px-2.5 py-3">
                                 <span class="flex flex-wrap items-center gap-2">
-                                    {{ $r['pangkat'] }}
-                                    @if ($r['sekarang'])
+                                    <span x-text="r.pangkat || '-'"></span>
+                                    <template x-if="idx === 0">
                                         <span class="{{ $badge }} py-px text-xs">Saat ini</span>
-                                    @endif
+                                    </template>
                                 </span>
                             </td>
-                            <td class="px-2.5 py-3">{{ $r['golongan'] }}</td>
-                            <td class="px-2.5 py-3">{{ $r['sk'] }}</td>
-                            <td class="px-2.5 py-3">{{ $r['tanggal'] }}</td>
+                            <td class="px-2.5 py-3" x-text="r.golongan || '-'"></td>
+                            <td class="px-2.5 py-3" x-text="r.nomor_sk || '-'"></td>
+                            <td class="px-2.5 py-3" x-text="formatTanggal(r.tanggal_sk)"></td>
                         </tr>
-                    @endforeach
+                    </template>
                 </tbody>
             </table>
         </div>
@@ -161,7 +169,6 @@
             x-data="{ tab: 'Penelitian', data: @js($aktivitas) }">
         <h2 class="text-2xl font-medium">Aktivitas Dosen</h2>
 
-        <!-- Container Tab dengan Scroll Horizontal -->
         <div class="w-full border-b border-gray-200">
             <div role="tablist" aria-label="Jenis aktivitas"
                 class="flex overflow-x-auto whitespace-nowrap gap-4 no-scrollbar">
@@ -173,7 +180,6 @@
                             class="-mb-px flex shrink-0 cursor-pointer items-center gap-2 border-b-2 pb-3 pt-1 text-sm transition-colors">
                         <span>{{ $nama }}</span>
 
-                        {{-- Badge Angka --}}
                         <span x-show="tab === '{{ $nama }}'" x-cloak
                             class="flex size-5 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white"
                             x-text="data['{{ $nama }}'].length"></span>
@@ -195,404 +201,458 @@
         </ul>
     </section>
 
-    {{-- MODAL UBAH FOTO PROFIL. Muncul saat tombol pensil di foto diklik, bukan halaman baru. --}}
-    <div class="contents" x-data="ubahFoto(@js($foto))" x-on:buka-foto.window="buka()">
-        <div x-show="terbuka" x-cloak
-             x-on:keydown.escape.window="tutup()"
-             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            {{-- klik area gelap = tutup --}}
-            <div class="absolute inset-0" x-on:click="tutup()" aria-hidden="true"></div>
+    {{-- Modal Crop & Zoom Foto Profil --}}
+    <div x-show="modalCropTerbuka"
+         x-cloak
+         x-on:keydown.escape.window="tutupModalCrop()"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="judul-modal-crop">
+        <div class="flex w-full max-w-md flex-col gap-4 rounded-xl bg-white p-5 shadow-xl" x-on:click.stop>
+            <div class="flex items-center justify-between border-b border-gray-200 pb-3">
+                <h3 id="judul-modal-crop" class="text-lg font-semibold text-gray-900">Atur & Crop Foto Profil</h3>
+                <button type="button"
+                        x-on:click="tutupModalCrop()"
+                        class="cursor-pointer rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        aria-label="Tutup modal">
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
 
-            <form role="dialog" aria-modal="true" aria-labelledby="judul-foto"
-                  method="POST" action="#" enctype="multipart/form-data"
-                  x-on:submit.prevent="simpan()"
-                  class="relative flex max-h-full w-full max-w-2xl flex-col gap-6 overflow-y-auto rounded-xl bg-white p-6 shadow-xl sm:p-8">
-                @csrf
+            <p class="text-xs text-gray-500">Geser gambar untuk mengatur posisi, lalu gunakan zoom in / zoom out sesuai area lingkaran.</p>
 
-                <div class="flex items-start justify-between gap-4">
-                    <div class="flex flex-col gap-1.5">
-                        <h2 id="judul-foto" class="text-3xl font-medium">Ubah foto profil</h2>
-                        <p class="text-base text-gray-400">Pratinjau di bawah menunjukkan tampilan foto di profil Anda</p>
-                    </div>
-                    <button type="button" x-ref="tombolTutup" x-on:click="tutup()" aria-label="Tutup"
-                            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-gray-100">
-                        <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+            {{-- Area kanvas crop --}}
+            <div class="relative mx-auto flex size-[280px] items-center justify-center overflow-hidden rounded-lg bg-gray-900 select-none">
+                <canvas x-ref="canvasCrop"
+                        width="280"
+                        height="280"
+                        x-on:pointerdown="mulaiGeser($event)"
+                        x-on:pointermove="geserGambar($event)"
+                        x-on:pointerup="selesaiGeser()"
+                        x-on:pointercancel="selesaiGeser()"
+                        x-on:wheel.prevent="zoomDenganWheel($event)"
+                        class="size-[280px] cursor-grab active:cursor-grabbing touch-none"></canvas>
+
+                {{-- Panduan lingkaran preview crop --}}
+                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div class="size-[220px] rounded-full border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"></div>
+                </div>
+            </div>
+
+            {{-- Kontrol Zoom In / Zoom Out --}}
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between text-xs font-medium text-gray-600">
+                    <span>Zoom</span>
+                    <span x-text="`${Math.round(zoom * 100)}%`"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button"
+                            x-on:click="ubahZoom(-0.15)"
+                            title="Zoom Out"
+                            aria-label="Zoom Out"
+                            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/></svg>
+                    </button>
+
+                    <input type="range"
+                           min="1"
+                           max="3"
+                           step="0.05"
+                           x-model.number="zoom"
+                           x-on:input="terapkanZoom()"
+                           aria-label="Tingkat zoom"
+                           class="h-2 w-full cursor-pointer accent-brand">
+
+                    <button type="button"
+                            x-on:click="ubahZoom(0.15)"
+                            title="Zoom In"
+                            aria-label="Zoom In"
+                            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+                    </button>
+
+                    <button type="button"
+                            x-on:click="resetCrop()"
+                            class="ml-1 shrink-0 cursor-pointer rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+                        Reset
                     </button>
                 </div>
+            </div>
 
-                {{-- Pratinjau --}}
-                <div class="flex justify-center py-2">
-                    <template x-if="tampil">
-                        <img :src="tampil" alt="Pratinjau foto profil" class="size-[200px] rounded-full object-cover">
-                    </template>
-                    <template x-if="!tampil">
-                        <span class="flex size-[200px] items-center justify-center rounded-full bg-red-600 text-6xl font-semibold text-white" aria-hidden="true">{{ $user['inisial'] }}</span>
-                    </template>
-                </div>
-
-                {{-- Pilih file --}}
-                <div class="flex flex-col gap-2">
-                    <label class="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-brand bg-white px-4 py-8 text-center hover:bg-blue-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
-                        <input type="file" name="foto" class="sr-only" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                               x-ref="berkas" x-on:change="pilih($event)">
-                        <span class="flex items-center gap-2 text-base font-medium text-gray-500">
-                            <svg class="size-6 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 7.97M12 20v-8M9 15l3-3 3 3"/></svg>
-                            <span x-text="namaFile || 'Pilih foto dari perangkat'"></span>
-                        </span>
-                        <span class="text-sm text-gray-400">JPG atau PNG, maksimal 2 MB. Disarankan rasio 1:1</span>
-                    </label>
-                    <template x-if="error">
-                        <p role="alert" class="text-sm text-red-600" x-text="error"></p>
-                    </template>
-                </div>
-
-                {{-- Tombol: Simpan baru aktif setelah ada foto baru yang valid --}}
-                <div class="flex flex-wrap items-center justify-end gap-3">
-                    <button type="button" x-on:click="tutup()"
-                            :class="adaFile ? 'border-red-500 bg-red-500 text-white hover:bg-red-600' : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'"
-                            class="h-12 cursor-pointer rounded-lg border px-6 text-base">Batal</button>
-                    <button type="submit" :disabled="!adaFile"
-                            class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Simpan foto</button>
-                </div>
-            </form>
+            {{-- Tombol aksi modal --}}
+            <div class="flex items-center justify-end gap-2.5 border-t border-gray-200 pt-3">
+                <button type="button"
+                        :disabled="mengupload"
+                        x-on:click="tutupModalCrop()"
+                        class="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50">
+                    Batal
+                </button>
+                <button type="button"
+                        :disabled="mengupload"
+                        x-on:click="simpanHasilCrop()"
+                        class="cursor-pointer rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50">
+                    <span x-show="!mengupload">Simpan Foto</span>
+                    <span x-show="mengupload" x-cloak>Mengunggah...</span>
+                </button>
+            </div>
         </div>
     </div>
-
-    {{-- MODAL UBAH KATA SANDI. Muncul saat tombol "Ubah Kata Sandi" diklik. Dua langkah: sandi baru, lalu kode OTP. --}}
-    <div class="contents" x-data="ubahSandi(@js($urlSimpanSandi))" x-on:buka-sandi.window="buka()">
-        <div x-show="terbuka" x-cloak x-on:keydown.escape.window="tutup()"
-             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-
-            {{-- Tidak ditutup lewat klik area gelap, supaya isian tidak hilang tanpa sengaja. --}}
-            {{-- Tidak ada @csrf: formulir ini dikirim ke web master kelompok lain, bukan ke aplikasi ini. --}}
-            <form x-ref="form" role="dialog" aria-modal="true" aria-label="Ubah Kata Sandi"
-                  method="POST" action="{{ $urlSimpanSandi }}" autocomplete="off"
-                  x-on:submit.prevent="langkah === 1 ? (bisaKirim && kirimOtp()) : (bisaSimpan && simpan())"
-                  class="grid max-h-full w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-2xl bg-white shadow-2xl md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-
-                {{-- KIRI: judul + langkah --}}
-                <div class="flex flex-col justify-between gap-10 bg-blue-50 p-6 sm:p-8">
-                    <div class="flex flex-col gap-8">
-                        <div class="flex flex-col gap-2">
-                            <p class="text-sm font-medium tracking-[0.2em] text-[#02215c] uppercase">Keamanan akun</p>
-                            <h2 class="text-3xl font-medium">Ubah Kata Sandi</h2>
-                        </div>
-
-                        <ol class="flex flex-col">
-                            <li class="flex gap-4">
-                                <div class="flex flex-col items-center">
-                                    <span class="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-brand text-sm"
-                                          :class="langkah > 1 ? 'bg-brand text-white' : 'bg-white text-brand'">
-                                        <span x-show="langkah === 1">01</span>
-                                        <svg x-show="langkah > 1" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-                                    </span>
-                                    <span class="my-1 h-8 w-0.5 bg-brand"></span>
-                                </div>
-                                <div class="flex flex-col gap-1 pt-1.5">
-                                    <span class="text-lg font-medium">Kata sandi baru</span>
-                                    <span class="text-base">Buat kata sandi yang kuat</span>
-                                </div>
-                            </li>
-                            <li class="flex gap-4">
-                                <span class="flex size-10 shrink-0 items-center justify-center rounded-full border-2 bg-white text-sm"
-                                      :class="langkah === 2 ? 'border-brand text-brand' : 'border-gray-300 text-gray-500'">02</span>
-                                <div class="flex flex-col gap-1 pt-1.5" :class="langkah === 2 ? '' : 'text-gray-400'">
-                                    <span class="text-lg font-medium">Verifikasi OTP</span>
-                                    <span class="text-base">Konfirmasi dengan kode dari email Anda.</span>
-                                </div>
-                            </li>
-                        </ol>
-                    </div>
-
-                    <div class="flex items-start gap-3">
-                        <svg class="mt-0.5 size-6 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.7-7 9.5-4.1-1.8-7-5.3-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>
-                        <p class="text-base">Kata sandi lama tidak diperlukan. Identitas Anda dipastikan lewat kode OTP.</p>
-                    </div>
-                </div>
-
-                {{-- KANAN --}}
-                <div class="flex min-h-[420px] min-w-0 flex-col gap-5 p-6 sm:p-8">
-
-                    {{-- LANGKAH 1: kata sandi baru --}}
-                    <div x-show="langkah === 1" class="flex flex-1 flex-col gap-5">
-                        <div class="flex flex-col gap-2">
-                            <h3 class="text-3xl font-medium">Buat kata sandi baru</h3>
-                            <p class="text-base text-gray-400">Gunakan kata sandi yang berbeda dari sebelumnya dan belum pernah dipakai di tempat lain.</p>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <label for="sandi-baru" class="text-base font-medium">Kata sandi baru</label>
-                            <div class="relative">
-                                <input id="sandi-baru" name="password" x-ref="sandi" x-model="sandi"
-                                       :type="lihat1 ? 'text' : 'password'" autocomplete="new-password"
-                                       placeholder="Masukkan kata sandi baru"
-                                       class="h-12 w-full rounded-lg border border-gray-200 bg-white pr-12 pl-4 text-base placeholder:text-gray-400">
-                                <button type="button" x-on:click="lihat1 = !lihat1"
-                                        :aria-label="lihat1 ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'" :aria-pressed="lihat1"
-                                        class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-gray-900 hover:bg-gray-100">
-                                    <svg x-show="!lihat1" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>
-                                    <svg x-show="lihat1" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
-                                </button>
-                            </div>
-
-                            {{-- Kekuatan sandi: 4 batang, terisi sesuai jumlah syarat yang terpenuhi --}}
-                            <div class="grid grid-cols-4 gap-2" role="img" :aria-label="`Kekuatan kata sandi: ${skor} dari 4`">
-                                <template x-for="n in 4" :key="n">
-                                    <span class="h-1.5 rounded-full" :class="n <= skor ? warna : 'bg-gray-200'"></span>
-                                </template>
-                            </div>
-
-                            <ul class="grid grid-cols-1 gap-x-6 gap-y-3 pt-2 sm:grid-cols-2">
-                                <template x-for="s in syarat" :key="s.teks">
-                                    <li class="flex items-center gap-3 text-base" :class="s.ok ? 'text-gray-900' : 'text-gray-400'">
-                                        <span class="flex size-6 shrink-0 items-center justify-center rounded-full border-2"
-                                              :class="s.ok ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300'">
-                                            <svg x-show="s.ok" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
-                                        </span>
-                                        <span x-text="s.teks"></span>
-                                    </li>
-                                </template>
-                            </ul>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <label for="sandi-konfirmasi" class="text-base font-medium">Konfirmasi kata sandi baru</label>
-                            <div class="relative">
-                                <input id="sandi-konfirmasi" name="password_confirmation" x-model="konfirmasi"
-                                       :type="lihat2 ? 'text' : 'password'" autocomplete="new-password"
-                                       placeholder="Masukkan kata sandi baru"
-                                       class="h-12 w-full rounded-lg border border-gray-200 bg-white pr-12 pl-4 text-base placeholder:text-gray-400">
-                                <button type="button" x-on:click="lihat2 = !lihat2"
-                                        :aria-label="lihat2 ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'" :aria-pressed="lihat2"
-                                        class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-gray-900 hover:bg-gray-100">
-                                    <svg x-show="!lihat2" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>
-                                    <svg x-show="lihat2" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
-                                </button>
-                            </div>
-                            <p x-show="konfirmasi !== '' && !cocok" x-cloak role="alert" class="text-sm text-red-600">Konfirmasi belum sama dengan kata sandi baru.</p>
-                        </div>
-
-                        <p class="text-base text-gray-400">Kode OTP akan dikirim ke {{ $emailSamar }}.</p>
-                    </div>
-
-                    {{-- LANGKAH 2: kode OTP --}}
-                    <div x-show="langkah === 2" x-cloak class="flex flex-1 flex-col gap-5">
-                        <div class="flex flex-col gap-2">
-                            <h3 class="text-3xl font-medium">Masukkan kode OTP</h3>
-                            <p class="text-base text-gray-400">Kami mengirim kode 6 digit ke {{ $emailSamar }}. Kode berlaku 5 menit.</p>
-                        </div>
-
-                        <div class="flex flex-col gap-3">
-                            <div class="flex items-center justify-between">
-                                <span id="label-otp" class="text-base font-medium">Kode OTP</span>
-                                <span class="text-base tabular-nums" :class="kedaluwarsa ? 'text-red-600' : ''" x-text="waktu" aria-live="off"></span>
-                            </div>
-
-                            <div class="flex gap-2 sm:gap-3" role="group" aria-labelledby="label-otp">
-                                <template x-for="(d, i) in otp" :key="i">
-                                    <input :id="`otp-${i}`" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code"
-                                           :aria-label="`Digit ${i + 1}`" :value="d"
-                                           x-on:input="masuk($event, i)"
-                                           x-on:keydown.backspace="hapus($event, i)"
-                                           x-on:paste.prevent="tempel($event)"
-                                           :class="d ? 'border-brand' : 'border-gray-300 focus:border-brand'"
-                                           class="h-14 w-0 min-w-0 flex-1 rounded-xl border-2 bg-white text-center text-3xl font-medium sm:h-16">
-                                </template>
-                            </div>
-                            <input type="hidden" name="otp" :value="otp.join('')">
-
-                            <p x-show="kedaluwarsa" x-cloak role="alert" class="text-sm text-red-600">Kode sudah kedaluwarsa. Silakan kirim ulang kode.</p>
-                            <p x-show="info && !kedaluwarsa" x-cloak role="status" class="text-sm text-gray-500" x-text="info"></p>
-                        </div>
-
-                        <div>
-                            <button type="button" x-on:click="kirimUlang()"
-                                    class="cursor-pointer text-base text-brand hover:underline">Kirim ulang kode</button>
-                        </div>
-
-                        <p x-show="selesai" x-cloak role="status"
-                           class="rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-sm text-green-800">
-                            Tersimpan (simulasi). Pengiriman ke web master belum tersambung.
-                        </p>
-                    </div>
-
-                    {{-- Tombol --}}
-                    <div class="mt-auto flex flex-wrap items-center justify-end gap-3 pt-4">
-                        <button type="button" x-on:click="tutup()"
-                                class="h-12 cursor-pointer rounded-lg bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</button>
-
-                        <button x-show="langkah === 1" type="submit" :disabled="!bisaKirim"
-                                class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Kirim Kode OTP</button>
-                        <button x-show="langkah === 2" x-cloak type="submit" :disabled="!bisaSimpan"
-                                class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Simpan Kata Sandi</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
+</div>
 @endsection
 
 @push('scripts')
 <script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('ubahSandi', (action) => ({
-            terbuka: false,
-            langkah: 1,                 // 1 = kata sandi baru, 2 = kode OTP
-            sandi: '', konfirmasi: '',
-            lihat1: false, lihat2: false,
+document.addEventListener('alpine:init', () => {
+    Alpine.data('profilDosen', () => ({
+        loading: true,
+        mengupload: false,
+        error: '',
+        sukses: '',
+        profil: {
+            id_dosen: null,
+            nama: '',
+            nip: '',
+            email: '',
+            foto_profil: null,
+            pangkat_terakhir: null,
+        },
+        riwayat: [],
 
-            // Syarat kata sandi
-            get syarat() {
-                return [
-                    { teks: 'Minimal 8 karakter', ok: this.sandi.length >= 8 },
-                    { teks: 'Mengandung huruf',   ok: /[A-Za-z]/.test(this.sandi) },
-                    { teks: 'Mengandung angka',   ok: /\d/.test(this.sandi) },
-                    { teks: 'Mengandung simbol',  ok: /[^A-Za-z0-9]/.test(this.sandi) },
-                ];
-            },
-            get skor() { return this.syarat.filter(s => s.ok).length; },
-            get warna() { return ['', 'bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'][this.skor]; },
-            get cocok() { return this.konfirmasi !== '' && this.konfirmasi === this.sandi; },
-            get bisaKirim() { return this.skor === 4 && this.cocok; },
+        // State modal crop & zoom
+        modalCropTerbuka: false,
+        gambarSumber: null,
+        namaFileAsli: 'foto-profil.jpg',
+        mimeTipeOutput: 'image/jpeg',
+        zoom: 1,
+        offsetX: 0,
+        offsetY: 0,
+        sedangGeser: false,
+        startX: 0,
+        startY: 0,
+        canvasSize: 280,
+        cropDiameter: 220,
 
-            // OTP
-            otp: ['', '', '', '', '', ''],
-            sisa: 300,                  // detik (5 menit)
-            timer: null,
-            info: '',
-            selesai: false,
-            get waktu() {
-                const m = String(Math.floor(this.sisa / 60)).padStart(2, '0');
-                const s = String(this.sisa % 60).padStart(2, '0');
-                return `${m}:${s}`;
-            },
-            get kedaluwarsa() { return this.sisa === 0; },
-            get bisaSimpan() { return this.otp.every(d => d !== '') && !this.kedaluwarsa && !this.selesai; },
+        headers(isMultipart = false) {
+            const h = {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            };
 
-            buka() {
-                this.terbuka = true;
-                this.$nextTick(() => this.$refs.sandi.focus());
-            },
-            tutup() {
-                this.terbuka = false;
-                clearInterval(this.timer);
-                this.langkah = 1;
-                this.sandi = ''; this.konfirmasi = '';
-                this.lihat1 = false; this.lihat2 = false;
-                this.otp = ['', '', '', '', '', ''];
-                this.sisa = 300; this.info = ''; this.selesai = false;
-            },
+            if (!isMultipart) {
+                h['Content-Type'] = 'application/json';
+            }
 
-            mulaiTimer() {
-                clearInterval(this.timer);
-                this.sisa = 300;
-                this.timer = setInterval(() => {
-                    if (this.sisa > 0) this.sisa--;
-                    if (this.sisa === 0) clearInterval(this.timer);
-                }, 1000);
-            },
-            // Kirim kode: nanti backend / web master yang benar-benar mengirim email.
-            kirimOtp() {
-                this.langkah = 2;
-                this.info = '';
-                this.otp = ['', '', '', '', '', ''];
-                this.mulaiTimer();
-                this.$nextTick(() => document.getElementById('otp-0').focus());
-            },
-            kirimUlang() {
-                this.otp = ['', '', '', '', '', ''];
-                this.selesai = false;
-                this.mulaiTimer();
-                this.info = 'Kode baru telah dikirim (simulasi).';
-                this.$nextTick(() => document.getElementById('otp-0').focus());
-            },
-
-            // Kotak OTP: pindah otomatis, backspace, dan tempel 6 digit sekaligus
-            masuk(event, i) {
-                const digit = event.target.value.replace(/\D/g, '').slice(-1);
-                this.otp[i] = digit;
-                event.target.value = digit;
-                if (digit && i < 5) document.getElementById(`otp-${i + 1}`).focus();
-            },
-            hapus(event, i) {
-                if (this.otp[i] === '' && i > 0) {
-                    this.otp[i - 1] = '';
-                    document.getElementById(`otp-${i - 1}`).focus();
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfMeta) {
+                h['X-CSRF-TOKEN'] = csrfMeta;
+            } else {
+                const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+                if (match) {
+                    h['X-XSRF-TOKEN'] = decodeURIComponent(match[1]);
                 }
-            },
-            tempel(event) {
-                const angka = (event.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-                if (!angka) return;
-                angka.split('').forEach((d, i) => { this.otp[i] = d; });
-                document.getElementById(`otp-${Math.min(angka.length, 5)}`).focus();
-            },
+            }
 
-            // Simpan Kata Sandi.
-            // Kalau alamat web master sudah diisi ($urlSimpanSandi di atas), formulir dikirim ke sana
-            // berisi password, password_confirmation, dan otp. Kalau masih '#', hanya simulasi.
-            simpan() {
-                if (action === '#') { this.selesai = true; return; }
-                this.$refs.form.submit();
-            },
-        }));
+            const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+            if (token) {
+                h['Authorization'] = `Bearer ${token}`;
+            }
 
-        Alpine.data('ubahFoto', (fotoSekarang) => ({
-            terbuka: false,
-            fotoSekarang: fotoSekarang,   // foto yang sedang dipakai (null = inisial)
-            pratinjau: '',                // foto baru yang dipilih
-            namaFile: '',
-            error: '',
+            return h;
+        },
 
-            get adaFile() { return this.pratinjau !== ''; },
-            get tampil() { return this.pratinjau || this.fotoSekarang; },
+        async muatData() {
+            this.loading = true;
+            this.error = '';
 
-            buka() {
-                this.terbuka = true;
-                this.$nextTick(() => this.$refs.tombolTutup.focus());
-            },
-            tutup() {
-                this.terbuka = false;
-                this.reset();
-            },
-            reset() {
-                if (this.pratinjau) URL.revokeObjectURL(this.pratinjau);
-                this.pratinjau = '';
-                this.namaFile = '';
-                this.error = '';
-                this.$refs.berkas.value = '';
-            },
-            pilih(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-                if (!['image/jpeg', 'image/png'].includes(file.type)) {
-                    this.reset();
-                    this.error = 'Format harus JPG atau PNG.';
-                    return;
+            try {
+                const [resProfil, resRiwayat] = await Promise.all([
+                    fetch('/api/v1/dosen/profil', {
+                        headers: this.headers(false),
+                        credentials: 'same-origin',
+                    }),
+                    fetch('/api/v1/dosen/riwayat-pangkat', {
+                        headers: this.headers(false),
+                        credentials: 'same-origin',
+                    }),
+                ]);
+
+                const jsonProfil = await resProfil.json().catch(() => ({}));
+                const jsonRiwayat = await resRiwayat.json().catch(() => ({}));
+
+                if (!resProfil.ok) {
+                    throw new Error(jsonProfil.message || `Gagal memuat profil (${resProfil.status})`);
                 }
-                if (file.size > 2 * 1024 * 1024) {
-                    this.reset();
-                    this.error = 'Ukuran foto melebihi 2 MB.';
-                    return;
+                if (!resRiwayat.ok) {
+                    throw new Error(jsonRiwayat.message || `Gagal memuat riwayat pangkat (${resRiwayat.status})`);
                 }
-                if (this.pratinjau) URL.revokeObjectURL(this.pratinjau);
-                this.error = '';
-                this.namaFile = file.name;
-                this.pratinjau = URL.createObjectURL(file);
-            },
 
-            // Simpan (simulasi): foto di halaman ikut berganti, tapi belum tersimpan ke server.
-            // Setelah di-refresh, foto kembali seperti semula.
-            simpan() {
-                if (!this.adaFile) return;
-                this.fotoSekarang = this.pratinjau;
-                window.dispatchEvent(new CustomEvent('foto-diganti', { detail: this.pratinjau }));
-                this.pratinjau = '';          // jangan di-revoke: URL ini sekarang dipakai foto profil
-                this.namaFile = '';
-                this.$refs.berkas.value = '';
-                this.terbuka = false;
-            },
-        }));
-    });
+                this.profil = jsonProfil.data ?? jsonProfil;
+                this.riwayat = Array.isArray(jsonRiwayat.data)
+                    ? jsonRiwayat.data
+                    : (Array.isArray(jsonRiwayat) ? jsonRiwayat : []);
+            } catch (err) {
+                this.error = err.message || 'Terjadi kesalahan saat mengambil data dari API.';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        bukaPilihFoto() {
+            this.error = '';
+            this.sukses = '';
+            this.$refs.inputFoto?.click();
+        },
+
+        pilihFileUntukCrop(event) {
+            const file = event.target.files?.[0] || null;
+            if (!file) return;
+
+            const tipeValid = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+            if (!tipeValid.includes(file.type)) {
+                this.error = 'Format foto profil harus jpg, jpeg, png, atau webp.';
+                event.target.value = '';
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                this.error = 'Ukuran foto maksimal 2 MB.';
+                event.target.value = '';
+                return;
+            }
+
+            this.namaFileAsli = file.name;
+            this.mimeTipeOutput = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    this.gambarSumber = img;
+                    this.modalCropTerbuka = true;
+                    this.$nextTick(() => {
+                        this.resetCrop();
+                    });
+                };
+                img.src = e.target?.result;
+            };
+            reader.readAsDataURL(file);
+
+            event.target.value = '';
+        },
+
+        resetCrop() {
+            this.zoom = 1;
+            this.offsetX = 0;
+            this.offsetY = 0;
+            this.gambarCanvas();
+        },
+
+        ubahZoom(delta) {
+            const nilaiBaru = Math.min(3, Math.max(1, Number((this.zoom + delta).toFixed(2))));
+            this.zoom = nilaiBaru;
+            this.batasiOffset();
+            this.gambarCanvas();
+        },
+
+        terapkanZoom() {
+            this.zoom = Math.min(3, Math.max(1, Number(this.zoom) || 1));
+            this.batasiOffset();
+            this.gambarCanvas();
+        },
+
+        zoomDenganWheel(event) {
+            const delta = event.deltaY < 0 ? 0.1 : -0.1;
+            this.ubahZoom(delta);
+        },
+
+        mulaiGeser(event) {
+            this.sedangGeser = true;
+            this.startX = event.clientX - this.offsetX;
+            this.startY = event.clientY - this.offsetY;
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+        },
+
+        geserGambar(event) {
+            if (!this.sedangGeser) return;
+            this.offsetX = event.clientX - this.startX;
+            this.offsetY = event.clientY - this.startY;
+            this.batasiOffset();
+            this.gambarCanvas();
+        },
+
+        selesaiGeser() {
+            this.sedangGeser = false;
+        },
+
+        hitungDimensiDasar() {
+            if (!this.gambarSumber) {
+                return { baseWidth: this.cropDiameter, baseHeight: this.cropDiameter };
+            }
+
+            const rasioGambar = this.gambarSumber.width / this.gambarSumber.height;
+            if (rasioGambar >= 1) {
+                return {
+                    baseHeight: this.cropDiameter,
+                    baseWidth: this.cropDiameter * rasioGambar,
+                };
+            }
+
+            return {
+                baseWidth: this.cropDiameter,
+                baseHeight: this.cropDiameter / rasioGambar,
+            };
+        },
+
+        batasiOffset() {
+            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
+            const scaledW = baseWidth * this.zoom;
+            const scaledH = baseHeight * this.zoom;
+
+            const maxOffsetX = Math.max(0, (scaledW - this.cropDiameter) / 2);
+            const maxOffsetY = Math.max(0, (scaledH - this.cropDiameter) / 2);
+
+            this.offsetX = Math.min(maxOffsetX, Math.max(-maxOffsetX, this.offsetX));
+            this.offsetY = Math.min(maxOffsetY, Math.max(-maxOffsetY, this.offsetY));
+        },
+
+        gambarCanvas() {
+            const canvas = this.$refs.canvasCrop;
+            if (!canvas || !this.gambarSumber) return;
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, this.canvasSize, this.canvasSize);
+
+            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
+            const scaledW = baseWidth * this.zoom;
+            const scaledH = baseHeight * this.zoom;
+
+            const drawX = (this.canvasSize - scaledW) / 2 + this.offsetX;
+            const drawY = (this.canvasSize - scaledH) / 2 + this.offsetY;
+
+            ctx.drawImage(this.gambarSumber, drawX, drawY, scaledW, scaledH);
+        },
+
+        tutupModalCrop() {
+            if (this.mengupload) return;
+            this.modalCropTerbuka = false;
+            this.gambarSumber = null;
+            this.sedangGeser = false;
+        },
+
+        async simpanHasilCrop() {
+            if (!this.gambarSumber || this.mengupload) return;
+
+            const outputSize = 600;
+            const canvasHasil = document.createElement('canvas');
+            canvasHasil.width = outputSize;
+            canvasHasil.height = outputSize;
+
+            const ctx = canvasHasil.getContext('2d');
+            const skalaOutput = outputSize / this.cropDiameter;
+            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
+
+            const scaledW = baseWidth * this.zoom * skalaOutput;
+            const scaledH = baseHeight * this.zoom * skalaOutput;
+            const drawX = (outputSize - scaledW) / 2 + (this.offsetX * skalaOutput);
+            const drawY = (outputSize - scaledH) / 2 + (this.offsetY * skalaOutput);
+
+            ctx.drawImage(this.gambarSumber, drawX, drawY, scaledW, scaledH);
+
+            const blob = await new Promise((resolve) => {
+                canvasHasil.toBlob(resolve, this.mimeTipeOutput, 0.9);
+            });
+
+            if (!blob) {
+                this.error = 'Gagal memproses hasil crop foto.';
+                return;
+            }
+
+            if (blob.size > 2 * 1024 * 1024) {
+                this.error = 'Hasil crop melebihi batas ukuran 2 MB. Coba perkecil zoom atau pilih foto lebih ringan.';
+                return;
+            }
+
+            const ekstensi = this.mimeTipeOutput === 'image/png' ? 'png' : 'jpg';
+            const namaBersih = this.namaFileAsli.replace(/\.[^/.]+$/, '') || 'foto-profil';
+            const fileCrop = new File([blob], `${namaBersih}.${ekstensi}`, { type: this.mimeTipeOutput });
+
+            this.mengupload = true;
+            this.error = '';
+            this.sukses = '';
+
+            try {
+                const fd = new FormData();
+                fd.append('foto_profil', fileCrop);
+                fd.append('_method', 'PATCH');
+
+                const res = await fetch('/api/v1/dosen/profil', {
+                    method: 'POST',
+                    headers: this.headers(true),
+                    credentials: 'same-origin',
+                    body: fd,
+                });
+
+                const json = await res.json().catch(() => ({}));
+
+                if (!res.ok) {
+                    const pesanValidasi = json.errors
+                        ? Object.values(json.errors).flat().join(' ')
+                        : null;
+                    throw new Error(pesanValidasi || json.message || `Gagal memperbarui foto profil (${res.status})`);
+                }
+
+                this.profil = json.data ?? json;
+                this.sinkronkanAvatarHeader(this.profil?.foto_profil);
+                this.sukses = json.message || 'Foto profil berhasil diperbarui.';
+                this.modalCropTerbuka = false;
+                this.gambarSumber = null;
+            } catch (err) {
+                this.error = err.message || 'Terjadi kesalahan saat mengunggah foto profil.';
+            } finally {
+                this.mengupload = false;
+            }
+        },
+
+        sinkronkanAvatarHeader(fotoUrl) {
+            if (!fotoUrl) return;
+            const cacheBustedUrl = `${fotoUrl}${fotoUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+
+            document.querySelectorAll('header img').forEach((img) => {
+                if (img.closest('aside')) return;
+                const srcLower = (img.getAttribute('src') || '').toLowerCase();
+                if (srcLower.includes('logo') || srcLower.includes('ti')) return;
+                img.src = cacheBustedUrl;
+            });
+        },
+
+        inisial(nama) {
+            if (!nama) return 'DS';
+            return nama
+                .trim()
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((bagian) => bagian[0]?.toUpperCase() || '')
+                .join('');
+        },
+
+        formatPangkatTerakhir() {
+            const pt = this.profil?.pangkat_terakhir;
+            if (!pt) return '-';
+            return pt.golongan ? `${pt.pangkat}, ${pt.golongan}` : (pt.pangkat || '-');
+        },
+
+        formatTanggal(tgl) {
+            if (!tgl) return '-';
+            const tanggal = new Date(tgl);
+            if (Number.isNaN(tanggal.getTime())) return tgl;
+            return tanggal.toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+            });
+        },
+    }));
+});
 </script>
 @endpush
