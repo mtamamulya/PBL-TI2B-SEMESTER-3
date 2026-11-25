@@ -76,6 +76,12 @@ class LandingMahasiswaController extends Controller
         $detail = ApiClient::pengguna()->get("/mahasiswa/{$id}");
         $mhs = $detail['data'] ?? [];
 
+        if (($mhs['status'] ?? '') === 'Lulus') {
+            return redirect()
+                ->route('admin.mahasiswa.show', ['id' => $id])
+                ->with('error', 'Data mahasiswa yang sudah berstatus Lulus tidak dapat diubah lagi.');
+        }
+
         return view('admin.mahasiswa-edit', [
             'mahasiswa' => $mhs,
             'fotoUrl' => $detail['fotoUrl'] ?? null,
