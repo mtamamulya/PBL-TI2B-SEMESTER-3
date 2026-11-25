@@ -2,27 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\PasswordResetOtp;
-use App\Models\User;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class PemulihanController extends Controller
 {
-    /** Label alur pada otp_codes.tujuan. Alur lain (mis. ganti sandi lewat profil) memakai label sendiri, jadi barisnya tidak saling menimpa. */
-    private const TUJUAN = 'lupa_sandi';
+    /** Setelah OTP benar, waktu untuk mengisi dan menyimpan sandi baru (menit). */
+    private const SANDI_BARU_MENIT = 7;
 
+    /** Masa berlaku kode OTP (menit); harus sama dengan sisi API. */
     private const OTP_MENIT = 5;
-
-    private const OTP_MAKS_PERCOBAAN = 3;
 
     private const OTP_JEDA_KIRIM_DETIK = 60;
 
@@ -33,9 +25,23 @@ class PemulihanController extends Controller
         }
 
         $step = (int) session('pemulihan.step', 1);
+
+        // Langkah 3 hanya boleh tampil selama batas waktu pembuatan sandi baru belum habis.
+        if ($step === 3 && ! $this->sesiSandiBaruMasihBerlaku()) {
+            return $this->kembaliKeLangkahEmail('Waktu membuat kata sandi baru sudah habis. Minta kode OTP baru.');
+        }
+
+        // Langkah 2: kode OTP sudah lewat 5 menit -> kembali ke langkah 1 untuk meminta kode baru.
+        if ($step === 2 && $this->otpKedaluwarsa()) {
+            return $this->kembaliKeLangkahEmail('Kode OTP sudah kedaluwarsa. Silakan minta kode OTP baru.');
+        }
+
         $data = [
             'step' => $step,
             'email' => session('pemulihan.email'),
+            'batasMenit' => self::SANDI_BARU_MENIT,
+            'sisaOtpDetik' => $step === 2 ? $this->sisaDetik('pemulihan.otp_berlaku_sampai') : null,
+            'sisaSandiDetik' => $step === 3 ? $this->sisaDetik('pemulihan.berlaku_sampai') : null,
         ];
 
         $view = view('pemulihan', $data);
@@ -54,29 +60,27 @@ class PemulihanController extends Controller
             'email.email' => 'Format email tidak valid.',
         ]);
 
-        if (! $this->emailDeliveryAvailable()) {
-            return back()->withErrors([
-                'email' => 'Layanan email belum dikonfigurasi. Hubungi administrator.',
-            ]);
-        }
-
         $email = Str::lower(trim($data['email']));
-        $user = User::query()->where('email', $email)->where('status', true)->first();
 
-        if ($user) {
-            try {
-                $this->sendOtp($user);
-            } catch (TransportExceptionInterface $e) {
-                Log::error('Gagal mengirim OTP pemulihan: '.$e->getMessage());
-
-                return back()->withInput($request->only('email'))
-                    ->withErrors(['email' => 'Email gagal dikirim. Coba lagi beberapa saat atau hubungi administrator.']);
+        try {
+            ApiClient::publik()->post('/lupa-sandi/kirim-otp', ['email' => $email]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 422) {
+                throw $e;
             }
+
+            return back()->withInput($request->only('email'))
+                ->withErrors(['email' => $e->getMessage()]);
         }
 
-        // Jeda kirim ulang dihitung dari sesi (berlaku sama untuk email terdaftar maupun tidak),
-        // supaya pesan "tunggu" tidak membocorkan apakah email itu terdaftar.
-        session(['pemulihan' => ['step' => 2, 'email' => $email, 'terakhir_kirim' => now()->timestamp]]);
+        session([
+            'pemulihan' => [
+                'step' => 2,
+                'email' => $email,
+                'terakhir_kirim' => now()->timestamp,
+                'otp_berlaku_sampai' => now()->addMinutes(self::OTP_MENIT)->timestamp,
+            ],
+        ]);
 
         return redirect()->route('password.request')
             ->with('status', 'Jika email terdaftar, kode OTP telah dikirim. Periksa kotak masuk atau folder spam.');
@@ -89,30 +93,27 @@ class PemulihanController extends Controller
             return redirect()->route('password.request');
         }
 
-        if (! $this->emailDeliveryAvailable()) {
-            return redirect()->route('password.request')
-                ->withErrors(['otp' => 'Layanan email belum dikonfigurasi. Hubungi administrator.']);
-        }
-
         $sisa = self::OTP_JEDA_KIRIM_DETIK - (now()->timestamp - (int) session('pemulihan.terakhir_kirim', 0));
         if ($sisa > 0) {
             return redirect()->route('password.request')
                 ->withErrors(['otp' => "Tunggu {$sisa} detik sebelum meminta kode baru."]);
         }
 
-        $user = User::query()->where('email', $email)->where('status', true)->first();
-        if ($user) {
-            try {
-                $this->sendOtp($user);
-            } catch (TransportExceptionInterface $e) {
-                Log::error('Gagal mengirim ulang OTP pemulihan: '.$e->getMessage());
-
-                return redirect()->route('password.request')
-                    ->withErrors(['otp' => 'Email gagal dikirim. Coba lagi beberapa saat atau hubungi administrator.']);
+        try {
+            ApiClient::publik()->post('/lupa-sandi/kirim-otp', ['email' => $email]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 422) {
+                throw $e;
             }
+
+            return redirect()->route('password.request')
+                ->withErrors(['otp' => $e->getMessage()]);
         }
 
-        session(['pemulihan.terakhir_kirim' => now()->timestamp]);
+        session([
+            'pemulihan.terakhir_kirim' => now()->timestamp,
+            'pemulihan.otp_berlaku_sampai' => now()->addMinutes(self::OTP_MENIT)->timestamp,
+        ]);
 
         return redirect()->route('password.request')
             ->with('status', 'Jika email terdaftar, kode baru telah dikirim. Periksa kotak masuk atau folder spam.');
@@ -129,59 +130,36 @@ class PemulihanController extends Controller
     {
         abort_unless(session('pemulihan.step') === 2, 404);
 
-        $request->validate(['otp' => ['required', 'digits:6']], [
+        $data = $request->validate(['otp' => ['required', 'digits:6']], [
             'otp.required' => 'Masukkan 6 digit kode OTP.',
             'otp.digits' => 'Kode OTP harus 6 digit angka.',
         ]);
 
-        $user = User::query()->where('email', session('pemulihan.email'))
-            ->where('status', true)->first();
-        $otp = $user
-            ? DB::table('otp_codes')
-                ->where('id_user', $user->getKey())
-                ->where('tujuan', self::TUJUAN)
-                ->whereNull('consumed_at')
-                ->latest('id_otp_code')
-                ->first()
-            : null;
-
-        if (! $otp || Carbon::parse($otp->expires_at)->isPast()) {
-            if ($otp) {
-                DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-                    ->update(['consumed_at' => now(), 'updated_at' => now()]);
-            }
-
-            throw ValidationException::withMessages(['otp' => 'Kode OTP tidak valid atau sudah kedaluwarsa. Kirim ulang OTP.']);
+        // Kode sudah lewat masa berlakunya: jangan kirim ke API (tidak menghabiskan percobaan).
+        if ($this->otpKedaluwarsa()) {
+            return $this->kembaliKeLangkahEmail('Kode OTP sudah kedaluwarsa. Silakan minta kode OTP baru.');
         }
 
-        if ((int) $otp->attempts >= self::OTP_MAKS_PERCOBAAN) {
-            throw ValidationException::withMessages(['otp' => 'Batas percobaan tercapai. Kirim ulang OTP.']);
-        }
-
-        if (! Hash::check((string) $request->input('otp'), $otp->code_hash)) {
-            DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-                ->increment('attempts', 1, ['updated_at' => now()]);
-            $attempts = (int) DB::table('otp_codes')
-                ->where('id_otp_code', $otp->id_otp_code)->value('attempts');
-
-            if ($attempts >= self::OTP_MAKS_PERCOBAAN) {
-                DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-                    ->update(['consumed_at' => now(), 'updated_at' => now()]);
-            }
-
-            throw ValidationException::withMessages([
-                'otp' => $attempts >= self::OTP_MAKS_PERCOBAAN
-                    ? 'Batas percobaan tercapai. Kirim ulang OTP.'
-                    : 'Kode OTP tidak valid atau sudah kedaluwarsa.',
+        try {
+            $hasil = ApiClient::publik()->post('/lupa-sandi/verifikasi', [
+                'email' => session('pemulihan.email'),
+                'otp' => $data['otp'],
             ]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 422) {
+                throw $e;
+            }
+
+            return redirect()->route('password.request')
+                ->withErrors(['otp' => $e->getMessage()]);
         }
 
-        DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-            ->update(['verified_at' => now(), 'updated_at' => now()]);
+        $batasMenit = (int) ($hasil['data']['batas_menit'] ?? self::SANDI_BARU_MENIT);
 
         session([
             'pemulihan.step' => 3,
-            'pemulihan.otp_id' => $otp->id_otp_code,
+            'pemulihan.otp_id' => $hasil['data']['otp_id'] ?? null,
+            'pemulihan.berlaku_sampai' => now()->addMinutes($batasMenit)->timestamp,
         ]);
 
         return redirect()->route('password.request');
@@ -199,105 +177,58 @@ class PemulihanController extends Controller
             'password.confirmed' => 'Konfirmasi kata sandi tidak sama.',
         ]);
 
-        $otpId = session('pemulihan.otp_id');
-        $email = session('pemulihan.email');
-
-        DB::transaction(function () use ($otpId, $email, $data) {
-            $otp = DB::table('otp_codes')->where('id_otp_code', $otpId)
-                ->lockForUpdate()->first();
-
-            if (! $otp || $otp->consumed_at !== null || $otp->verified_at === null
-                || Carbon::parse($otp->expires_at)->isPast()) {
-                throw ValidationException::withMessages([
-                    'password' => 'Sesi pemulihan tidak valid atau sudah kedaluwarsa. Mulai kembali.',
-                ]);
+        try {
+            ApiClient::publik()->post('/lupa-sandi/simpan', [
+                'email' => session('pemulihan.email'),
+                'otp_id' => session('pemulihan.otp_id'),
+                'password' => $data['password'],
+                'password_confirmation' => $request->input('password_confirmation'),
+            ]);
+        } catch (ApiException $e) {
+            if ($e->getStatusCode() === 422) {
+                throw $e;
             }
 
-            $consumed = DB::table('otp_codes')->where('id_otp_code', $otpId)
-                ->whereNull('consumed_at')->update(['consumed_at' => now(), 'updated_at' => now()]);
-
-            if ($consumed !== 1) {
-                throw ValidationException::withMessages([
-                    'password' => 'Kode pemulihan sudah digunakan. Mulai kembali.',
-                ]);
-            }
-
-            $user = User::query()->where('email', $email)->where('status', true)->first();
-
-            if (! $user) {
-                throw ValidationException::withMessages([
-                    'password' => 'Akun tidak ditemukan atau tidak aktif. Mulai kembali.',
-                ]);
-            }
-
-            $user->forceFill([
-                'password' => Hash::make($data['password']),
-                'remember_token' => Str::random(60),
-            ])->save();
-
-            // Token API lama (Sanctum) ikut dicabut, supaya perangkat yang masih login tidak lolos dengan sandi lama.
-            $user->tokens()->delete();
-        });
+            return redirect()->route('password.request')
+                ->withErrors(['password' => $e->getMessage()]);
+        }
 
         session(['pemulihan.step' => 4]);
 
         return redirect()->route('password.request');
     }
 
-    private function sendOtp(User $user): void
+    private function otpKedaluwarsa(): bool
     {
-        $otp = DB::table('otp_codes')->where('id_user', $user->getKey())
-            ->where('tujuan', self::TUJUAN)
-            ->whereNull('consumed_at')->latest('id_otp_code')->first();
+        $batas = session('pemulihan.otp_berlaku_sampai');
 
-        if ($otp && Carbon::parse($otp->last_sent_at)
-            ->addSeconds(self::OTP_JEDA_KIRIM_DETIK)->isFuture()) {
-            return;
-        }
-
-        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $now = now();
-        $values = [
-            'code_hash' => Hash::make($code),
-            'attempts' => 0,
-            'expires_at' => $now->copy()->addMinutes(self::OTP_MENIT),
-            'last_sent_at' => $now,
-            'verified_at' => null,
-            'consumed_at' => null,
-            'updated_at' => $now,
-        ];
-
-        if ($otp) {
-            DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)->update($values);
-            $otpId = (int) $otp->id_otp_code;
-        } else {
-            $otpId = (int) DB::table('otp_codes')->insertGetId(array_merge($values, [
-                'id_user' => $user->getKey(),
-                'tujuan' => self::TUJUAN,
-                'created_at' => $now,
-            ]), 'id_otp_code');
-        }
-
-        try {
-            Mail::to($user->email)->send(new PasswordResetOtp($code, self::OTP_MENIT));
-        } catch (TransportExceptionInterface $exception) {
-            DB::table('otp_codes')->where('id_otp_code', $otpId)
-                ->update(['consumed_at' => now(), 'updated_at' => now()]);
-
-            throw $exception;
-        }
+        // Sesi lama tanpa catatan waktu dianggap kedaluwarsa (lebih aman: pengguna diminta mulai dari awal).
+        return $batas === null || now()->timestamp > (int) $batas;
     }
 
-    private function emailDeliveryAvailable(): bool
+    private function sisaDetik(string $kunciSesi): ?int
     {
-        // Uji lokal boleh memakai mailer "log" (OTP dibaca dari storage/logs/laravel.log). Di produksi tetap harus mailer sungguhan.
-        if (app()->environment(['testing', 'local'])) {
-            return true;
-        }
+        $batas = session($kunciSesi);
 
-        $mailer = config('mail.default');
-        $transport = config("mail.mailers.{$mailer}.transport");
+        return $batas === null ? null : max(0, (int) $batas - now()->timestamp);
+    }
 
-        return ! in_array($transport, ['log', 'array', 'failover', 'roundrobin'], true);
+    /** Hapus sesi pemulihan, kembali ke langkah 1 dengan email terisi dan pesan. */
+    private function kembaliKeLangkahEmail(string $pesan): RedirectResponse
+    {
+        $email = session('pemulihan.email');
+        session()->forget('pemulihan');
+
+        return redirect()->route('password.request')
+            ->withInput(['email' => $email])
+            ->withErrors(['email' => $pesan]);
+    }
+
+    private function sesiSandiBaruMasihBerlaku(): bool
+    {
+        $id = session('pemulihan.otp_id');
+        $berlakuSampai = (int) session('pemulihan.berlaku_sampai', 0);
+
+        return ! empty($id) && now()->timestamp <= $berlakuSampai;
     }
 }
