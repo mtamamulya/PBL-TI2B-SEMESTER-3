@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             JenisDokumenSeeder::class,
+            MasterRisetDosenSeeder::class,
             TingkatKelasSeeder::class,
         ]);
 
