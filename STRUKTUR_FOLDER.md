@@ -1,6 +1,6 @@
 # Struktur Folder `sikap-kelompok3`
 
-Peta berikut dibuat dari berkas yang dilacak Git pada repo saat dokumentasi diperbarui. Isi submodule tidak ditampilkan karena dikelola di repo masing-masing. Berkas rahasia (`.env`), database lokal, dependensi (`vendor/`, `node_modules/`), metadata Git, dan file cache/runtime dikecualikan.
+Peta ini merangkum struktur workspace pada saat diperbarui. Folder dependensi (`vendor/`, `node_modules/`), metadata Git (`.git/`), storage runtime, file rahasia dan backup environment, database lokal, serta cache/build sementara tidak dirinci.
 
 ```text
 sikap-kelompok3/
@@ -12,6 +12,7 @@ sikap-kelompok3/
 │   │   └── task.md
 │   ├── workflows/
 │   │   └── ci.yml
+│   ├── CODEOWNERS
 │   └── pull_request_template.md
 ├── app/
 │   ├── BackendKel1/
@@ -51,6 +52,12 @@ sikap-kelompok3/
 │   │   │   ├── KegiatanAdminQuery.php
 │   │   │   ├── KegiatanAdminSimpan.php
 │   │   │   └── routes.php
+│   │   ├── Kelas/
+│   │   │   ├── KelasController.php
+│   │   │   └── routes.php
+│   │   ├── KelompokBidang/
+│   │   │   ├── KelompokBidangController.php
+│   │   │   └── routes.php
 │   │   ├── Kurikulum/
 │   │   │   ├── KurikulumAngkatan.php
 │   │   │   ├── KurikulumController.php
@@ -72,6 +79,9 @@ sikap-kelompok3/
 │   │   │   ├── PrestasiController.php
 │   │   │   ├── PrestasiRekapController.php
 │   │   │   └── routes.php
+│   │   ├── Skim/
+│   │   │   ├── routes.php
+│   │   │   └── SkimController.php
 │   │   ├── TahunAkademik/
 │   │   │   ├── routes.php
 │   │   │   └── TahunAkademikController.php
@@ -92,6 +102,14 @@ sikap-kelompok3/
 │   │   │   ├── DashboardController.php
 │   │   │   ├── README.md
 │   │   │   └── routes.php
+│   │   ├── Dokumen/
+│   │   │   ├── Requests/
+│   │   │   │   └── SimpanTautanDokumenRequest.php
+│   │   │   ├── DokumenController.php
+│   │   │   ├── ImageUploadService.php
+│   │   │   ├── JenisDokumenBaku.php
+│   │   │   ├── routes.php
+│   │   │   └── TautanDokumenService.php
 │   │   ├── Laporan/
 │   │   │   ├── LaporanController.php
 │   │   │   ├── README.md
@@ -107,6 +125,25 @@ sikap-kelompok3/
 │   │   │   └── routes.php
 │   │   ├── Support/
 │   │   │   └── RoleGuard.php
+│   │   ├── Workflow/
+│   │   │   ├── Actor.php
+│   │   │   ├── BeritaWorkflow.php
+│   │   │   ├── ColumnStore.php
+│   │   │   ├── HasWorkflow.php
+│   │   │   ├── InvalidTransition.php
+│   │   │   ├── KegiatanWorkflow.php
+│   │   │   ├── README.md
+│   │   │   ├── StatusChanged.php
+│   │   │   ├── StatusHistory.php
+│   │   │   ├── StatusStore.php
+│   │   │   ├── Timeline.php
+│   │   │   ├── TimelineStore.php
+│   │   │   ├── TransitionForbidden.php
+│   │   │   ├── Workflowable.php
+│   │   │   ├── WorkflowDefinition.php
+│   │   │   ├── WorkflowEngine.php
+│   │   │   ├── WorkflowRegistry.php
+│   │   │   └── WorkflowServiceProvider.php
 │   │   ├── README.md
 │   │   └── routes.php
 │   ├── BackendKel3/
@@ -118,6 +155,7 @@ sikap-kelompok3/
 │   │   │   ├── DosenDashboardController.php
 │   │   │   ├── NotifikasiController.php
 │   │   │   ├── README.md
+│   │   │   ├── RingkasanDosen.php
 │   │   │   └── routes.php
 │   │   ├── DokumenSurat/
 │   │   │   ├── README.md
@@ -187,6 +225,7 @@ sikap-kelompok3/
 │   │   │   ├── Controller.php
 │   │   │   ├── DashboardController.php
 │   │   │   ├── DosenController.php
+│   │   │   ├── DosenPengabdianController.php
 │   │   │   ├── FasilitasController.php
 │   │   │   ├── HomeController.php
 │   │   │   ├── JenisDokumenController.php
@@ -209,7 +248,6 @@ sikap-kelompok3/
 │   │   │   ├── KaprodiTandaTanganController.php
 │   │   │   ├── KategoriKegiatanController.php
 │   │   │   ├── KegiatanController.php
-│   │   │   ├── KegiatanDosenController.php
 │   │   │   ├── KegiatanHapusController.php
 │   │   │   ├── KegiatanLaporanController.php
 │   │   │   ├── KegiatanMahasiswaController.php
@@ -223,7 +261,9 @@ sikap-kelompok3/
 │   │   │   ├── PengajuanController.php
 │   │   │   ├── PrestasiController.php
 │   │   │   ├── PrestasiLaporanController.php
+│   │   │   ├── ProfilProdiController.php
 │   │   │   ├── PublicBeritaController.php
+│   │   │   ├── SkimController.php
 │   │   │   └── TahunAkademikController.php
 │   │   └── Middleware/
 │   │       ├── AdminOnly.php
@@ -245,6 +285,7 @@ sikap-kelompok3/
 │   │   ├── EnrollmentMahasiswaTingkatKelas.php
 │   │   ├── EnrollmentMataKuliah.php
 │   │   ├── EnrollmentTingkatKelas.php
+│   │   ├── GambarBerita.php
 │   │   ├── HistoriPangkatGolongan.php
 │   │   ├── IsianKategori.php
 │   │   ├── JenisDokumen.php
@@ -265,6 +306,8 @@ sikap-kelompok3/
 │   │   ├── Timeline.php
 │   │   ├── Tingkat.php
 │   │   └── User.php
+│   ├── Policies/
+│   │   └── DokumenPolicy.php
 │   ├── Providers/
 │   │   ├── AppServiceProvider.php
 │   │   └── DataSourceServiceProvider.php
@@ -313,8 +356,6 @@ sikap-kelompok3/
 │       ├── PanggilApiWeb.php
 │       └── SemesterAkademik.php
 ├── bootstrap/
-│   ├── cache/
-│   │   └── .gitignore
 │   ├── app.php
 │   └── providers.php
 ├── config/
@@ -389,24 +430,35 @@ sikap-kelompok3/
 │   │   ├── 2026_11_10_000002_create_otp_codes_table.php
 │   │   ├── 2026_11_16_000001_add_tahun_terbit_dan_deskripsi_to_kurikulum_table.php
 │   │   ├── 2026_11_16_000003_add_backend_kel2_fields_to_berita.php
+│   │   ├── 2026_11_17_100000_create_status_histories_table.php
 │   │   ├── 2026_11_18_000001_add_dosen_pendamping_to_kegiatan_table.php
+│   │   ├── 2026_11_18_100000_align_timeline_with_erd.php
+│   │   ├── 2026_11_18_100100_extend_berita_status.php
 │   │   ├── 2026_11_22_000001_reconcile_existing_otp_codes.php
-│   │   └── 2026_11_23_145351_make_id_kegiatan_nullable_on_dokumen_table.php
+│   │   ├── 2026_11_23_145351_make_id_kegiatan_nullable_on_dokumen_table.php
+│   │   ├── 2026_11_24_000001_add_recipient_email_to_otp_codes.php
+│   │   ├── 2026_11_24_045614_create_gambar_berita_table.php
+│   │   └── 2026_11_24_083619_add_status_mahasiswa_to_mahasiswa_table.php
 │   ├── seeders/
 │   │   ├── BeritaSeeder.php
 │   │   ├── DatabaseSeeder.php
 │   │   ├── DataMasterSeeder.php
 │   │   ├── JenisDokumenSeeder.php
+│   │   ├── KegiatanDokumentasiSeeder.php
 │   │   ├── RiwayatAkademikSeeder.php
 │   │   └── TingkatKelasSeeder.php
 │   └── .gitignore
 ├── docs/
+│   ├── adr/
+│   │   └── 0001-core-workflow.md
 │   ├── API-CONTRACT.md
 │   ├── DATABASE.md
 │   ├── ERD-REVISI-2026-11-04.md
 │   ├── frontend-mahasiswa-dosen.md
+│   ├── kontrak-halaman.md
 │   ├── openapi.yaml
-│   └── PEMBARUAN-DATABASE-SURAT.md
+│   ├── PEMBARUAN-DATABASE-SURAT.md
+│   └── review-erd.md
 ├── PBL-TI2B-SEMESTER-3/
 ├── postman/
 │   ├── SIKAP-API-v1.postman_collection.json
@@ -445,239 +497,247 @@ sikap-kelompok3/
 │   │   ├── app.js
 │   │   ├── bootstrap.js
 │   │   └── mahasiswa-berita-editor.js
-│   └── views/
-│       ├── admin/
-│       │   ├── partials/
-│       │   │   ├── berita-detail.blade.php
-│       │   │   ├── berita-form.blade.php
-│       │   │   └── prestasi-form.blade.php
-│       │   ├── admin-profil.blade.php
-│       │   ├── akreditasi.blade.php
-│       │   ├── berita-detail.blade.php
-│       │   ├── berita-edit.blade.php
-│       │   ├── berita-tambah.blade.php
-│       │   ├── berita.blade.php
-│       │   ├── dashboard.blade.php
-│       │   ├── data-dosen.blade.php
-│       │   ├── dosen-detail.blade.php
-│       │   ├── dosen-edit.blade.php
-│       │   ├── dosen-tambah.blade.php
-│       │   ├── dosen.blade.php
-│       │   ├── jenis-dokumen.blade.php
-│       │   ├── kategori-kegiatan-form.blade.php
-│       │   ├── kategori-kegiatan.blade.php
-│       │   ├── kegiatan-dosen-detail-show.blade.php
-│       │   ├── kegiatan-dosen.blade.php
-│       │   ├── kegiatan-mahasiswa-detail-show.blade.php
-│       │   ├── kegiatan-mahasiswa.blade.php
-│       │   ├── kegiatan-tambah.blade.php
-│       │   ├── kegiatan.blade.php
-│       │   ├── kelompok-bidang.blade.php
-│       │   ├── kurikulum.blade.php
-│       │   ├── mahasiswa-detail.blade.php
-│       │   ├── mahasiswa-edit.blade.php
-│       │   ├── mahasiswa-tambah.blade.php
-│       │   ├── mahasiswa.blade.php
-│       │   ├── mata-kuliah.blade.php
-│       │   ├── pengajuan.blade.php
-│       │   ├── placeholder.blade.php
-│       │   ├── prestasi-detail.blade.php
-│       │   ├── prestasi-edit.blade.php
-│       │   ├── prestasi-tambah.blade.php
-│       │   ├── prestasi.blade.php
-│       │   ├── tahun-akademik.blade.php
-│       │   ├── tambah-mata-kuliah.blade.php
-│       │   └── tinjau-pengajuan.blade.php
-│       ├── backendkel1/
-│       │   └── import/
-│       │       ├── data.blade.php
-│       │       └── mata-kuliah.blade.php
-│       ├── backendkel2/
-│       │   └── laporan/
-│       │       └── pdf.blade.php
-│       ├── components/
-│       │   ├── admin/
-│       │   │   ├── breadcrumb.blade.php
-│       │   │   └── sidebar.blade.php
-│       │   ├── kaprodi/
-│       │   │   └── sidebar.blade.php
-│       │   ├── mahasiswa/
-│       │   │   └── stat-card.blade.php
-│       │   ├── pengajuan/
-│       │   │   └── field.blade.php
-│       │   ├── profil/
-│       │   │   └── field.blade.php
-│       │   ├── alert.blade.php
-│       │   ├── auth-layout.blade.php
-│       │   ├── detail-field.blade.php
-│       │   ├── footer.blade.php
-│       │   ├── header-dosen.blade.php
-│       │   ├── header.blade.php
-│       │   ├── icon.blade.php
-│       │   ├── modal-hapus.blade.php
-│       │   ├── navbar-publik.blade.php
-│       │   ├── navbar.blade.php
-│       │   ├── paginasi.blade.php
-│       │   ├── preview-dokumen.blade.php
-│       │   ├── section-header.blade.php
-│       │   ├── sidebar.blade.php
-│       │   ├── tabel-footer.blade.php
-│       │   ├── tabel-js.blade.php
-│       │   ├── th-urut.blade.php
-│       │   ├── tool-button.blade.php
-│       │   └── user-menu.blade.php
-│       ├── Dashboard/
-│       │   └── dashboard.blade.php
-│       ├── dosen/
-│       │   ├── berita/
-│       │   │   ├── _form.blade.php
-│       │   │   ├── create.blade.php
-│       │   │   ├── data.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── kegiatan/
-│       │   │   ├── _detail-kategori.blade.php
-│       │   │   ├── _medan-kategori.php
-│       │   │   ├── create.blade.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   ├── kegiatan.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── notifikasi/
-│       │   │   └── index.blade.php
-│       │   ├── penelitian/
-│       │   │   ├── create.blade.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── pengabdian/
-│       │   │   ├── create.blade.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── pengajaran/
-│       │   │   ├── _form.blade.php
-│       │   │   ├── create.blade.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── pengajuan/
-│       │   │   ├── create.blade.php
-│       │   │   ├── dosen.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── prestasi/
-│       │   │   ├── _api.blade.php
-│       │   │   ├── _form-script.blade.php
-│       │   │   ├── create.blade.php
-│       │   │   ├── edit.blade.php
-│       │   │   ├── form.blade.php
-│       │   │   ├── index.blade.php
-│       │   │   └── show.blade.php
-│       │   ├── profil/
-│       │   │   └── show.blade.php
-│       │   └── dashboard.blade.php
-│       ├── emails/
-│       │   └── password-reset-otp.blade.php
-│       ├── kaprodi/
-│       │   ├── partials/
-│       │   │   └── mata-kuliah-form.blade.php
-│       │   ├── berita-detail.blade.php
-│       │   ├── berita-edit.blade.php
-│       │   ├── berita-tambah.blade.php
-│       │   ├── berita.blade.php
-│       │   ├── dashboard.blade.php
-│       │   ├── dosen-detail.blade.php
-│       │   ├── dosen.blade.php
-│       │   ├── jenis-dokumen.blade.php
-│       │   ├── kaprodi-kegiatan-mahasiswa-detail-show.blade.php
-│       │   ├── kaprodi-profil.blade.php
-│       │   ├── kategori-kegiatan.blade.php
-│       │   ├── kegiatan-dosen-detail-show.blade.php
-│       │   ├── kegiatan-dosen.blade.php
-│       │   ├── kegiatan-mahasiswa.blade.php
-│       │   ├── kegiatan.blade.php
-│       │   ├── kurikulum.blade.php
-│       │   ├── mahasiswa-detail.blade.php
-│       │   ├── mahasiswa.blade.php
-│       │   ├── mata-kuliah-edit.blade.php
-│       │   ├── mata-kuliah-tambah.blade.php
-│       │   ├── mata-kuliah.blade.php
-│       │   ├── pengajuan.blade.php
-│       │   ├── placeholder.blade.php
-│       │   ├── prestasi-detail.blade.php
-│       │   ├── prestasi.blade.php
-│       │   ├── tahun-akademik.blade.php
-│       │   └── tinjau-pengajuan.blade.php
-│       ├── layouts/
-│       │   ├── partials/
-│       │   │   ├── pengajuan-header.blade.php
-│       │   │   ├── pengajuan-sidebar.blade.php
-│       │   │   └── sidebar.blade.php
-│       │   ├── admin.blade.php
-│       │   ├── app.blade.php
-│       │   ├── kaprodi.blade.php
-│       │   ├── mahasiswa-tim.blade.php
-│       │   ├── mahasiswa.blade.php
-│       │   ├── pengajuan-app.blade.php
-│       │   └── publik.blade.php
-│       ├── mahasiswa/
-│       │   ├── dashboard/
-│       │   │   └── dashboard.blade.php
-│       │   ├── kegiatan/
-│       │   │   └── index.blade.php
-│       │   ├── mahasiswa/
-│       │   │   ├── pagination/
-│       │   │   │   └── mahasiswa.blade.php
-│       │   │   ├── dashboard-mhs.blade.php
-│       │   │   ├── mata-kuliah.blade.php
-│       │   │   ├── prestasi-tambah.blade.php
-│       │   │   ├── prestasi.blade.php
-│       │   │   └── profil.blade.php
-│       │   └── pengajuan/
-│       │       ├── berita/
-│       │       │   ├── form.blade.php
-│       │       │   ├── index.blade.php
-│       │       │   └── show.blade.php
-│       │       ├── create.blade.php
-│       │       ├── dashboard.blade.php
-│       │       ├── index.blade.php
-│       │       └── show.blade.php
-│       ├── mata-kuliah/
-│       │   ├── _stats.blade.php
-│       │   └── _tabel.blade.php
-│       ├── pengajuan/
-│       │   ├── berita/
-│       │   │   └── create.blade.php
-│       │   ├── partials/
-│       │   │   ├── advisor.blade.php
-│       │   │   └── team.blade.php
-│       │   ├── create.blade.php
-│       │   ├── dosen.blade.php
-│       │   ├── index.blade.php
-│       │   ├── mahasiswa.blade.php
-│       │   └── show.blade.php
-│       ├── akreditasi.blade.php
-│       ├── api-docs.blade.php
-│       ├── app.blade.php
-│       ├── Backup file
-│       ├── berita-index.blade.php
-│       ├── berita-show.blade.php
-│       ├── dashboard.blade.php
-│       ├── fasilitas.blade.php
-│       ├── header.blade.php
-│       ├── home.blade.php
-│       ├── kegiatan.blade.php
-│       ├── kurikulum.blade.php
-│       ├── login.blade.php
-│       ├── mata-kuliah.blade.php
-│       ├── navbar.blade.php
-│       ├── pemulihan.blade.php
-│       ├── prestasi-index.blade.php
-│       ├── prestasi-show.blade.php
-│       ├── profil.blade.php
-│       └── welcome.blade.php
+│   ├── views/
+│   │   ├── admin/
+│   │   │   ├── partials/
+│   │   │   │   ├── berita-detail.blade.php
+│   │   │   │   ├── berita-form.blade.php
+│   │   │   │   └── prestasi-form.blade.php
+│   │   │   ├── admin-profil.blade.php
+│   │   │   ├── akreditasi.blade.php
+│   │   │   ├── berita-detail.blade.php
+│   │   │   ├── berita-edit.blade.php
+│   │   │   ├── berita-tambah.blade.php
+│   │   │   ├── berita.blade.php
+│   │   │   ├── dashboard.blade.php
+│   │   │   ├── data-dosen.blade.php
+│   │   │   ├── dosen-detail.blade.php
+│   │   │   ├── dosen-edit.blade.php
+│   │   │   ├── dosen-tambah.blade.php
+│   │   │   ├── dosen.blade.php
+│   │   │   ├── jenis-dokumen.blade.php
+│   │   │   ├── kategori-kegiatan-form.blade.php
+│   │   │   ├── kategori-kegiatan.blade.php
+│   │   │   ├── kegiatan-dosen-detail-show.blade.php
+│   │   │   ├── kegiatan-mahasiswa-detail-show.blade.php
+│   │   │   ├── kegiatan-mahasiswa.blade.php
+│   │   │   ├── kegiatan-tambah.blade.php
+│   │   │   ├── kegiatan.blade.php
+│   │   │   ├── kelompok-bidang.blade.php
+│   │   │   ├── kurikulum.blade.php
+│   │   │   ├── mahasiswa-detail.blade.php
+│   │   │   ├── mahasiswa-edit.blade.php
+│   │   │   ├── mahasiswa-tambah.blade.php
+│   │   │   ├── mahasiswa.blade.php
+│   │   │   ├── mata-kuliah.blade.php
+│   │   │   ├── pengajuan.blade.php
+│   │   │   ├── placeholder.blade.php
+│   │   │   ├── prestasi-detail.blade.php
+│   │   │   ├── prestasi-edit.blade.php
+│   │   │   ├── prestasi-tambah.blade.php
+│   │   │   ├── prestasi.blade.php
+│   │   │   ├── profil-prodi.blade.php
+│   │   │   ├── skim.blade.php
+│   │   │   ├── tahun-akademik.blade.php
+│   │   │   ├── tambah-mata-kuliah.blade.php
+│   │   │   └── tinjau-pengajuan.blade.php
+│   │   ├── backend_kel3/
+│   │   │   ├── dokumen/
+│   │   │   │   └── index.blade.php
+│   │   │   └── pdf/
+│   │   │       └── surat_final.blade.php
+│   │   ├── backendkel1/
+│   │   │   └── import/
+│   │   │       ├── data.blade.php
+│   │   │       └── mata-kuliah.blade.php
+│   │   ├── backendkel2/
+│   │   │   └── laporan/
+│   │   │       └── pdf.blade.php
+│   │   ├── components/
+│   │   │   ├── admin/
+│   │   │   │   ├── breadcrumb.blade.php
+│   │   │   │   └── sidebar.blade.php
+│   │   │   ├── kaprodi/
+│   │   │   │   └── sidebar.blade.php
+│   │   │   ├── mahasiswa/
+│   │   │   │   └── stat-card.blade.php
+│   │   │   ├── pengajuan/
+│   │   │   │   └── field.blade.php
+│   │   │   ├── profil/
+│   │   │   │   └── field.blade.php
+│   │   │   ├── alert.blade.php
+│   │   │   ├── auth-layout.blade.php
+│   │   │   ├── detail-field.blade.php
+│   │   │   ├── footer.blade.php
+│   │   │   ├── header-dosen.blade.php
+│   │   │   ├── header.blade.php
+│   │   │   ├── icon.blade.php
+│   │   │   ├── modal-hapus.blade.php
+│   │   │   ├── navbar-publik.blade.php
+│   │   │   ├── navbar.blade.php
+│   │   │   ├── paginasi.blade.php
+│   │   │   ├── preview-dokumen.blade.php
+│   │   │   ├── section-header.blade.php
+│   │   │   ├── sidebar.blade.php
+│   │   │   ├── tabel-footer.blade.php
+│   │   │   ├── tabel-js.blade.php
+│   │   │   ├── th-urut.blade.php
+│   │   │   ├── tool-button.blade.php
+│   │   │   └── user-menu.blade.php
+│   │   ├── Dashboard/
+│   │   │   └── dashboard.blade.php
+│   │   ├── dosen/
+│   │   │   ├── berita/
+│   │   │   │   ├── _form.blade.php
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── data.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── kegiatan/
+│   │   │   │   ├── _detail-kategori.blade.php
+│   │   │   │   ├── _medan-kategori.php
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   ├── kegiatan.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── notifikasi/
+│   │   │   │   └── index.blade.php
+│   │   │   ├── penelitian/
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── pengabdian/
+│   │   │   │   ├── _form.blade.php
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── pengajaran/
+│   │   │   │   ├── _form.blade.php
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── pengajuan/
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── dosen.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── prestasi/
+│   │   │   │   ├── _api.blade.php
+│   │   │   │   ├── _form-script.blade.php
+│   │   │   │   ├── create.blade.php
+│   │   │   │   ├── edit.blade.php
+│   │   │   │   ├── form.blade.php
+│   │   │   │   ├── index.blade.php
+│   │   │   │   └── show.blade.php
+│   │   │   ├── profil/
+│   │   │   │   └── show.blade.php
+│   │   │   └── dashboard.blade.php
+│   │   ├── emails/
+│   │   │   └── password-reset-otp.blade.php
+│   │   ├── kaprodi/
+│   │   │   ├── partials/
+│   │   │   │   └── mata-kuliah-form.blade.php
+│   │   │   ├── berita-detail.blade.php
+│   │   │   ├── berita-edit.blade.php
+│   │   │   ├── berita-tambah.blade.php
+│   │   │   ├── berita.blade.php
+│   │   │   ├── dashboard.blade.php
+│   │   │   ├── dosen-detail.blade.php
+│   │   │   ├── dosen.blade.php
+│   │   │   ├── jenis-dokumen.blade.php
+│   │   │   ├── kaprodi-kegiatan-mahasiswa-detail-show.blade.php
+│   │   │   ├── kaprodi-profil.blade.php
+│   │   │   ├── kategori-kegiatan.blade.php
+│   │   │   ├── kegiatan-dosen-detail-show.blade.php
+│   │   │   ├── kegiatan-dosen.blade.php
+│   │   │   ├── kegiatan-mahasiswa.blade.php
+│   │   │   ├── kegiatan.blade.php
+│   │   │   ├── kurikulum.blade.php
+│   │   │   ├── mahasiswa-detail.blade.php
+│   │   │   ├── mahasiswa.blade.php
+│   │   │   ├── mata-kuliah-edit.blade.php
+│   │   │   ├── mata-kuliah-tambah.blade.php
+│   │   │   ├── mata-kuliah.blade.php
+│   │   │   ├── pengajuan.blade.php
+│   │   │   ├── placeholder.blade.php
+│   │   │   ├── prestasi-detail.blade.php
+│   │   │   ├── prestasi.blade.php
+│   │   │   ├── tahun-akademik.blade.php
+│   │   │   └── tinjau-pengajuan.blade.php
+│   │   ├── layouts/
+│   │   │   ├── partials/
+│   │   │   │   ├── pengajuan-header.blade.php
+│   │   │   │   ├── pengajuan-sidebar.blade.php
+│   │   │   │   └── sidebar.blade.php
+│   │   │   ├── admin.blade.php
+│   │   │   ├── app.blade.php
+│   │   │   ├── kaprodi.blade.php
+│   │   │   ├── mahasiswa-tim.blade.php
+│   │   │   ├── mahasiswa.blade.php
+│   │   │   ├── pengajuan-app.blade.php
+│   │   │   └── publik.blade.php
+│   │   ├── mahasiswa/
+│   │   │   ├── dashboard/
+│   │   │   │   └── dashboard.blade.php
+│   │   │   ├── kegiatan/
+│   │   │   │   └── index.blade.php
+│   │   │   ├── mahasiswa/
+│   │   │   │   ├── pagination/
+│   │   │   │   │   └── mahasiswa.blade.php
+│   │   │   │   ├── dashboard-mhs.blade.php
+│   │   │   │   ├── mata-kuliah.blade.php
+│   │   │   │   ├── prestasi-tambah.blade.php
+│   │   │   │   ├── prestasi.blade.php
+│   │   │   │   └── profil.blade.php
+│   │   │   └── pengajuan/
+│   │   │       ├── berita/
+│   │   │       │   ├── form.blade.php
+│   │   │       │   ├── index.blade.php
+│   │   │       │   └── show.blade.php
+│   │   │       ├── create.blade.php
+│   │   │       ├── dashboard.blade.php
+│   │   │       ├── index.blade.php
+│   │   │       └── show.blade.php
+│   │   ├── mata-kuliah/
+│   │   │   ├── _stats.blade.php
+│   │   │   └── _tabel.blade.php
+│   │   ├── pengajuan/
+│   │   │   ├── berita/
+│   │   │   │   └── create.blade.php
+│   │   │   ├── partials/
+│   │   │   │   ├── advisor.blade.php
+│   │   │   │   └── team.blade.php
+│   │   │   ├── create.blade.php
+│   │   │   ├── dosen.blade.php
+│   │   │   ├── index.blade.php
+│   │   │   ├── mahasiswa.blade.php
+│   │   │   └── show.blade.php
+│   │   ├── akreditasi.blade.php
+│   │   ├── api-docs.blade.php
+│   │   ├── app.blade.php
+│   │   ├── Backup file
+│   │   ├── berita-index.blade.php
+│   │   ├── berita-show.blade.php
+│   │   ├── dashboard.blade.php
+│   │   ├── fasilitas.blade.php
+│   │   ├── header.blade.php
+│   │   ├── home.blade.php
+│   │   ├── kegiatan.blade.php
+│   │   ├── kurikulum.blade.php
+│   │   ├── login.blade.php
+│   │   ├── mata-kuliah.blade.php
+│   │   ├── navbar.blade.php
+│   │   ├── pemulihan.blade.php
+│   │   ├── prestasi-index.blade.php
+│   │   ├── prestasi-show.blade.php
+│   │   ├── profil.blade.php
+│   │   └── welcome.blade.php
+│   └── views - Shortcut.lnk
 ├── routes/
 │   ├── admin-kaprodi.php
 │   ├── api-docs.php
@@ -686,7 +746,6 @@ sikap-kelompok3/
 │   ├── mahasiswa.php
 │   ├── pengajuan.php
 │   └── web.php
-├── sikap-kelompok3/
 ├── tests/
 │   ├── Feature/
 │   │   ├── Api/
@@ -695,19 +754,31 @@ sikap-kelompok3/
 │   │   │   ├── AuthApiTest.php
 │   │   │   ├── KategoriKegiatanApiTest.php
 │   │   │   ├── KegiatanWebTest.php
+│   │   │   ├── KelasApiTest.php
+│   │   │   ├── KelompokBidangApiTest.php
 │   │   │   ├── MahasiswaErdTest.php
 │   │   │   ├── PengajuanAdminApiTest.php
 │   │   │   ├── PengajuanKaprodiApiTest.php
 │   │   │   ├── PrestasiApiTest.php
 │   │   │   ├── PrestasiRekapApiTest.php
 │   │   │   ├── PublikApiTest.php
+│   │   │   ├── SkimApiTest.php
+│   │   │   ├── TahunAkademikApiTest.php
 │   │   │   └── TulisApiTest.php
+│   │   ├── BackendKel2/
+│   │   │   ├── DokumenHasilTest.php
+│   │   │   ├── ImageUploadServiceTest.php
+│   │   │   ├── JenisDokumenSeederTest.php
+│   │   │   └── TautanDokumenTest.php
 │   │   ├── BackendKel3/
 │   │   │   ├── AksesDosenTest.php
+│   │   │   ├── AlurRevisiPengajuanTest.php
 │   │   │   ├── IntegrasiKelompok3Test.php
 │   │   │   ├── PengabdianTest.php
 │   │   │   ├── PrestasiDosenTest.php
 │   │   │   └── ProfilTest.php
+│   │   ├── Workflow/
+│   │   │   └── WorkflowEngineTest.php
 │   │   ├── AdminPrestasiApiClientTest.php
 │   │   ├── ApiClientTest.php
 │   │   ├── ApiDokumentasiTest.php
@@ -741,10 +812,15 @@ sikap-kelompok3/
 │   │   ├── PemulihanSandiTest.php
 │   │   ├── PenempatanKelasMahasiswaTest.php
 │   │   ├── PengajaranTest.php
+│   │   ├── PengajuanDokumenDetailTest.php
 │   │   ├── PengajuanFormTest.php
 │   │   ├── PrestasiLaporanWebTest.php
+│   │   ├── ProfilProdiTest.php
+│   │   ├── SkimWebTest.php
 │   │   └── TimelineApiTest.php
 │   ├── Unit/
+│   │   ├── Workflow/
+│   │   │   └── WorkflowDefinitionTest.php
 │   │   └── ExampleTest.php
 │   └── TestCase.php
 ├── .editorconfig
@@ -760,16 +836,16 @@ sikap-kelompok3/
 ├── package-lock.json
 ├── package.json
 ├── phpunit.xml
+├── rapikan-kurikulum-publik.ps1
 ├── README.md
+├── STRUKTUR_FOLDER.md
 └── vite.config.js
-
 ```
 
 ## Ringkasan
 
 - `app/BackendKel1`, `app/BackendKel2`, dan `app/BackendKel3` berisi modul aplikasi yang dikelola per kelompok.
-- `app/Http`, `app/Models`, `app/Repositories`, `app/Providers`, dan `app/Support` berisi komponen inti aplikasi Laravel.
+- `app/Http`, `app/Models`, `app/Policies`, `app/Repositories`, `app/Providers`, dan `app/Support` berisi komponen inti aplikasi Laravel.
 - `resources/views` menyimpan template Blade; aset frontend berada di `resources/css`, `resources/js`, dan `resources/images`.
 - `routes` berisi definisi route; `database` berisi migration, factory, dan seeder.
 - `docs` menyimpan dokumentasi teknis, `postman` koleksi API, dan `tests` pengujian otomatis.
-- `PBL-TI2B-SEMESTER-3` dan `sikap-kelompok3` adalah submodule Git.
