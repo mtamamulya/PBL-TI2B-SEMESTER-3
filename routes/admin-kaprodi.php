@@ -1,19 +1,19 @@
 <?php
 
 use App\Http\Controllers\AdminAkreditasiController;
-// ---------- Controller Publik & Landing ----------
 use App\Http\Controllers\AdminAuthController;
+// ---------- Controller Publik & Landing ----------
 use App\Http\Controllers\AdminBeritaController;
 use App\Http\Controllers\AdminKegiatanController;
-use App\Http\Controllers\AdminKegiatanDosenDetailShowController; // <-- Controller Tambah Kegiatan
-use App\Http\Controllers\AdminKegiatanMahasiswaDetailShowController;
+use App\Http\Controllers\AdminKegiatanDosenDetailShowController;
+use App\Http\Controllers\AdminKegiatanMahasiswaDetailShowController; // <-- Controller Tambah Kegiatan
 use App\Http\Controllers\AdminKegiatanTambahController;
 use App\Http\Controllers\AdminKurikulumController;
 use App\Http\Controllers\AdminMataKuliahController;
 use App\Http\Controllers\AdminPengajuanController;
 use App\Http\Controllers\AdminPrestasiController;
-// ---------- Controller Admin ----------
 use App\Http\Controllers\AdminProfilController;
+// ---------- Controller Admin ----------
 use App\Http\Controllers\AdminTinjauPengajuanController;
 use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\DosenController;
@@ -33,13 +33,14 @@ use App\Http\Controllers\KaprodiMataKuliahController;
 use App\Http\Controllers\KaprodiPengajuanController;
 use App\Http\Controllers\KaprodiPrestasiController;
 use App\Http\Controllers\KaprodiProfilController;
-// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KaprodiTandaTanganController;
+// ---------- Controller Kaprodi ----------
 use App\Http\Controllers\KategoriKegiatanController;
 use App\Http\Controllers\KegiatanDosenController;
 use App\Http\Controllers\KegiatanHapusController;
 use App\Http\Controllers\KegiatanLaporanController;
 use App\Http\Controllers\KegiatanMahasiswaController;
+use App\Http\Controllers\KelompokBidangController;
 use App\Http\Controllers\KurikulumController;
 use App\Http\Controllers\LandingDashboardController;
 use App\Http\Controllers\LandingMahasiswaController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PrestasiLaporanController;
 use App\Http\Controllers\PublicBeritaController;
+use App\Http\Controllers\SkimController;
 use App\Http\Controllers\TahunAkademikController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\KaprodiOnly;
@@ -127,6 +129,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
     Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
     Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
+    Route::post('/mahasiswa/luluskan-ta', [LandingMahasiswaController::class, 'luluskanTa'])->name('admin.mahasiswa.luluskan-ta');
     Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
@@ -161,6 +164,18 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::post('/kegiatan/kategori-kegiatan', [KategoriKegiatanController::class, 'store'])->name('admin.kegiatan.kategori-kegiatan.store');
     Route::put('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'update'])->name('admin.kegiatan.kategori-kegiatan.update');
     Route::delete('/kegiatan/kategori-kegiatan/{id}', [KategoriKegiatanController::class, 'destroy'])->name('admin.kegiatan.kategori-kegiatan.destroy');
+
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('admin.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('admin.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('admin.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('admin.kegiatan.kelompok-bidang.destroy');
+
+    // Skim (admin + kaprodi: CRUD)
+    Route::get('/kegiatan/skim', [SkimController::class, 'index'])->name('admin.kegiatan.skim');
+    Route::post('/kegiatan/skim', [SkimController::class, 'store'])->name('admin.kegiatan.skim.store');
+    Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('admin.kegiatan.skim.update');
+    Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('admin.kegiatan.skim.destroy');
 
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
@@ -207,6 +222,8 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.dosen',
         'admin.kegiatan.jenis-dokumen',
         'admin.kegiatan.kategori-kegiatan',
+        'admin.kegiatan.kelompok-bidang',
+        'admin.kegiatan.skim',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -252,6 +269,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/mahasiswa', [KaprodiMahasiswaController::class, 'index'])->name('kaprodi.mahasiswa');
     Route::get('/dosen/{id}', [KaprodiDosenController::class, 'show'])->name('kaprodi.dosen.show');
     Route::get('/mahasiswa/{id}', [KaprodiMahasiswaController::class, 'show'])->name('kaprodi.mahasiswa.show');
+
     // Kegiatan gabungan (Dosen | Mahasiswa | Prodi). URL lama dialihkan ke tab yang sesuai.
     Route::get('/kegiatan', [KaprodiKegiatanController::class, 'index'])->name('kaprodi.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('kaprodi.kegiatan.create');
@@ -276,6 +294,19 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
 
     Route::get('/kegiatan/kategori-kegiatan', [KaprodiKategoriKegiatanController::class, 'index'])->name('kaprodi.kegiatan.kategori-kegiatan');
     Route::get('/kegiatan/jenis-dokumen', [KaprodiJenisDokumenController::class, 'index'])->name('kaprodi.kegiatan.jenis-dokumen');
+
+    // Kelompok Bidang
+    Route::get('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'index'])->name('kaprodi.kegiatan.kelompok-bidang');
+    Route::post('/kegiatan/kelompok-bidang', [KelompokBidangController::class, 'store'])->name('kaprodi.kegiatan.kelompok-bidang.store');
+    Route::put('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'update'])->name('kaprodi.kegiatan.kelompok-bidang.update');
+    Route::delete('/kegiatan/kelompok-bidang/{id}', [KelompokBidangController::class, 'destroy'])->name('kaprodi.kegiatan.kelompok-bidang.destroy');
+
+    // Skim (admin + kaprodi: CRUD)
+    Route::get('/kegiatan/skim', [SkimController::class, 'index'])->name('kaprodi.kegiatan.skim');
+    Route::post('/kegiatan/skim', [SkimController::class, 'store'])->name('kaprodi.kegiatan.skim.store');
+    Route::put('/kegiatan/skim/{id}', [SkimController::class, 'update'])->name('kaprodi.kegiatan.skim.update');
+    Route::delete('/kegiatan/skim/{id}', [SkimController::class, 'destroy'])->name('kaprodi.kegiatan.skim.destroy');
+
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
     Route::delete('/kegiatan/mahasiswa/{id}', [KegiatanHapusController::class, 'mahasiswa'])->name('kaprodi.kegiatan.mahasiswa.destroy');
@@ -310,6 +341,8 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.mahasiswa',
         'kaprodi.kegiatan.kategori-kegiatan',
         'kaprodi.kegiatan.jenis-dokumen',
+        'kaprodi.kegiatan.kelompok-bidang',
+        'kaprodi.kegiatan.skim',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',

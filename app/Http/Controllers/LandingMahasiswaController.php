@@ -10,6 +10,15 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LandingMahasiswaController extends Controller
 {
+    public const STATUS_OPSI = [
+        'Aktif',
+        'Cuti',
+        'Drop Out',
+        'Skripsi/TA',
+        'Lulus',
+        'Meninggal Dunia',
+    ];
+
     public function index()
     {
         $hasil = ApiClient::pengguna()->get('/mahasiswa');
@@ -18,6 +27,7 @@ class LandingMahasiswaController extends Controller
         return view('admin.mahasiswa', [
             'students' => $hasil['data'] ?? [],
             'levels' => $meta['levels'] ?? ['Tingkat 1', 'Tingkat 2', 'Tingkat 3', 'Tingkat 4'],
+            'statusAkad' => $meta['status'] ?? self::STATUS_OPSI,
         ]);
     }
 
@@ -41,13 +51,12 @@ class LandingMahasiswaController extends Controller
 
         return view('admin.mahasiswa-tambah', [
             'tahun' => $meta['tahun'] ?? range((int) date('Y'), (int) date('Y') - 9),
-            'statusAkad' => $meta['status'] ?? ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $payload = $request->only(['nama', 'nim', 'angkatan', 'status', 'email', 'password']);
+        $payload = $request->only(['nama', 'nim', 'angkatan', 'email', 'password']);
         $hasil = ApiClient::pengguna()->post('/mahasiswa', $payload);
         $idBaru = $hasil['data']['id'] ?? null;
 
@@ -70,7 +79,7 @@ class LandingMahasiswaController extends Controller
             'mahasiswa' => $detail['data'] ?? [],
             'fotoUrl' => $detail['fotoUrl'] ?? null,
             'tahun' => range((int) date('Y'), (int) date('Y') - 9),
-            'statusAkad' => ['Aktif', 'Cuti', 'Lulus', 'Non-aktif'],
+            'statusAkad' => self::STATUS_OPSI,
         ]);
     }
 
@@ -89,9 +98,10 @@ class LandingMahasiswaController extends Controller
             ->with('status', 'Perubahan data mahasiswa berhasil disimpan.');
     }
 
-    public function toggleStatus(string $id): RedirectResponse
+    public function toggleStatus(Request $request, string $id): RedirectResponse
     {
-        $hasil = ApiClient::pengguna()->patch("/mahasiswa/{$id}/status");
+        $payload = $request->only(['status']);
+        $hasil = ApiClient::pengguna()->patch("/mahasiswa/{$id}/status", $payload);
 
         return back()->with('status', $hasil['message'] ?? 'Status mahasiswa berhasil diperbarui.');
     }
@@ -121,5 +131,16 @@ class LandingMahasiswaController extends Controller
         }
 
         return back()->with('status', $hasil['message'] ?? 'Sinkronisasi kelas selesai.');
+    }
+
+    public function luluskanTa(): RedirectResponse
+    {
+        try {
+            $hasil = ApiClient::pengguna()->post('/mahasiswa/luluskan-ta');
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage() ?: 'Gagal memproses kelulusan Skripsi/TA.');
+        }
+
+        return back()->with('status', $hasil['message'] ?? 'Status Skripsi/TA berhasil diperbarui menjadi Lulus.');
     }
 }
