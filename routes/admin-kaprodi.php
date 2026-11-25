@@ -177,6 +177,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
 
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('admin.prodi.profil');
+    Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('admin.prodi.profil.update');
 
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
@@ -226,6 +227,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.kelompok-bidang',
         'admin.kegiatan.skim',
         'admin.prodi.profil',
+        'admin.prodi.profil.update',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -311,6 +313,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
 
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('kaprodi.prodi.profil');
+    Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('kaprodi.prodi.profil.update');
 
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
@@ -349,6 +352,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.kelompok-bidang',
         'kaprodi.kegiatan.skim',
         'kaprodi.prodi.profil',
+        'kaprodi.prodi.profil.update',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',
