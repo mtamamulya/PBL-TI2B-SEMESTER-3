@@ -291,12 +291,12 @@
     var STATUS_SEMUA = ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
 
     var BADGE_MAP = {
-        'Aktif':           'bg-[#DDF3D0] text-[#3A8A1E]',
-        'Skripsi/TA':      'bg-[#DBEAFE] text-[#1D4ED8]',
-        'Lulus':           'bg-[#E0E7FF] text-[#4338CA]',
-        'Cuti':            'bg-[#FEF3C7] text-[#B45309]',
-        'Drop Out':        'bg-[#FEE2E2] text-[#B91C1C]',
-        'Meninggal Dunia': 'bg-[#EDEDF0] text-[#55555C]'
+        'Aktif':           'border border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]',
+        'Skripsi/TA':      'border border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4ED8]',
+        'Lulus':           'border border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]',
+        'Cuti':            'border border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]',
+        'Drop Out':        'border border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]',
+        'Meninggal Dunia': 'border border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]'
     };
 
     var HINT_MAP = {
