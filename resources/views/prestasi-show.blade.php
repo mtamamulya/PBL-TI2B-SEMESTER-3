@@ -88,7 +88,7 @@
                         <div class="flex flex-col gap-3 pt-[14px]">
                             @forelse ($terkait as $item)
                                 <a href="{{ route('publik.prestasi.show', $item->getKey()) }}" class="flex flex-col gap-1 hover:opacity-80">
-                                    <span class="line-clamp-2 text-sm font-bold text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? 'Prestasi' }}</span>
+                                    <span class="line-clamp-2 text-sm font-bold text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? $item->nama_lomba }}</span>
                                     <span class="text-xs text-[#7D8999]">{{ $item->capaian ?: ucfirst($item->jenis_prestasi) }}</span>
                                 </a>
                                 <div class="h-px bg-[#E6E9EE]"></div>
