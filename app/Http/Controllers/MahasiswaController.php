@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\BackendKel2\Akademik\PeriodeAkademik;
 use App\BackendKel2\Dashboard\DashboardController as BackendDashboardController;
-use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
 use App\Models\Kegiatan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -174,75 +174,121 @@ class MahasiswaController extends Controller
             'tahun' => (string) $request->query('tahun'),
         ];
 
-        $angkatan = (string) ($request->user()?->angkatan ?? config('mahasiswa.angkatan', '2024'));
-        $backend = app(BackendMataKuliahController::class);
+        $user = $request->user();
+        $tahunMasuk = null;
 
-        $mapItem = function (array $item, string $defaultTahun = '2026/2027'): array {
-            $sks = isset($item['sks'])
-                ? (int) $item['sks']
-                : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
+        if ($user) {
+            $tahunMasuk = DB::table('mahasiswa')
+                ->where('id_user', $user->id_user ?? $user->id)
+                ->value('tahun_masuk');
+        }
 
-            $semesterRaw = $item['periode'] ?? $item['jenis_semester'] ?? $item['semester'] ?? 'Ganjil';
-            $periode = is_numeric($semesterRaw)
-                ? (((int) $semesterRaw % 2 === 1) ? 'Ganjil' : 'Genap')
-                : ucfirst(strtolower((string) $semesterRaw));
-
-            $tingkat = (int) ($item['tingkat'] ?? (is_numeric($semesterRaw) ? ceil(((int) $semesterRaw) / 2) : 1));
-
-            return [
-                'mk' => (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-'),
-                'dosen' => (string) ($item['dosen_pengampu'] ?? $item['dosen'] ?? $item['nama_dosen'] ?? '-'),
-                'tingkat' => max(1, min(4, $tingkat)),
-                'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
-                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahun),
-                'sks' => $sks > 0 ? $sks : null,
-            ];
-        };
-
-        $apiRequest = Request::create('/api/v1/mahasiswa', 'GET', array_filter([
-            'angkatan' => $angkatan,
-            'semester' => $filter['semester'] ?: null,
-            'tingkat' => $filter['tingkat'] ?: null,
-            'tahun_akademik' => $filter['tahun'] ?: null,
-            'q' => $filter['q'] ?: null,
-            'per_page' => 200,
-            'page' => 1,
-        ], fn ($v) => $v !== null));
+        $angkatan = (string) ($tahunMasuk ?: config('mahasiswa.angkatan', '2024'));
 
         $periodeAktif = class_exists(PeriodeAkademik::class)
             ? PeriodeAkademik::sekarang()
             : null;
 
         $tahunAktifLabel = $periodeAktif ? $periodeAktif->label() : '2026/2027 Ganjil';
-        $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : config('mahasiswa.semester', 5);
+        $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : (int) config('mahasiswa.semester', 5);
         $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? '2026/2027';
 
-        $rows = collect();
+        $mapItem = function (array $item, string $defaultTahunLabel) use ($defaultTahun): array {
+            $sks = isset($item['sks'])
+                ? (int) $item['sks']
+                : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
+
+            $semesterAngka = isset($item['semester']) && is_numeric($item['semester'])
+                ? (int) $item['semester']
+                : null;
+
+            $semesterRaw = $item['periode'] ?? $item['jenis_semester'] ?? ($semesterAngka ?? 'Ganjil');
+            $periode = is_numeric($semesterRaw)
+                ? (((int) $semesterRaw % 2 === 1) ? 'Ganjil' : 'Genap')
+                : ucfirst(strtolower((string) $semesterRaw));
+
+            $tingkat = (int) ($item['tingkat'] ?? ($semesterAngka ? ceil($semesterAngka / 2) : 1));
+            $kodeMk = trim((string) ($item['kode_mk'] ?? ''));
+            $namaMk = (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-');
+
+            return [
+                'kode_mk' => $kodeMk,
+                'mk' => $kodeMk !== '' ? "{$kodeMk} - {$namaMk}" : $namaMk,
+                'semester_ke' => $semesterAngka,
+                'tingkat' => max(1, min(4, $tingkat)),
+                'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
+                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahunLabel ?: $defaultTahun),
+                'sks' => $sks > 0 ? $sks : null,
+            ];
+        };
+
+        $fetchMataKuliahApi = function (array $params): array {
+            $apiClientClass = 'App\\Services\\ApiClient';
+            $apiExceptionClass = 'App\\Exceptions\\ApiException';
+
+            if (class_exists($apiClientClass)) {
+                try {
+                    $hasil = $apiClientClass::publik()->get('/mata-kuliah', $params);
+
+                    return is_array($hasil['data'] ?? null) ? $hasil['data'] : [];
+                } catch (\Throwable $e) {
+                    if (class_exists($apiExceptionClass) && $e instanceof $apiExceptionClass) {
+                        return [];
+                    }
+
+                    throw $e;
+                }
+            }
+
+            $response = Http::acceptJson()->timeout(10)
+                ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', $params);
+
+            if (! $response->successful()) {
+                return [];
+            }
+
+            $data = $response->json('data');
+
+            return is_array($data) ? $data : [];
+        };
+
         $berjalan = collect();
         $arsip = collect();
         $katalog = collect();
 
         try {
             if ($tab === 'berjalan') {
-                $res = $backend->semesterBerjalan($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $tahunAktifLabel = $res['periode_akademik'] ?? $tahunAktifLabel;
-                    $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? $defaultTahun;
-                    $berjalan = collect($res['data_mata_kuliah'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $berjalan;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'semester' => $semesterKe,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $berjalan = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->values();
             } elseif ($tab === 'katalog') {
-                $res = $backend->katalogMataKuliah($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $katalog = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $katalog;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $katalog = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->values();
             } else {
-                $res = $backend->riwayatAkademik($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $arsip = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $arsip;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $arsip = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->filter(fn ($r) => $r['semester_ke'] !== null && $r['semester_ke'] < $semesterKe)
+                    ->values();
             }
         } catch (\Throwable $e) {
             // Jika API belum tersedia atau gagal, biarkan data kosong tanpa mengisi data tiruan
@@ -261,7 +307,7 @@ class MahasiswaController extends Controller
         };
 
         $tahunList = $rows->pluck('tahun')
-            ->merge([$defaultTahun])
+            ->merge([$tahunAktifLabel, $defaultTahun])
             ->filter()
             ->unique()
             ->sortDesc()
