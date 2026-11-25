@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /** Halaman Skim (web) untuk admin dan kaprodi; API dipalsukan dengan Http::fake. */
@@ -42,7 +43,7 @@ class SkimWebTest extends TestCase
         $this->get(route('kaprodi.kegiatan.skim'))->assertRedirect(route('login'));
     }
 
-    /** @dataProvider peran */
+    #[DataProvider('peran')]
     public function test_daftar_skim_tampil_dari_api(string $prefix, int $idRole): void
     {
         Http::fake(['*/skim*' => Http::response([
@@ -59,7 +60,7 @@ class SkimWebTest extends TestCase
         $this->assertSame($prefix, $res->viewData('prefix'));
     }
 
-    /** @dataProvider peran */
+    #[DataProvider('peran')]
     public function test_tambah_skim_mengirim_nama_skim_ke_api(string $prefix, int $idRole): void
     {
         Http::fake(['*/skim' => Http::response(['success' => true, 'message' => 'ok', 'data' => $this->item(7, 'Hibah Internal')], 201)]);
@@ -109,7 +110,7 @@ class SkimWebTest extends TestCase
             ->assertStatus(422);
     }
 
-    /** @dataProvider peran */
+    #[DataProvider('peran')]
     public function test_hapus_skim_berhasil(string $prefix, int $idRole): void
     {
         Http::fake(['*/skim/3' => Http::response(['success' => true, 'message' => 'ok', 'data' => []])]);

@@ -24,7 +24,7 @@
                         x-on:change="nilai[f.nama] = $event.target.value" class="{{ $selectClass }}">
                     <option value="" :selected="!nilai[f.nama]" x-text="`Pilih ${f.label.toLowerCase()}`"></option>
                     <template x-for="o in f.opsi" :key="o">
-                        <option :value="o" :selected="nilai[f.nama] === o" x-text="o"></option>
+                        <option :value="o" :selected="nilai[f.nama] === o" x-text="f.labels?.[o] ?? o"></option>
                     </template>
                 </select>
                 {!! $chevron !!}

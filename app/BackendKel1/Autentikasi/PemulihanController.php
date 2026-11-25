@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class PemulihanController extends Controller
@@ -22,8 +21,6 @@ class PemulihanController extends Controller
     private const TUJUAN_LUPA_SANDI = 'lupa_sandi';
 
     private const TUJUAN_PROFIL = 'ganti_sandi';
-
-    private const TUJUAN_GANTI_EMAIL = 'ganti_email';
 
     private const OTP_MENIT = 5;
 
@@ -33,7 +30,10 @@ class PemulihanController extends Controller
 
     private const OTP_JEDA_KIRIM_DETIK = 60;
 
+    // =========================================================================
     // ALUR 1: LUPA SANDI (PUBLIK / BELUM LOGIN)
+    // =========================================================================
+
     public function kirimOtp(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -55,15 +55,14 @@ class PemulihanController extends Controller
         $user = User::query()->where('email', $email)->where('status', true)->first();
 
         if ($user) {
-            $sisaJeda = $this->sisaJedaKirim($user, self::TUJUAN_LUPA_SANDI);
-            if ($sisaJeda > 0) {
-                $pesan = "Tunggu {$sisaJeda} detik sebelum meminta kode baru.";
-
-                return ApiResponse::gagal($pesan, 422, ['otp' => [$pesan]]);
+            // Masih dalam jeda: tidak mengirim ulang, tetapi jawabannya SAMA dengan permintaan biasa
+            // agar penyerang tidak bisa membedakan email terdaftar dari yang tidak. (Web punya hitungan jeda sendiri.)
+            if ($this->sisaJedaKirim($user, self::TUJUAN_LUPA_SANDI) > 0) {
+                return ApiResponse::ok(null, 'Jika email terdaftar, kode OTP telah dikirim. Periksa kotak masuk atau folder spam.');
             }
 
             try {
-                $this->sendOtp($user, self::TUJUAN_LUPA_SANDI, $this->otpRecipient($user));
+                $this->sendOtp($user, self::TUJUAN_LUPA_SANDI);
             } catch (TransportExceptionInterface $e) {
                 Log::error('Gagal mengirim OTP pemulihan via API: '.$e->getMessage());
                 $pesan = 'Email gagal dikirim. Coba lagi beberapa saat atau hubungi administrator.';
@@ -129,7 +128,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(null, 'Kata sandi berhasil diperbarui.');
     }
 
+    // =========================================================================
     // ALUR 2A: GANTI SANDI PROFIL (VERIFIKASI SANDI LAMA)
+    // =========================================================================
 
     public function gantiSandiProfil(Request $request): JsonResponse
     {
@@ -161,7 +162,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(['token' => $tokenBaru], 'Kata sandi berhasil diubah.');
     }
 
+    // =========================================================================
     // ALUR 2B: GANTI SANDI PROFIL (DENGAN OTP EMAIL)
+    // =========================================================================
 
     public function kirimOtpProfil(Request $request): JsonResponse
     {
@@ -183,7 +186,7 @@ class PemulihanController extends Controller
         }
 
         try {
-            $this->sendOtp($user, self::TUJUAN_PROFIL, $this->otpRecipient($user));
+            $this->sendOtp($user, self::TUJUAN_PROFIL);
         } catch (TransportExceptionInterface $e) {
             Log::error('Gagal mengirim OTP ganti sandi profil via API: '.$e->getMessage());
 
@@ -239,134 +242,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(['token' => $tokenBaru], 'Kata sandi berhasil diubah.');
     }
 
-    public function kirimOtpEmailProfil(Request $request): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = $request->user();
-        if (! $user) {
-            return ApiResponse::gagal('Tidak terautentikasi.', 401);
-        }
-
-        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
-        $data = $request->validate([
-            'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->getKey(), 'id_user')],
-        ], [
-            'email.required' => 'Email baru wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
-            'email.unique' => 'Email tersebut sudah digunakan akun lain.',
-        ]);
-
-        if ($data['email'] === Str::lower($user->email)) {
-            return ApiResponse::gagal('Email baru harus berbeda dari email saat ini.', 422, [
-                'email' => ['Email baru harus berbeda dari email saat ini.'],
-            ]);
-        }
-
-        if (! $this->emailDeliveryAvailable()) {
-            return ApiResponse::gagal('Layanan email belum dikonfigurasi. Hubungi administrator.', 503);
-        }
-
-        $sisaJeda = $this->sisaJedaKirim($user, self::TUJUAN_GANTI_EMAIL);
-        if ($sisaJeda > 0) {
-            $pesan = "Tunggu {$sisaJeda} detik sebelum meminta kode baru.";
-
-            return ApiResponse::gagal($pesan, 422, ['otp' => [$pesan]]);
-        }
-
-        try {
-            $this->sendOtp($user, self::TUJUAN_GANTI_EMAIL, $data['email']);
-        } catch (TransportExceptionInterface $e) {
-            Log::error('Gagal mengirim OTP perubahan email profil via API: '.$e->getMessage());
-
-            return ApiResponse::gagal('Email gagal dikirim. Coba lagi beberapa saat.', 500);
-        }
-
-        return ApiResponse::ok(null, 'Kode verifikasi telah dikirim ke email baru.');
-    }
-
-    public function verifikasiEmailProfil(Request $request): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = $request->user();
-        if (! $user) {
-            return ApiResponse::gagal('Tidak terautentikasi.', 401);
-        }
-
-        $data = $request->validate([
-            'otp' => ['required', 'digits:6'],
-        ], [
-            'otp.required' => 'Masukkan 6 digit kode OTP.',
-            'otp.digits' => 'Kode OTP harus 6 digit angka.',
-        ]);
-
-        $error = null;
-        $emailBaru = null;
-
-        DB::transaction(function () use ($user, $data, &$error, &$emailBaru) {
-            $otp = DB::table('otp_codes')
-                ->where('id_user', $user->getKey())
-                ->where('tujuan', self::TUJUAN_GANTI_EMAIL)
-                ->whereNull('consumed_at')
-                ->latest('id_otp_code')
-                ->lockForUpdate()
-                ->first();
-
-            if (! $otp || Carbon::parse($otp->expires_at)->isPast()) {
-                $error = 'Kode OTP tidak valid atau sudah kedaluwarsa. Kirim ulang OTP.';
-
-                return;
-            }
-
-            if ((int) $otp->attempts >= self::OTP_MAKS_PERCOBAAN) {
-                $error = 'Batas percobaan tercapai. Kirim ulang OTP.';
-
-                return;
-            }
-
-            if (! Hash::check((string) $data['otp'], $otp->code_hash)) {
-                $attempts = (int) $otp->attempts + 1;
-                DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)->update([
-                    'attempts' => $attempts,
-                    'consumed_at' => $attempts >= self::OTP_MAKS_PERCOBAAN ? now() : null,
-                    'updated_at' => now(),
-                ]);
-                $error = $attempts >= self::OTP_MAKS_PERCOBAAN
-                    ? 'Batas percobaan tercapai. Kirim ulang OTP.'
-                    : 'Kode OTP tidak valid atau sudah kedaluwarsa.';
-
-                return;
-            }
-
-            $emailBaru = $otp->recipient_email;
-            if (! $emailBaru || DB::table('users')->where('email', $emailBaru)
-                ->where('id_user', '!=', $user->getKey())->exists()) {
-                $error = 'Email sudah digunakan akun lain. Mulai kembali dengan email yang berbeda.';
-
-                return;
-            }
-
-            $updated = DB::table('users')->where('id_user', $user->getKey())
-                ->where('email', $user->email)
-                ->update(['email' => $emailBaru, 'updated_at' => now()]);
-
-            if ($updated !== 1) {
-                $error = 'Email akun berubah. Muat ulang halaman lalu coba kembali.';
-
-                return;
-            }
-
-            DB::table('otp_codes')->where('id_otp_code', $otp->id_otp_code)
-                ->update(['verified_at' => now(), 'consumed_at' => now(), 'updated_at' => now()]);
-        });
-
-        if ($error !== null) {
-            return ApiResponse::gagal($error, 422, ['otp' => [$error]]);
-        }
-
-        return ApiResponse::ok(['email' => $emailBaru], 'Email akun berhasil diperbarui.');
-    }
-
+    // =========================================================================
     // HELPER INTERNAL OTP & TOKEN
+    // =========================================================================
 
     private function prosesVerifikasiOtp(User $user, string $kodeInput, string $tujuan): JsonResponse
     {
@@ -374,6 +252,7 @@ class PemulihanController extends Controller
             ->where('id_user', $user->getKey())
             ->where('tujuan', $tujuan)
             ->whereNull('consumed_at')
+            ->whereNull('verified_at')
             ->latest('id_otp_code')
             ->first();
 
@@ -486,10 +365,10 @@ class PemulihanController extends Controller
 
     private function sisaJedaKirim(User $user, string $tujuan): int
     {
+        // Sengaja TANPA filter consumed_at: kode yang hangus (3x salah / sudah dipakai) tidak boleh menghapus jeda.
         $otp = DB::table('otp_codes')
             ->where('id_user', $user->getKey())
             ->where('tujuan', $tujuan)
-            ->whereNull('consumed_at')
             ->latest('id_otp_code')
             ->first();
 
@@ -502,9 +381,8 @@ class PemulihanController extends Controller
         return $batas->isFuture() ? (int) now()->diffInSeconds($batas) : 0;
     }
 
-    private function sendOtp(User $user, string $tujuan, ?string $recipientEmail = null): void
+    private function sendOtp(User $user, string $tujuan): void
     {
-        $recipientEmail ??= $user->email;
         $otp = DB::table('otp_codes')
             ->where('id_user', $user->getKey())
             ->where('tujuan', $tujuan)
@@ -521,7 +399,6 @@ class PemulihanController extends Controller
             'last_sent_at' => $now,
             'verified_at' => null,
             'consumed_at' => null,
-            'recipient_email' => $recipientEmail,
             'updated_at' => $now,
         ];
 
@@ -537,10 +414,10 @@ class PemulihanController extends Controller
         }
 
         try {
-            Mail::to($recipientEmail)->send(new PasswordResetOtp($code, self::OTP_MENIT));
+            Mail::to($user->email)->send(new PasswordResetOtp($code, self::OTP_MENIT));
         } catch (TransportExceptionInterface $exception) {
             DB::table('otp_codes')->where('id_otp_code', $otpId)
-                ->update(['consumed_at' => now(), 'updated_at' => now()]);
+                ->update(['consumed_at' => now(), 'last_sent_at' => null, 'updated_at' => now()]);
 
             throw $exception;
         }
@@ -548,7 +425,7 @@ class PemulihanController extends Controller
 
     private function emailDeliveryAvailable(): bool
     {
-        if (app()->environment('testing')) {
+        if (app()->environment(['testing', 'local'])) {
             return true;
         }
 
@@ -556,20 +433,5 @@ class PemulihanController extends Controller
         $transport = config("mail.mailers.{$mailer}.transport");
 
         return ! in_array($transport, ['log', 'array', 'failover', 'roundrobin'], true);
-    }
-
-    private function otpRecipient(User $user): string
-    {
-        $emailOverride = config('mahasiswa.otp_email');
-        $testNim = config('mahasiswa.otp_test_nim');
-        if (app()->environment('local')
-            && (int) $user->id_role === 4
-            && filled($emailOverride)
-            && filled($testNim)
-            && $user->mahasiswa()->where('nim', $testNim)->exists()) {
-            return $emailOverride;
-        }
-
-        return $user->email;
     }
 }
