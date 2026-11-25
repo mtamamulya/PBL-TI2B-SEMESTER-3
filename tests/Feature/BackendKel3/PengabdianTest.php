@@ -105,4 +105,110 @@ class PengabdianTest extends TestCase
             ->getJson("/api/v1/dosen/pengabdian/{$idKegiatan}")
             ->assertStatus(404);
     }
+
+    public function test_halaman_daftar_pengabdian_membaca_data_dari_api(): void
+    {
+        $dosen = $this->buatDosen();
+        $idKategori = $this->kategoriPengabdian();
+
+        $this->actingAs($dosen->user, 'sanctum')
+            ->postJson('/api/v1/dosen/pengabdian', $this->payload($idKategori))
+            ->assertStatus(201);
+
+        $this->actingAs($dosen->user)
+            ->get('/pengabdian')
+            ->assertOk()
+            ->assertSee('Pelatihan IoT untuk UMKM Semarang');
+    }
+
+    public function test_halaman_detail_pengabdian_membaca_data_dari_api(): void
+    {
+        $dosen = $this->buatDosen();
+        $idKategori = $this->kategoriPengabdian();
+
+        $id = $this->actingAs($dosen->user, 'sanctum')
+            ->postJson('/api/v1/dosen/pengabdian', $this->payload($idKategori))
+            ->assertStatus(201)
+            ->json('data.id_kegiatan');
+
+        $this->actingAs($dosen->user)
+            ->get("/pengabdian/{$id}")
+            ->assertOk()
+            ->assertSee('Pelatihan IoT untuk UMKM Semarang');
+    }
+
+    public function test_halaman_detail_dosen_lain_tidak_ditemukan(): void
+    {
+        $pemilik = $this->buatDosen('Dosen Pemilik');
+        $lain = $this->buatDosen('Dosen Lain');
+        $idKategori = $this->kategoriPengabdian();
+
+        $id = $this->actingAs($pemilik->user, 'sanctum')
+            ->postJson('/api/v1/dosen/pengabdian', $this->payload($idKategori))
+            ->assertStatus(201)
+            ->json('data.id_kegiatan');
+
+        $this->actingAs($lain->user)
+            ->get("/pengabdian/{$id}")
+            ->assertNotFound();
+    }
+
+    public function test_form_tambah_pengabdian_dapat_dibuka(): void
+    {
+        $dosen = $this->buatDosen();
+        $this->kategoriPengabdian();
+
+        $this->actingAs($dosen->user)
+            ->get('/pengabdian/create')
+            ->assertOk()
+            ->assertSee('Tambah Pengabdian');
+    }
+
+    public function test_form_tambah_pengabdian_menyimpan_lewat_api(): void
+    {
+        $dosen = $this->buatDosen();
+        $this->kategoriPengabdian();
+
+        $this->actingAs($dosen->user)
+            ->post('/pengabdian', [
+                'nama_kegiatan' => 'Pelatihan Web Desa',
+                'tanggal_mulai' => '2026-11-18',
+                'tanggal_selesai' => '2026-11-20',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('kegiatan', ['nama_kegiatan' => 'Pelatihan Web Desa']);
+    }
+
+    public function test_form_tambah_pengabdian_menolak_nama_kosong(): void
+    {
+        $dosen = $this->buatDosen();
+        $this->kategoriPengabdian();
+
+        $this->actingAs($dosen->user)
+            ->post('/pengabdian', ['tanggal_mulai' => '2026-11-18'])
+            ->assertSessionHasErrors();
+    }
+
+    public function test_form_ubah_pengabdian_dapat_dibuka_dan_disimpan(): void
+    {
+        $dosen = $this->buatDosen();
+        $idKategori = $this->kategoriPengabdian();
+
+        $id = $this->actingAs($dosen->user, 'sanctum')
+            ->postJson('/api/v1/dosen/pengabdian', $this->payload($idKategori))
+            ->assertStatus(201)
+            ->json('data.id_kegiatan');
+
+        $this->actingAs($dosen->user)
+            ->get("/pengabdian/{$id}/edit")
+            ->assertOk()
+            ->assertSee('Pelatihan IoT untuk UMKM Semarang');
+
+        $this->actingAs($dosen->user)
+            ->put("/pengabdian/{$id}", ['nama_kegiatan' => 'Judul Baru', 'id_kategori' => $idKategori])
+            ->assertRedirect(route('pengabdian.show', $id));
+
+        $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'nama_kegiatan' => 'Judul Baru']);
+    }
 }
