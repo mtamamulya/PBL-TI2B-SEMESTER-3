@@ -26,10 +26,11 @@ class DosenDashboardController extends Controller
         $semuaTahun = 'Semua tahun';
 
         $stats = [
-            ['label' => 'Total Kegiatan', 'value' => $semua->count(), 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
+            ['label' => 'Pengajaran', 'value' => $this->ringkasan->kelasDiampu($dosen, $tahun)->count(), 'keterangan' => $tahun?->tahun_akademik ?? 'Belum ada tahun akademik', 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
             ['label' => 'Penelitian', 'value' => $this->ringkasan->hitungJenis($semua, 'penelitian'), 'keterangan' => $semuaTahun, 'url' => url('/penelitian'), 'aria' => 'Lihat detail penelitian', 'alert' => false],
             ['label' => 'Pengabdian', 'value' => $this->ringkasan->hitungJenis($semua, 'pengabdian'), 'keterangan' => $semuaTahun, 'url' => url('/pengabdian'), 'aria' => 'Lihat detail pengabdian', 'alert' => false],
-            ['label' => 'Pengajaran', 'value' => $this->ringkasan->kelasDiampu($dosen, $tahun)->count(), 'keterangan' => $tahun?->tahun_akademik ?? 'Belum ada tahun akademik', 'url' => url('/pengajaran'), 'aria' => 'Lihat detail pengajaran', 'alert' => false],
+            ['label' => 'Menunggu Verifikasi', 'value' => $this->ringkasan->menunggu($semua)->count(), 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat pengajuan menunggu verifikasi', 'alert' => true],
+            ['label' => 'Total Kegiatan', 'value' => $semua->count(), 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
             ['label' => 'Perlu Revisi', 'value' => $perluRevisi, 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan?status=direvisi'), 'aria' => 'Lihat kegiatan yang perlu direvisi', 'alert' => $perluRevisi > 0],
         ];
 
