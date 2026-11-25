@@ -4,6 +4,7 @@ namespace Tests\Feature\BackendKel3;
 
 use App\Models\Dosen;
 use App\Models\User;
+use Database\Seeders\MasterRisetDosenSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -57,6 +58,25 @@ class PengabdianTest extends TestCase
             'tanggal_mulai' => '2026-11-18',
             'tanggal_selesai' => '2026-11-20',
         ], $tambah);
+    }
+
+    public function test_master_dapat_diulang_dan_form_bersama_menyimpan_kegiatan_dosen(): void
+    {
+        $this->seed(MasterRisetDosenSeeder::class);
+        $this->seed(MasterRisetDosenSeeder::class);
+        $dosen = $this->buatDosen();
+        $this->actingAs($dosen->user)->get('/dosen/kegiatan/create')->assertOk()->assertSee($dosen->nama);
+        foreach (['Pengabdian' => 'Pengabdian Kemitraan Masyarakat', 'Penelitian' => 'Penelitian Terapan'] as $kategori => $skim) {
+            $id = $this->actingAs($dosen->user, 'sanctum')->postJson('/api/v1/dosen/'.strtolower($kategori), [
+                'kategori' => $kategori, 'nama_kegiatan' => 'Uji form', 'penyelenggara' => 'TRK',
+                'tanggal_mulai' => '2026-11-25', 'tanggal_selesai' => '2026-11-26',
+                'detail' => ['skim' => $skim, 'kelompok_bidang' => 'Pendidikan', 'lokasi' => 'Semarang',
+                    'tahun_pelaksanaan_ke' => 1, 'lama_kegiatan' => 1, 'dana_perguruan_tinggi' => 10000],
+                'dokumen' => [['nama' => 'Proposal', 'jenis' => 'Surat Tugas', 'tautan' => 'https://example.org/proposal']],
+            ])->assertCreated()->json('data.id_kegiatan');
+            $this->assertDatabaseHas('dokumen', ['id_kegiatan' => $id, 'nama_file' => 'Proposal']);
+            $this->assertDatabaseHas('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $dosen->id_user, 'peran' => 'ketua']);
+        }
     }
 
     public function test_dosen_dapat_melihat_daftar_dan_menambah_pengabdian(): void
