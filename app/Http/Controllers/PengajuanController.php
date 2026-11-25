@@ -472,7 +472,7 @@ class PengajuanController extends Controller
     public function show(int $id)
     {
         $kegiatan = Kegiatan::untukUser(Auth::user())
-            ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
+            ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen.jenisDokumen'])
             ->findOrFail($id);
 
         $student = $this->studentProfile($kegiatan->user);
@@ -575,10 +575,42 @@ class PengajuanController extends Controller
 
             return [
                 'name' => $name,
-                'meta' => $doc->tipe_dokumen ?? $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
+                'meta' => $doc->jenisDokumen?->nama_jenis_dokumen ?? $doc->tipe_dokumen ?? $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
                 'url' => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
             ];
-        })->all();
+        })->reject(fn (array $file) => strcasecmp((string) $file['meta'], 'Surat hasil') === 0)->values()->all();
+
+        try {
+            $dokumenApi = $this->apiGet('kegiatan/'.$id.'/dokumen')['data'] ?? [];
+            if (is_array($dokumenApi)) {
+                $files = collect($dokumenApi)
+                    ->reject(fn (array $doc) => strcasecmp((string) ($doc['jenis_dokumen'] ?? ''), 'Surat hasil') === 0)
+                    ->map(fn (array $doc) => [
+                        'name' => $doc['nama_file'] ?? 'Dokumen pendukung',
+                        'meta' => $doc['jenis_dokumen'] ?? $doc['tipe_dokumen'] ?? 'Dokumen',
+                        'url' => $doc['url'] ?? $doc['link_dokumen'] ?? null,
+                        'preview_url' => $doc['link_preview'] ?? $doc['url'] ?? $doc['link_dokumen'] ?? null,
+                    ])->all();
+            }
+        } catch (\Throwable) {
+            // Fallback to the already-loaded database relation.
+        }
+
+        $resultDocuments = [];
+        try {
+            $hasilApi = $this->apiGet('kegiatan/'.$id.'/dokumen-hasil')['data'] ?? [];
+            if (is_array($hasilApi) && isset($hasilApi[0])) {
+                $hasil = $hasilApi[0];
+                $resultDocuments[] = [
+                    'name' => $hasil['nama_file'] ?? 'Dokumen hasil',
+                    'meta' => $hasil['jenis_dokumen'] ?? $hasil['tipe_dokumen'] ?? 'Dokumen hasil',
+                    'url' => $hasil['url'] ?? $hasil['link_dokumen'] ?? null,
+                    'preview_url' => $hasil['link_preview'] ?? $hasil['url'] ?? $hasil['link_dokumen'] ?? null,
+                ];
+            }
+        } catch (\Throwable) {
+            // A 403 before completion means the result is not available yet.
+        }
 
         $item = $kegiatan->toArray();
 
@@ -602,7 +634,7 @@ class PengajuanController extends Controller
             })
             ->all();
 
-        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item', 'detailFields'));
+        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'resultDocuments', 'item', 'detailFields'));
     }
 
     public function destroy(int $id)

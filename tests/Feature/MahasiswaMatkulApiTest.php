@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MahasiswaMatkulApiTest extends TestCase
@@ -38,7 +39,7 @@ class MahasiswaMatkulApiTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_katalog_mk_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/katalog-mk');
@@ -51,7 +52,7 @@ class MahasiswaMatkulApiTest extends TestCase
             ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_semester_berjalan_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/semester-berjalan');
@@ -67,7 +68,7 @@ class MahasiswaMatkulApiTest extends TestCase
             ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_riwayat_akademik_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/riwayat');
