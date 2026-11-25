@@ -3,6 +3,7 @@
 namespace App\BackendKel1\Mahasiswa;
 
 use App\Http\Controllers\Controller;
+use App\Models\TahunAkademik;
 use App\Repositories\MahasiswaStore;
 use App\Support\NimMahasiswa;
 use Illuminate\Http\JsonResponse;
@@ -13,13 +14,76 @@ use Illuminate\Validation\Rule;
 
 class MahasiswaController extends Controller
 {
+    private const STATUS_REGULER = [
+        'Aktif',
+        'Cuti',
+        'Drop Out',
+        'Meninggal Dunia',
+    ];
+
+    private const STATUS_TA_LULUS = [
+        'Skripsi/TA',
+        'Lulus',
+    ];
+
     public function __construct(private MahasiswaStore $store) {}
 
     private function dataMahasiswa(?array $row): ?array
     {
-        return $row === null ? null : Arr::only($row, [
+        if ($row === null) {
+            return null;
+        }
+
+        $data = Arr::only($row, [
             'id', 'nim', 'nama', 'level', 'kelas', 'status', 'angkatan', 'email', 'foto',
         ]);
+
+        $angkatan = isset($row['angkatan']) && is_numeric($row['angkatan']) ? (int) $row['angkatan'] : null;
+        $data['semester_ke'] = $this->hitungSemester($angkatan);
+        $data['allowed_statuses'] = $this->opsiStatusUntukMahasiswa($angkatan, $row['status'] ?? null);
+
+        return $data;
+    }
+
+    private function hitungSemester(?int $angkatan): ?int
+    {
+        if (! $angkatan || $angkatan < 2000) {
+            return null;
+        }
+
+        $taAktif = TahunAkademik::where('status', true)
+            ->orderByDesc('id_tahun_akademik')
+            ->value('tahun_akademik');
+
+        if (is_string($taAktif) && preg_match('/(\d{4})\s*\/\s*\d{4}/', $taAktif, $m)) {
+            $tahunAwal = (int) $m[1];
+            $isGenap = stripos($taAktif, 'genap') !== false;
+        } else {
+            $bulan = (int) date('n');
+            $tahun = (int) date('Y');
+            $isGenap = $bulan < 7;
+            $tahunAwal = $isGenap ? $tahun - 1 : $tahun;
+        }
+
+        return max(1, (($tahunAwal - $angkatan) * 2) + ($isGenap ? 2 : 1));
+    }
+
+    private function opsiStatusUntukMahasiswa(?int $angkatan, ?string $statusSaatIni = null): array
+    {
+        if ($statusSaatIni === 'Skripsi/TA') {
+            return ['Skripsi/TA', 'Lulus'];
+        }
+
+        if ($statusSaatIni === 'Lulus') {
+            return ['Lulus'];
+        }
+
+        $semester = $this->hitungSemester($angkatan);
+        $bolehTaLulus = $semester !== null && $semester > 8;
+
+        return $bolehTaLulus
+            ? MahasiswaStore::STATUS
+            : array_values(array_intersect(MahasiswaStore::STATUS, self::STATUS_REGULER));
     }
 
     /**
@@ -29,15 +93,21 @@ class MahasiswaController extends Controller
     {
         $rows = $this->store->all();
 
-        $students = array_map(fn ($r) => [
-            'id' => $r['id'],
-            'nim' => $r['nim'],
-            'name' => $r['nama'],
-            'level' => $r['level'] ?? 'Tingkat 1',
-            'className' => $r['kelas'] ?? '-',
-            'status' => $r['status'] ?? 'Aktif',
-            'angkatan' => $r['angkatan'] ?? null,
-        ], $rows);
+        $students = array_map(function ($r) {
+            $angkatan = isset($r['angkatan']) && is_numeric($r['angkatan']) ? (int) $r['angkatan'] : null;
+
+            return [
+                'id' => $r['id'],
+                'nim' => $r['nim'],
+                'name' => $r['nama'],
+                'level' => $r['level'] ?? 'Tingkat 1',
+                'className' => $r['kelas'] ?? '-',
+                'status' => $r['status'] ?? 'Aktif',
+                'angkatan' => $r['angkatan'] ?? null,
+                'semester_ke' => $this->hitungSemester($angkatan),
+                'allowed_statuses' => $this->opsiStatusUntukMahasiswa($angkatan, $r['status'] ?? null),
+            ];
+        }, $rows);
 
         if ($request->filled('q')) {
             $q = mb_strtolower($request->query('q'));
@@ -107,6 +177,7 @@ class MahasiswaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $angkatan = $request->filled('angkatan') ? (int) $request->input('angkatan') : null;
+        $opsiStatus = $this->opsiStatusUntukMahasiswa($angkatan);
 
         $data = $request->validate([
             'nama' => ['required', 'string', 'max:100'],
@@ -121,7 +192,7 @@ class MahasiswaController extends Controller
                 }
             }],
             'angkatan' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'status' => ['nullable', Rule::in($this->store->opsiStatus())],
+            'status' => ['nullable', Rule::in($opsiStatus)],
             'email' => ['required', 'email', 'max:150', function ($attr, $value, $fail) {
                 if ($this->store->usedByOther('email', $value, '')) {
                     $fail('Email sudah dipakai akun lain.');
@@ -132,7 +203,7 @@ class MahasiswaController extends Controller
             'nama.required' => 'Nama lengkap wajib diisi.',
             'nim.required' => 'NIM wajib diisi.',
             'angkatan.required' => 'Angkatan wajib dipilih.',
-            'status.required' => 'Status akademik wajib dipilih.',
+            'status.in' => 'Status Skripsi/TA dan Lulus hanya berlaku untuk mahasiswa di atas semester 8.',
             'email.required' => 'Email akun wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'password.required' => 'Password wajib diisi.',
@@ -163,6 +234,13 @@ class MahasiswaController extends Controller
             ], 404);
         }
 
+        if (($lama['status'] ?? '') === 'Lulus') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data mahasiswa yang sudah berstatus Lulus tidak dapat diubah lagi.',
+            ], 422);
+        }
+
         $user = $request->user();
         $isAdmin = ($user->role->nama_role ?? $user->role ?? '') === 'admin'
             || (int) ($user->id_role ?? 0) === 1;
@@ -177,7 +255,11 @@ class MahasiswaController extends Controller
             ], 403);
         }
 
-        $angkatan = $request->filled('angkatan') ? (int) $request->input('angkatan') : null;
+        $angkatan = $request->filled('angkatan')
+            ? (int) $request->input('angkatan')
+            : (isset($lama['angkatan']) ? (int) $lama['angkatan'] : null);
+
+        $opsiStatus = $this->opsiStatusUntukMahasiswa($angkatan, $lama['status'] ?? null);
 
         $data = $request->validate([
             'nama' => ['required', 'string', 'max:100'],
@@ -195,7 +277,7 @@ class MahasiswaController extends Controller
                 }
             }],
             'angkatan' => [$isAdmin ? 'required' : 'nullable', 'integer', 'min:2000', 'max:2100'],
-            'status' => [$isAdmin ? 'required' : 'nullable', Rule::in($this->store->opsiStatus())],
+            'status' => [$isAdmin ? 'required' : 'nullable', Rule::in($opsiStatus)],
             'email' => ['required', 'email', 'max:150', function ($attr, $value, $fail) use ($id) {
                 if ($this->store->usedByOther('email', $value, $id)) {
                     $fail('Email sudah dipakai akun lain.');
@@ -209,6 +291,7 @@ class MahasiswaController extends Controller
             'nim.required' => 'NIM wajib diisi.',
             'angkatan.required' => 'Angkatan wajib dipilih.',
             'status.required' => 'Status akademik wajib dipilih.',
+            'status.in' => 'Status Skripsi/TA dan Lulus hanya tersedia untuk mahasiswa di atas semester 8.',
             'email.required' => 'Email akun wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'password.min' => 'Password baru minimal 8 karakter.',
@@ -263,9 +346,21 @@ class MahasiswaController extends Controller
             ], 404);
         }
 
+        if (($lama['status'] ?? '') === 'Lulus') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data mahasiswa yang sudah berstatus Lulus tidak dapat diubah lagi.',
+            ], 422);
+        }
+
+        $angkatan = isset($lama['angkatan']) && is_numeric($lama['angkatan']) ? (int) $lama['angkatan'] : null;
+        $opsiStatus = $this->opsiStatusUntukMahasiswa($angkatan, $lama['status'] ?? null);
+
         if ($request->filled('status')) {
             $validated = $request->validate([
-                'status' => ['required', Rule::in($this->store->opsiStatus())],
+                'status' => ['required', Rule::in($opsiStatus)],
+            ], [
+                'status.in' => 'Status Skripsi/TA dan Lulus hanya tersedia untuk mahasiswa di atas semester 8.',
             ]);
             $statusBaru = $validated['status'];
         } else {
@@ -319,19 +414,6 @@ class MahasiswaController extends Controller
             'success' => true,
             'message' => "Sinkronisasi kelas ({$ta}) selesai: {$dibuat} ditempatkan, {$sudahAda} sudah terdaftar, {$skripsiTa} masuk status Skripsi/TA.",
             'data' => $ringkasan,
-        ], 200);
-    }
-
-    public function luluskanTa(): JsonResponse
-    {
-        $jumlah = $this->store->luluskanSkripsiTa();
-
-        return response()->json([
-            'success' => true,
-            'message' => $jumlah > 0
-                ? "{$jumlah} mahasiswa berstatus Skripsi/TA berhasil diluluskan."
-                : 'Tidak ada mahasiswa berstatus Skripsi/TA saat ini.',
-            'data' => ['lulus' => $jumlah],
         ], 200);
     }
 }

@@ -147,6 +147,24 @@ class MahasiswaDbStore extends MahasiswaStore
             }
             $u->save();
 
+            $akunAktif = $this->aktif($statusMahasiswa);
+
+            $u->forceFill([
+                'email' => $data['email'],
+                'status' => $akunAktif,
+            ]);
+            if (! empty($data['password'])) {
+                $u->password = $data['password'];
+            }
+            if (array_key_exists('foto', $data)) {
+                $u->foto_profil = $data['foto'];
+            }
+            $u->save();
+
+            if (! $akunAktif) {
+                $u->tokens()->delete();
+            }
+
             return true;
         });
 
