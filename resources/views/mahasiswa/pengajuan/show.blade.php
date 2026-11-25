@@ -169,6 +169,22 @@
                 @endif
             </div>
 
+            @if (! empty($detailFields))
+                    <div class="grid grid-cols-1 gap-3 border-t border-[#E5E7EB] pt-3 sm:grid-cols-2">
+                        @foreach ($detailFields as $field)
+                            <div>
+                                <div class="text-[13px] text-[#6B7280]">{{ $field['label'] }}</div>
+                                @if (! empty($field['is_file']))
+                                    <a href="{{ asset('storage/'.$field['value']) }}" target="_blank" rel="noopener noreferrer"
+                                       class="text-sm font-semibold text-[#2563EB] hover:underline">Lihat berkas</a>
+                                @else
+                                    <div class="text-[15px] font-semibold">{{ $field['value'] }}</div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
             <div class="{{ $card }} flex flex-col gap-4">
                 <h2 class="text-xl font-bold">Dokumen lampiran</h2>
                 @forelse ($files as $f)
