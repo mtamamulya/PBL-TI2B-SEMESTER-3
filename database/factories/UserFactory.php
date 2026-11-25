@@ -25,8 +25,17 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $roleId = Role::query()->value('id_role');
+
+        if ($roleId === null) {
+            $roleId = Role::query()->firstOrCreate(
+                ['id_role' => 1],
+                ['nama_role' => 'admin'],
+            )->getKey();
+        }
+
         return [
-            'id_role' => Role::query()->value('id_role') ?? 1,
+            'id_role' => $roleId,
             'email' => fake()->unique()->safeEmail(),
             'password' => static::$password ??= Hash::make('password'),
             'status' => true,
