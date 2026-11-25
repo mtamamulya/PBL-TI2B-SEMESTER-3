@@ -25,6 +25,9 @@ return [
                 ['label' => 'Mata Kuliah', 'route' => 'kaprodi.kurikulum.mata-kuliah', 'url' => 'kurikulum/mata-kuliah'],
                 ['label' => 'Tahun Akademik', 'route' => 'kaprodi.kurikulum.tahun-akademik', 'url' => 'kurikulum/tahun-akademik'],            ]],
 
+        ['label' => 'Data Prodi', 'route' => 'kaprodi.prodi.profil', 'url' => 'prodi/profil',
+            'icon' => '<path d="M3 21l18 0" /><path d="M9 8l1 0" /><path d="M9 12l1 0" /><path d="M9 16l1 0" /><path d="M14 8l1 0" /><path d="M14 12l1 0" /><path d="M14 16l1 0" /><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16" />'],
+
         ['label' => 'Data Dosen', 'route' => 'kaprodi.dosen', 'url' => 'dosen',
             'icon' => '<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'],
 
