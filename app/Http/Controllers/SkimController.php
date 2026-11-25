@@ -145,7 +145,8 @@ class SkimController extends Controller
 
     private function dummy(): bool
     {
-        return filter_var(env('SKIM_DUMMY', false), FILTER_VALIDATE_BOOLEAN);
+        return ! app()->runningUnitTests()
+            && filter_var(env('SKIM_DUMMY', false), FILTER_VALIDATE_BOOLEAN);
     }
 
     /** @return array<int, array{id:int,name:string,total:int}> */

@@ -32,66 +32,40 @@
     $formAction = $item
         ? route('pengajuan.update', $item['id'])
         : ($isActivityHistory ? route('kegiatan.store') : route('pengajuan.store'));
-    $selectedAdvisors = collect(old('advisors', $d['advisors'] ?? (isset($d['advisor']) ? [$d['advisor']] : [])))
-        ->filter(fn ($name) => is_string($name) && $name !== '')
-        ->values()
-        ->all();
 @endphp
 <div class="flex flex-col gap-5 px-4 pb-10 pt-6 sm:px-6 lg:px-8"
      x-data="{
-         category: @js($v('category', '')),
-         participation: @js($v('participation', 'Tim')),
-         level: @js($v('level', '')),
-         members: @js($members),
-         newMember: '', newRole: '',
-         advisors: @js($advisors),
-         selectedAdvisors: @js($selectedAdvisors),
-         advisor: @js($v('advisor')),
-         advisorQuery: '',
-         locLabels: @js($locLabels),
-         documents: @js($initialDocuments),
-         documentTypes: @js($documentTypes),
-         documentNote: '',
-         ok: false,
+         categories: @js($categoriesList),
+         selectedCategoryId: @js($initialCategoryId),
+         title: @js($initialTitle),
+         savedDetails: @js($savedDetails),
+         multiValues: {},
          submitting: false,
-         add() {
-             if (!this.newMember.trim()) return;
-             this.members.push({ name: this.newMember.trim(), role: this.newRole || 'Anggota' });
-             this.newMember = ''; this.newRole = '';
+         get activeCategory() {
+             return this.categories.find(c => String(c.id_kategori) === String(this.selectedCategoryId)) || null;
          },
-         get advisorMatches() {
-             const query = this.advisorQuery.trim().toLocaleLowerCase();
-             return query
-                 ? this.advisors.filter(dosen => !this.selectedAdvisors.includes(dosen.nama) && dosen.nama.toLocaleLowerCase().includes(query)).slice(0, 8)
-                 : [];
-         },
-         addAdvisor(dosen) {
-             if (dosen && !this.selectedAdvisors.includes(dosen.nama)) {
-                 this.selectedAdvisors.push(dosen.nama);
+         initMultiValues() {
+             if (!this.activeCategory) return;
+             for (const field of this.activeCategory.isian) {
+                 if (field.jumlah_isian === 0) {
+                     const key = String(field.id_isian_kategori);
+                     if (!Array.isArray(this.multiValues[key])) {
+                         const existing = this.savedDetails[key];
+                         this.multiValues[key] = Array.isArray(existing) && existing.length > 0 ? [...existing] : [''];
+                     }
+                 }
              }
-             this.advisorQuery = '';
          },
-         removeAdvisor(name) {
-             this.selectedAdvisors = this.selectedAdvisors.filter(advisor => advisor !== name);
+         addMultiRow(idIsian) {
+             const key = String(idIsian);
+             if (!Array.isArray(this.multiValues[key])) this.multiValues[key] = [''];
+             this.multiValues[key].push('');
          },
-         addDocument() {
-             this.documents.push({ id: Date.now() + Math.random(), name: '', type: '', url: '' });
-             this.documentNote = '';
-         },
-         removeDocument(document) {
-             this.documents = this.documents.filter(item => item !== document);
-             this.documentNote = '';
-         },
-         check() {
-             const f = this.$refs.form;
-             const v = n => ((f.elements[n] && f.elements[n].value) || '').toString().trim();
-             const need = ({ Lomba: ['title', 'organizer', 'level'], Volunteer: ['title', 'organizer', 'role'], Magang: ['role', 'organizer', 'duration_months'], Pengabdian: ['title', 'organizer'] })[this.category] || [];
-             const hasTeam = this.category === 'Lomba';
-             let ok = Boolean(this.category) && need.every(n => v(n)) && ['location', 'start_date', 'end_date'].every(n => v(n));
-             if (ok && v('end_date') < v('start_date')) ok = false;
-             if (ok && hasTeam && this.participation === 'Tim' && this.members.length < 1) ok = false;
-             if (ok && this.documents.some(doc => !doc.name.trim() || !doc.type || !doc.url.trim())) ok = false;
-             this.ok = ok;
+         removeMultiRow(idIsian, idx) {
+             const key = String(idIsian);
+             if (this.multiValues[key].length > 1) {
+                 this.multiValues[key].splice(idx, 1);
+             }
          }
      }"
      x-init="$nextTick(() => check()); $watch('category', () => setTimeout(() => check(), 60)); $watch('participation', () => setTimeout(() => check(), 60)); $watch('members', () => check()); $watch('documents', () => check(), { deep: true })">
@@ -128,13 +102,20 @@
                 <h2 id="h-kategori" class="text-[15px] font-semibold text-gray-900">Kategori Kegiatan</h2>
             </div>
 
-            <x-pengajuan.field label="Kategori" hint="Pilih kategori kegiatan yang paling sesuai." name="category">
+        <div class="flex flex-col gap-5 p-5 sm:p-7">
+            {{-- PILIH KATEGORI DARI ADMIN --}}
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[13px] font-semibold leading-5 text-[#374151]">
+                    Kategori Kegiatan <span class="text-[#FF3F3F]">*</span>
+                </label>
                 <div class="relative">
-                    <select name="category" x-model="category" class="{{ $select }}">
-                        <option value="">Pilih kategori</option>
-                        @foreach ($categories as $c)
-                            <option value="{{ $c }}">{{ $c }}</option>
-                        @endforeach
+                    <select name="id_kategori" x-model="selectedCategoryId" required class="{{ $select }}">
+                        <option value="">Pilih kategori kegiatan...</option>
+                        <template x-for="cat in categories" :key="cat.id_kategori">
+                            <option :value="String(cat.id_kategori)"
+                                    :selected="String(cat.id_kategori) === String(selectedCategoryId)"
+                                    x-text="cat.nama_kategori + (cat.jenis ? ' (' + cat.jenis + ')' : '')"></option>
+                        </template>
                     </select>
                     <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3.5 text-base text-gray-500"></i>
                 </div>
@@ -307,6 +288,123 @@
                                    class="{{ $input }}" placeholder="https://...">
                             @error('documents.*.url')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
                         </label>
+
+                        {{-- MODE 1: SATU ISIAN (jumlah_isian === 1) --}}
+                        <template x-if="field.jumlah_isian === 1">
+                            <div>
+                                {{-- Teks Pendek --}}
+                                <template x-if="field.jenis_input === 'teks'">
+                                    <input type="text"
+                                           :name="'detail[' + field.id_isian_kategori + ']'"
+                                           :value="savedDetails[field.id_isian_kategori] ?? ''"
+                                           :required="field.wajib"
+                                           class="{{ $input }}"
+                                           :placeholder="'Masukkan ' + field.input.toLowerCase() + '...'">
+                                </template>
+
+                                {{-- Teks Panjang / Paragraf --}}
+                                <template x-if="field.jenis_input === 'paragraf'">
+                                    <textarea :name="'detail[' + field.id_isian_kategori + ']'"
+                                              :required="field.wajib"
+                                              class="{{ $textarea }}"
+                                              :placeholder="'Tuliskan ' + field.input.toLowerCase() + '...'"
+                                              x-text="savedDetails[field.id_isian_kategori] ?? ''"></textarea>
+                                </template>
+
+                                {{-- Angka --}}
+                                <template x-if="field.jenis_input === 'angka'">
+                                    <input type="number"
+                                           :name="'detail[' + field.id_isian_kategori + ']'"
+                                           :value="savedDetails[field.id_isian_kategori] ?? ''"
+                                           :required="field.wajib"
+                                           class="{{ $input }}"
+                                           placeholder="0">
+                                </template>
+
+                                {{-- Tanggal --}}
+                                <template x-if="field.jenis_input === 'tanggal'">
+                                    <input type="date"
+                                           :name="'detail[' + field.id_isian_kategori + ']'"
+                                           :value="savedDetails[field.id_isian_kategori] ?? ''"
+                                           :required="field.wajib"
+                                           class="{{ $input }}">
+                                </template>
+
+                                {{-- Unggah Berkas --}}
+                                <template x-if="field.jenis_input === 'berkas'">
+                                    <div class="flex flex-col gap-1.5">
+                                        <input type="file"
+                                               :name="'detail_files[' + field.id_isian_kategori + ']'"
+                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               :required="field.wajib && !savedDetails[field.id_isian_kategori]"
+                                               class="block w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] text-[#374151] file:mr-3 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#2277FF]">
+                                        <template x-if="savedDetails[field.id_isian_kategori]">
+                                            <p class="text-xs text-[#059669]">Berkas tersimpan: <span x-text="savedDetails[field.id_isian_kategori]"></span> (unggah baru jika ingin mengganti).</p>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                {{-- Pilihan Baku (Tingkat Kejuaraan, Jenis Prestasi, Dosen) --}}
+                                <template x-if="Array.isArray(field.pilihan)">
+                                    <div class="relative">
+                                        <select :name="'detail[' + field.id_isian_kategori + ']'"
+                                                :required="field.wajib"
+                                                class="{{ $select }}">
+                                            <option value="">Pilih...</option>
+                                            <template x-for="opt in field.pilihan" :key="opt.nilai">
+                                                <option :value="opt.nilai"
+                                                        :selected="String(savedDetails[field.id_isian_kategori] ?? '') === String(opt.nilai)"
+                                                        x-text="opt.label"></option>
+                                            </template>
+                                        </select>
+                                        <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-3 text-base"></i>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        {{-- MODE 2: LEBIH DARI SATU ISIAN / REPEATABLE (jumlah_isian === 0) --}}
+                        <template x-if="field.jumlah_isian === 0">
+                            <div class="flex flex-col gap-2">
+                                <template x-for="(val, idx) in (multiValues[field.id_isian_kategori] || [''])" :key="idx">
+                                    <div class="flex items-center gap-2">
+                                        <template x-if="Array.isArray(field.pilihan)">
+                                            <div class="relative flex-1">
+                                                <select :name="'detail[' + field.id_isian_kategori + '][]'"
+                                                        x-model="multiValues[field.id_isian_kategori][idx]"
+                                                        :required="field.wajib && idx === 0"
+                                                        class="{{ $select }}">
+                                                    <option value="">Pilih...</option>
+                                                    <template x-for="opt in field.pilihan" :key="opt.nilai">
+                                                        <option :value="opt.nilai" x-text="opt.label"></option>
+                                                    </template>
+                                                </select>
+                                                <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-3 text-base"></i>
+                                            </div>
+                                        </template>
+                                        <template x-if="!Array.isArray(field.pilihan)">
+                                            <input :type="field.jenis_input === 'angka' ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
+                                                   :name="'detail[' + field.id_isian_kategori + '][]'"
+                                                   x-model="multiValues[field.id_isian_kategori][idx]"
+                                                   :required="field.wajib && idx === 0"
+                                                   class="{{ $input }} flex-1"
+                                                   :placeholder="field.input + ' #' + (idx + 1)">
+                                        </template>
+                                        <button type="button"
+                                                x-show="(multiValues[field.id_isian_kategori] || []).length > 1"
+                                                @click="removeMultiRow(field.id_isian_kategori, idx)"
+                                                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FECACA] text-[#DC2626] hover:bg-[#FEF2F2]">
+                                            <i class="ti ti-trash text-base"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                                <button type="button" @click="addMultiRow(field.id_isian_kategori)"
+                                        class="flex h-9 w-fit items-center gap-1.5 rounded-lg border border-[#2277FF] px-3 text-xs font-semibold text-[#2277FF] hover:bg-[#EFF6FF]">
+                                    <i class="ti ti-plus text-sm"></i>
+                                    <span x-text="'Tambah ' + field.input"></span>
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </template>
