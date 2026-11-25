@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\BackendKel2\Akademik\PeriodeAkademik;
-use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
 use App\Models\Kegiatan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
