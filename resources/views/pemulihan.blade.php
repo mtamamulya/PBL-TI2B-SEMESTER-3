@@ -112,6 +112,12 @@
         <form id="form-kirim-ulang" method="POST" action="{{ route('password.kirim-ulang') }}" class="hidden">@csrf</form>
 
         @push('scripts')
+        @if (isset($sisaOtpDetik) && $sisaOtpDetik !== null)
+        <script>
+            // Kode OTP habis -> muat ulang, server mengembalikan ke langkah 1 untuk minta kode baru.
+            setTimeout(function () { window.location.reload(); }, {{ ((int) $sisaOtpDetik + 1) * 1000 }});
+        </script>
+        @endif
         <script>
             (function () {
                 var boxes = Array.prototype.slice.call(document.querySelectorAll('#otp-boxes input'));
@@ -182,6 +188,12 @@
         </form>
 
         @push('scripts')
+        @if (isset($sisaSandiDetik) && $sisaSandiDetik !== null)
+        <script>
+            // Batas waktu membuat sandi baru habis -> muat ulang, server mengembalikan ke langkah 1.
+            setTimeout(function () { window.location.reload(); }, {{ ((int) $sisaSandiDetik + 1) * 1000 }});
+        </script>
+        @endif
         <script>
             (function () {
                 document.querySelectorAll('[data-toggle-sandi]').forEach(function (btn) {

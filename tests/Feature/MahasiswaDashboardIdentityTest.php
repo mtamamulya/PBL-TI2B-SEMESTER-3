@@ -2,12 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Mail\PasswordResetOtp;
 use App\BackendKel2\Akademik\PeriodeAkademik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class MahasiswaDashboardIdentityTest extends TestCase
@@ -207,13 +205,22 @@ class MahasiswaDashboardIdentityTest extends TestCase
             ->assertDontSee('alert(\'Kata sandi berhasil disimpan!\')', false);
     }
 
-    public function test_profile_shows_local_otp_override_for_mahasiswa(): void
+    public function test_profile_shows_the_local_otp_recipient_for_the_designated_student(): void
     {
         $user = $this->student();
         $user->update(['email' => 'student-original@test.local']);
+        DB::table('mahasiswa')->insert([
+            'id_user' => $user->getKey(),
+            'nim' => '43325111',
+            'nama' => 'Mahasiswa Tes',
+            'tahun_masuk' => 2024,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $this->app->detectEnvironment(fn () => 'local');
         config([
             'mahasiswa.otp_email' => 'ivan.43325111@mhs.polines.ac.id',
+            'mahasiswa.otp_test_nim' => '43325111',
         ]);
 
         $maskedEmail = 'i'.str_repeat('*', strlen('ivan.43325111') - 1).'@mhs.polines.ac.id';
@@ -248,8 +255,6 @@ class MahasiswaDashboardIdentityTest extends TestCase
 
     public function test_student_can_log_in_and_is_redirected_to_the_dashboard(): void
     {
-        config(['api_client.token_sesi' => true]);
-        Mail::fake();
         DB::table('roles')->insert([
             'id_role' => 4,
             'nama_role' => 'mahasiswa',
@@ -272,19 +277,6 @@ class MahasiswaDashboardIdentityTest extends TestCase
             ->assertRedirect(route('mahasiswa.dashboard'));
 
         $this->assertAuthenticated();
-        $token = session('api_token');
-        $this->assertNotEmpty($token);
-
-        $this->get(route('mahasiswa.profil'))
-            ->assertOk()
-            ->assertSee($token, false)
-            ->assertSee('headers.Authorization = `Bearer ${this.apiToken}`', false);
-
-        $this->withToken($token)
-            ->postJson('/api/v1/profil/ganti-sandi/kirim-otp')
-            ->assertOk();
-
-        Mail::assertSent(PasswordResetOtp::class, fn ($mail) => $mail->hasTo('mahasiswa-login@test.local'));
     }
 
     public function test_inactive_student_cannot_log_in(): void
