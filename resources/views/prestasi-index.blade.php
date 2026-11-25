@@ -36,7 +36,7 @@
                                 </span>
                                 <h2 class="text-base font-semibold leading-[22px] tracking-[-0.18px]">
                                     <a href="{{ route('publik.prestasi.show', $item->getKey()) }}" class="hover:underline">
-                                        {{ $item->kegiatan?->nama_kegiatan ?? 'Prestasi' }}
+                                        {{ $item->kegiatan?->nama_kegiatan ?? $item->nama_lomba }}
                                     </a>
                                 </h2>
                                 <p class="text-xs leading-4 text-[#7D8999]">
@@ -78,7 +78,7 @@
                                     </svg>
                                 </div>
                                 <div class="flex min-w-0 flex-col gap-[5px]">
-                                    <p class="line-clamp-2 text-[15px] font-bold leading-[20px] text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? 'Prestasi' }}</p>
+                                    <p class="line-clamp-2 text-[15px] font-bold leading-[20px] text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? $item->nama_lomba }}</p>
                                     <p class="text-xs leading-4 text-[#7D8999]">
                                         {{ $item->capaian ?: ucfirst($item->jenis_prestasi) }}
                                         @if ($item->bidang_lomba)

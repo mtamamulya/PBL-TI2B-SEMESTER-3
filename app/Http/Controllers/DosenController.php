@@ -147,4 +147,30 @@ class DosenController extends Controller
             ->route('admin.dosen.show', $id)
             ->with('status', 'Perubahan data dosen berhasil disimpan.');
     }
+
+    /**
+     * Toggle status aktif/nonaktif dosen (PATCH /admin/dosen/{id}/status).
+     */
+    public function toggleStatus(string $id): RedirectResponse
+    {
+        $detail = ApiClient::pengguna()->get("/dosen/{$id}");
+        $profil = $detail['data']['profil'] ?? [];
+
+        $statusBaru = ($profil['status'] ?? 'aktif') === 'aktif' ? 'nonaktif' : 'aktif';
+
+        ApiClient::pengguna()->put("/dosen/{$id}", [
+            'nama_lengkap' => $profil['nama'] ?? '',
+            'nip' => $profil['nip'] ?? '',
+            'status_dosen' => $statusBaru,
+            'email' => $profil['email'] ?? '',
+            'role' => $profil['role_key'] ?? 'dosen',
+            'status_akun' => $statusBaru,
+        ]);
+
+        $label = $statusBaru === 'aktif' ? 'diaktifkan' : 'dinonaktifkan';
+
+        return redirect()
+            ->route('admin.dosen')
+            ->with('status', "Status dosen berhasil {$label}.");
+    }
 }

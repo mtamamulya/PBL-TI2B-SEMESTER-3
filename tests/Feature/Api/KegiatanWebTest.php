@@ -97,6 +97,12 @@ class KegiatanWebTest extends TestCase
         $this->admin()->get(route('kaprodi.kegiatan.index'))->assertForbidden();
     }
 
+    public function test_legacy_admin_dosen_route_redirects_to_the_combined_activities_tab(): void
+    {
+        $this->admin()->get(route('admin.kegiatan.dosen'))
+            ->assertRedirect(url('/admin/kegiatan?tab=dosen'));
+    }
+
     // ---------- daftar ----------
 
     public function test_list_splits_rows_into_tabs_by_jenis(): void
