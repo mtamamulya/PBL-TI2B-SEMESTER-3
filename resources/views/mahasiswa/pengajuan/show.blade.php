@@ -188,14 +188,14 @@
             <div class="{{ $card }} flex flex-col gap-4">
                 <h2 class="text-xl font-bold">Dokumen lampiran</h2>
                 @forelse ($files as $f)
-                    <a href="{{ $f['url'] ?? '#' }}" @if (!empty($f['url'])) target="_blank" rel="noopener noreferrer" @endif class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4 transition hover:bg-[#F3F4F6]">
+                    <button type="button" x-data x-on:click="$dispatch('buka-preview', { file: @js($f['name']), url: @js($f['preview_url'] ?? $f['url'] ?? null), jenis: @js($f['meta']) })" class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4 text-left transition hover:bg-[#F3F4F6]">
                         <i class="ti ti-file-text text-xl text-[#2563EB]"></i>
                         <div class="min-w-0 flex-1">
                             <div class="truncate text-sm font-semibold">{{ $f['name'] }}</div>
                             <div class="text-[13px] text-[#6B7280]">{{ $f['meta'] }}</div>
                         </div>
-                        <i class="ti ti-paperclip text-lg text-[#6B7280]"></i>
-                    </a>
+                        <i class="ti ti-eye text-lg text-[#6B7280]"></i>
+                    </button>
                 @empty
                     <p class="text-[13px] text-[#6B7280]">Tidak ada dokumen pendukung.</p>
                 @endforelse
@@ -203,23 +203,23 @@
 
             <div class="{{ $card }} flex flex-col gap-4">
                 <h2 class="text-xl font-bold">Dokumen hasil</h2>
-                @if ($status === 'Selesai')
-                    <div class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4">
+                @forelse ($resultDocuments as $resultDocument)
+                    <button type="button" x-data x-on:click="$dispatch('buka-preview', { file: @js($resultDocument['name']), url: @js($resultDocument['preview_url'] ?? $resultDocument['url'] ?? null), jenis: @js($resultDocument['meta']) })" class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4 text-left transition hover:bg-[#F3F4F6]">
                         <i class="ti ti-file-text text-xl text-[#2563EB]"></i>
                         <div class="min-w-0 flex-1">
-                            <div class="truncate text-sm font-semibold">Dokumen_hasil_pengajuan.pdf</div>
-                            <div class="text-[13px] text-[#6B7280]">PDF</div>
+                            <div class="truncate text-sm font-semibold">{{ $resultDocument['name'] }}</div>
+                            <div class="text-[13px] text-[#6B7280]">{{ $resultDocument['meta'] }}</div>
                         </div>
-                        <i class="ti ti-paperclip text-lg text-[#6B7280]"></i>
-                    </div>
-                    <a href="#" class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white">
-                        <i class="ti ti-download text-base"></i>Unduh dokumen pengajuan
-                    </a>
-                @else
-                    <button type="button" disabled class="flex h-11 w-fit cursor-not-allowed items-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-sm font-semibold text-[#6B7280]">
-                        <i class="ti ti-download text-base"></i>Unduh dokumen pengajuan
+                        <i class="ti ti-eye text-lg text-[#6B7280]"></i>
                     </button>
-                @endif
+                    @if (!empty($resultDocument['url']))
+                        <a href="{{ $resultDocument['url'] }}" target="_blank" rel="noopener noreferrer" class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white">
+                            <i class="ti ti-download text-base"></i>Unduh dokumen pengajuan
+                        </a>
+                    @endif
+                @empty
+                    <p class="text-[13px] text-[#6B7280]">Dokumen hasil belum tersedia.</p>
+                @endforelse
                 <p class="text-[13px] text-[#6B7280]">{{ $resultNote }}</p>
             </div>
         </div>
