@@ -47,7 +47,7 @@ class ProfilController extends Controller
 
     /**
      * PATCH /api/v1/dosen/profil
-     * Mengubah nama dosen dan (jika dikirim) foto profil user yang login.
+     * Mengubah foto profil user dan/atau nama dosen yang sedang login.
      */
     public function update(UpdateProfilRequest $request): JsonResponse
     {
@@ -58,18 +58,19 @@ class ProfilController extends Controller
             return ApiResponse::gagal('Data profil dosen tidak ditemukan untuk akun ini.', 404);
         }
 
-        $validated = $request->validated();
-
-        $dosen->update([
-            'nama' => $validated['nama'],
-        ]);
+        if ($request->filled('nama')) {
+            $dosen->update([
+                'nama' => $request->input('nama'),
+            ]);
+            $dosen->refresh();
+        }
 
         if ($request->hasFile('foto_profil')) {
             $this->hapusFotoLama($user->foto_profil);
 
             $path = $request->file('foto_profil')->store('foto-profil', 'public');
             $user->update([
-                'foto_profil' => '/storage/'.ltrim($path, '/'),
+                'foto_profil' => ltrim($path, '/'),
             ]);
             $user->refresh();
         }
@@ -93,7 +94,7 @@ class ProfilController extends Controller
             ] : null,
         ];
 
-        return ApiResponse::ok($data, 'Profil dosen berhasil diperbarui.');
+        return ApiResponse::ok($data, 'Profil berhasil diperbarui.');
     }
 
     /**
@@ -135,7 +136,12 @@ class ProfilController extends Controller
             return $fotoProfil;
         }
 
-        return '/'.ltrim($fotoProfil, '/');
+        $normalized = ltrim($fotoProfil, '/');
+        if (str_starts_with($normalized, 'storage/')) {
+            return '/'.$normalized;
+        }
+
+        return '/storage/'.$normalized;
     }
 
     private function hapusFotoLama(?string $fotoProfil): void
@@ -149,9 +155,10 @@ class ProfilController extends Controller
         }
 
         $normalized = ltrim($fotoProfil, '/');
-        if (str_starts_with($normalized, 'storage/')) {
-            $relativePath = substr($normalized, strlen('storage/'));
-            Storage::disk('public')->delete($relativePath);
-        }
+        $relativePath = str_starts_with($normalized, 'storage/')
+            ? substr($normalized, strlen('storage/'))
+            : $normalized;
+
+        Storage::disk('public')->delete($relativePath);
     }
 }
