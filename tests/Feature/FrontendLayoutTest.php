@@ -118,7 +118,7 @@ class FrontendLayoutTest extends TestCase
 
         $this->get('/mahasiswa/dashboard')->assertForbidden();
         $this->get('/mahasiswa/kegiatan')->assertForbidden();
-        $this->get('/dosen/dashboard')->assertOk()->assertSee('Kegiatan Milik Saya')->assertDontSee('Kegiatan Milik Orang Lain')->assertViewHas('stats', fn ($stats) => $stats[1]['value'] === 1 && $stats[3]['value'] === 1);
+        $this->get('/dosen/dashboard')->assertOk()->assertSee('Kegiatan Milik Saya')->assertDontSee('Kegiatan Milik Orang Lain')->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1 && $stats[1]['value'] === 1 && $stats[3]['value'] === 0);
         $this->get('/dosen/kegiatan')->assertOk()
             ->assertOk()
             ->assertSee('class="frontend-shell dosen-shell', false)
