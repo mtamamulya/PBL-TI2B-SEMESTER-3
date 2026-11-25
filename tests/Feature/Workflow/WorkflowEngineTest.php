@@ -12,9 +12,9 @@ use App\BackendKel2\Workflow\WorkflowEngine;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 use Tests\TestCase;
@@ -23,10 +23,8 @@ use Tests\TestCase;
  * PERHATIAN: RefreshDatabase menjalankan migrate:fresh pada database tes.
  * Pastikan phpunit.xml / .env.testing memakai database TERPISAH, bukan database pengembangan.
  *
- * Tes memakai model buatan agar tidak bergantung pada model modul lain:
- *   DummyKegiatan -> alur 'kegiatan' (tabel timeline sungguhan, FK dimatikan selama tes)
- *   DummyBerita   -> alur 'berita'   (kolom status)
- * Memakai User::factory() milik repo, jadi sesuaikan bila factory-nya butuh kolom wajib.
+ * Tes memakai model tipis pada tabel asli agar foreign key tetap aktif tanpa mengubah
+ * status transaksional koneksi MySQL.
  */
 class WorkflowEngineTest extends TestCase
 {
@@ -40,42 +38,21 @@ class WorkflowEngineTest extends TestCase
 
     private User $stranger;
 
-    /**
-     * Tabel dummy dibuat sekali, sebelum transaksi tes dimulai. CREATE TABLE di dalam
-     * transaksi akan memicu implicit commit di MySQL dan membuat data antar tes bocor.
-     */
-    protected function afterRefreshingDatabase(): void
-    {
-        if (! Schema::hasTable('dummy_kegiatan')) {
-            Schema::create('dummy_kegiatan', function ($table) {
-                $table->id('id_kegiatan');
-                $table->unsignedBigInteger('user_id');
-                $table->timestamps();
-            });
-        }
-
-        if (! Schema::hasTable('dummy_berita')) {
-            Schema::create('dummy_berita', function ($table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->string('status')->default('draft');
-                $table->text('catatan_revisi')->nullable();
-                $table->timestamp('tanggal_publish')->nullable();
-                $table->timestamps();
-            });
-        }
-    }
+    private int $category;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // timeline.id_kegiatan mengacu ke tabel kegiatan asli, sedangkan tes memakai tabel dummy.
-        Schema::disableForeignKeyConstraints();
-
         $this->owner = User::factory()->create();
         $this->staff = User::factory()->create();
         $this->stranger = User::factory()->create();
+
+        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Dosen']);
+        $this->category = DB::table('kategori')->insertGetId([
+            'id_jenis_kegiatan' => $jenis,
+            'nama_kategori' => 'Workflow Test',
+        ]);
 
         $staffId = $this->staff->getKey();
         Gate::define('review-workflow', fn ($user) => $user->getKey() === $staffId);
@@ -83,21 +60,22 @@ class WorkflowEngineTest extends TestCase
         $this->engine = app(WorkflowEngine::class);
     }
 
-    protected function tearDown(): void
-    {
-        Schema::enableForeignKeyConstraints();
-
-        parent::tearDown();
-    }
-
     private function kegiatan(): DummyKegiatan
     {
-        return DummyKegiatan::create(['user_id' => $this->owner->getKey()]);
+        return DummyKegiatan::create([
+            'id_kategori' => $this->category,
+            'id_user' => $this->owner->getKey(),
+            'nama_kegiatan' => 'Workflow test activity',
+        ]);
     }
 
     private function berita(): DummyBerita
     {
-        return DummyBerita::create(['user_id' => $this->owner->getKey()]);
+        return DummyBerita::create([
+            'id_user' => $this->owner->getKey(),
+            'judul_berita' => 'Workflow test news',
+            'isi_berita' => 'Workflow test content',
+        ]);
     }
 
     // ---------------------------------------------------------------- kegiatan (tabel timeline)
@@ -358,7 +336,7 @@ class WorkflowEngineTest extends TestCase
         $this->engine->start($draft, $this->owner);
         $this->engine->start($diajukan, $this->owner, 'diajukan');
 
-        $this->assertSame([$diajukan->getKey()], DummyBerita::whereStatus('diajukan')->pluck('id')->all());
+        $this->assertSame([$diajukan->getKey()], DummyBerita::whereStatus('diajukan')->pluck('id_berita')->all());
         $this->assertSame(
             ['draft' => 1, 'diajukan' => 1],
             $this->engine->countByStatus(DummyBerita::query())
@@ -371,7 +349,7 @@ class DummyKegiatan extends Model implements Workflowable
 {
     use HasWorkflow;
 
-    protected $table = 'dummy_kegiatan';
+    protected $table = 'kegiatan';
 
     protected $primaryKey = 'id_kegiatan';
 
@@ -384,7 +362,7 @@ class DummyKegiatan extends Model implements Workflowable
 
     public function workflowOwnerId(): int|string|null
     {
-        return $this->user_id;
+        return $this->id_user;
     }
 }
 
@@ -392,7 +370,9 @@ class DummyBerita extends Model implements Workflowable
 {
     use HasWorkflow;
 
-    protected $table = 'dummy_berita';
+    protected $table = 'berita';
+
+    protected $primaryKey = 'id_berita';
 
     protected $guarded = [];
 
@@ -403,6 +383,6 @@ class DummyBerita extends Model implements Workflowable
 
     public function workflowOwnerId(): int|string|null
     {
-        return $this->user_id;
+        return $this->id_user;
     }
 }
