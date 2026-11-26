@@ -1,6 +1,7 @@
 <?php
 
 use App\BackendKel2\Mahasiswa\ProfilMahasiswaController;
+use App\BackendKel3\Autentikasi\PastikanDosenAktif;
 use App\BackendKel3\Dashboard\DosenDashboardController;
 use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
@@ -32,6 +33,10 @@ Route::view('/verifikasi/{id}', 'pengajuan.show', ['asal' => 'dosen'])->whereNum
 Route::view('/profil', 'dosen.profil.show')->name('profil');
 Route::get('/notifikasi', [NotifikasiController::class, 'web'])->name('notifikasi');
 Route::redirect('/dosen/notifikasi', '/notifikasi');
+Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
+    Route::post('/notifikasi/baca-semua', [NotifikasiController::class, 'tandaiSemuaDibaca'])->name('notifikasi.baca-semua');
+    Route::post('/notifikasi/{idTimeline}/baca', [NotifikasiController::class, 'tandaiDibaca'])->whereNumber('idTimeline')->name('notifikasi.baca');
+});
 
 Route::view('/penelitian', 'dosen.penelitian.index')->name('penelitian.index');
 Route::view('/penelitian/create', 'dosen.penelitian.create')->name('penelitian.create');
