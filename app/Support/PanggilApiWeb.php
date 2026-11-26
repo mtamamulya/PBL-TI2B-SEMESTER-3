@@ -34,7 +34,9 @@ trait PanggilApiWeb
     {
         $adaTokenSesi = is_string(session('api_token')) && session('api_token') !== '';
 
-        if (! app()->runningUnitTests() || $adaTokenSesi) {
+        $apiLokal = blank(config('api_client.base_url')) && preg_match('~^/(?:(?:admin|kaprodi)/pengajuan|kategori-kegiatan)(?:/|$)~', $path)
+            && auth('web')->user()?->exists;
+        if (! $apiLokal && (! app()->runningUnitTests() || $adaTokenSesi)) {
             return match ($metode) {
                 'GET' => ApiClient::pengguna()->get($path, $data),
                 'POST' => ApiClient::pengguna()->post($path, $data),
@@ -43,7 +45,7 @@ trait PanggilApiWeb
             };
         }
 
-        if (! Schema::hasTable('kegiatan')) {
+        if (! $apiLokal && ! Schema::hasTable('kegiatan')) {
             return ['success' => true, 'message' => '', 'data' => []];
         }
 
@@ -52,7 +54,7 @@ trait PanggilApiWeb
         $headers = ['HTTP_ACCEPT' => 'application/json'];
         $tokenSementara = null;
 
-        if ($user !== null) {
+        if (! $apiLokal && $user !== null) {
             if ($user instanceof Model) {
                 if (isset($user->id_role) && Schema::hasTable('roles')) {
                     $namaRole = match ((int) $user->id_role) {
@@ -98,6 +100,9 @@ trait PanggilApiWeb
         auth()->forgetGuards();
 
         try {
+            if ($apiLokal) {
+                auth('web')->setUser($user);
+            }
             $respons = app()->handle($apiRequest);
         } finally {
             if ($tokenSementara !== null) {

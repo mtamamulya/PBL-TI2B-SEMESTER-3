@@ -94,7 +94,7 @@ class BeritaController extends Controller
         $user = $request->user();
         $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
 
-        abort_unless(in_array($berita->status, ['draft', 'revisi'], true), 403, 'Berita ini tidak dapat diubah.');
+        abort_unless(in_array($berita->status, ['draft', 'direvisi', 'revisi'], true), 403, 'Berita ini tidak dapat diubah.');
         $validated = $request->validated();
 
         if (! empty($validated['id_kegiatan'])) {
@@ -125,7 +125,7 @@ class BeritaController extends Controller
         $user = $request->user();
         $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
 
-        abort_unless(in_array($berita->status, ['draft', 'revisi'], true), 403, 'Berita ini tidak dapat dihapus.');
+        abort_unless(in_array($berita->status, ['draft', 'direvisi', 'revisi'], true), 403, 'Berita ini tidak dapat dihapus.');
         if ($berita->sampul) {
             $oldPath = str_replace('/storage/', '', $berita->sampul);
             Storage::disk('public')->delete($oldPath);

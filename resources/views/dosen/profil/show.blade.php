@@ -5,13 +5,10 @@
 @section('content')
 
 @php
-    // TUJUAN "Simpan Kata Sandi": web master milik kelompok lain.
-    // Selama masih '#', hanya simulasi di front-end dan tidak mengirim apa-apa.
-    $urlSimpanSandi = '#';
     $badge = 'rounded-full border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-[13px] text-brand';
 @endphp
 
-<div x-data="profilDosenPage(@js($urlSimpanSandi), @js(csrf_token()))"
+<div x-data="profilDosenPage(@js(csrf_token()))"
      x-init="muatData()"
      x-on:profil-foto-diperbarui.window="sinkronkanFotoDariEvent($event.detail)"
      class="flex flex-col gap-6">
@@ -218,7 +215,7 @@
         </div>
     </div>
 
-    {{-- MODAL UBAH KATA SANDI (Front-end saja) --}}
+    {{-- MODAL UBAH KATA SANDI --}}
     <div x-show="modalSandiTerbuka"
          x-cloak
          x-on:keydown.escape.window="tutupModalSandi()"
@@ -229,7 +226,6 @@
               aria-modal="true"
               aria-label="Ubah Kata Sandi"
               method="POST"
-              :action="urlSimpanSandi"
               autocomplete="off"
               x-on:submit.prevent="langkahSandi === 1 ? (bisaKirimOtp && kirimOtp()) : (bisaSimpanSandi && simpanSandi())"
               class="grid max-h-full w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-2xl bg-white shadow-2xl md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -364,24 +360,25 @@
                         </div>
                         <input type="hidden" name="otp" :value="otpDigits.join('')">
 
-                        <p x-show="otpKedaluwarsa" x-cloak role="alert" class="text-sm text-red-600">Kode sudah kedaluwarsa. Silakan kirim ulang kode.</p>
-                        <p x-show="infoOtp && !otpKedaluwarsa" x-cloak role="status" class="text-sm text-gray-500" x-text="infoOtp"></p>
+                        <p x-show="otpKedaluwarsa && !idOtp && !sandiSelesai" x-cloak role="alert" class="text-sm text-red-600">Kode sudah kedaluwarsa. Silakan kirim ulang kode.</p>
+
                     </div>
 
                     <div>
-                        <button type="button" x-on:click="kirimUlangOtp()"
+                        <button type="button" x-on:click="kirimOtp()" :disabled="prosesSandi || sandiSelesai"
                                 class="cursor-pointer text-base text-brand hover:underline">Kirim ulang kode</button>
                     </div>
 
                     <p x-show="sandiSelesai" x-cloak role="status"
                        class="rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-sm text-green-800">
-                        Tersimpan (simulasi front-end). Pengiriman ke backend belum tersambung.
+                        Kata sandi berhasil diubah.
                     </p>
                 </div>
 
+                <p x-show="infoOtp" x-cloak role="status" class="text-sm" x-text="infoOtp"></p>
                 <div class="mt-auto flex flex-wrap items-center justify-end gap-3 pt-4">
                     <button type="button" x-on:click="tutupModalSandi()"
-                            class="h-12 cursor-pointer rounded-lg bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</button>
+                            class="h-12 cursor-pointer rounded-lg bg-red-500 px-6 text-base text-white hover:bg-red-600" x-text="sandiSelesai ? 'Tutup' : 'Batal'"></button>
 
                     <button x-show="langkahSandi === 1" type="submit" :disabled="!bisaKirimOtp"
                             class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Kirim Kode OTP</button>
@@ -396,8 +393,7 @@
 @push('scripts')
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('profilDosenPage', (urlSimpanSandi = '#', csrfTokenBlade = '') => ({
-        urlSimpanSandi,
+    Alpine.data('profilDosenPage', (csrfTokenBlade = '') => ({
         csrfTokenBlade,
         sedangMemuat: true,
         sedangMenyimpanFoto: false,
@@ -426,7 +422,7 @@ document.addEventListener('alpine:init', () => {
         titikAwalX: 0,
         titikAwalY: 0,
 
-        // Modal Ubah Kata Sandi (Front-end saja)
+        // Modal Ubah Kata Sandi
         modalSandiTerbuka: false,
         langkahSandi: 1,
         sandiBaru: '',
@@ -437,6 +433,8 @@ document.addEventListener('alpine:init', () => {
         sisaOtp: 300,
         timerOtp: null,
         infoOtp: '',
+        prosesSandi: false,
+        idOtp: null,
         sandiSelesai: false,
 
         get emailSamar() {
@@ -457,14 +455,14 @@ document.addEventListener('alpine:init', () => {
         get skorSandi() { return this.syaratSandi.filter((s) => s.ok).length; },
         get warnaSandi() { return ['', 'bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'][this.skorSandi]; },
         get sandiCocok() { return this.konfirmasiSandi !== '' && this.konfirmasiSandi === this.sandiBaru; },
-        get bisaKirimOtp() { return this.skorSandi === 4 && this.sandiCocok; },
+        get bisaKirimOtp() { return !this.prosesSandi && this.skorSandi === 4 && this.sandiCocok; },
         get waktuOtp() {
             const m = String(Math.floor(this.sisaOtp / 60)).padStart(2, '0');
             const s = String(this.sisaOtp % 60).padStart(2, '0');
             return `${m}:${s}`;
         },
         get otpKedaluwarsa() { return this.sisaOtp === 0; },
-        get bisaSimpanSandi() { return this.otpDigits.every((d) => d !== '') && !this.otpKedaluwarsa && !this.sandiSelesai; },
+        get bisaSimpanSandi() { return !this.prosesSandi && this.otpDigits.every((d) => d !== '') && (this.idOtp !== null || !this.otpKedaluwarsa) && !this.sandiSelesai; },
 
         async muatData() {
             this.sedangMemuat = true;
@@ -682,12 +680,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // Modal Ubah Kata Sandi (Front-end saja)
+        // Modal Ubah Kata Sandi
         bukaModalSandi() {
             this.modalSandiTerbuka = true;
             this.$nextTick(() => this.$refs.inputSandiBaru?.focus());
         },
         tutupModalSandi() {
+            if (this.prosesSandi) return;
+            this.idOtp = null;
             this.modalSandiTerbuka = false;
             clearInterval(this.timerOtp);
             this.langkahSandi = 1;
@@ -708,19 +708,36 @@ document.addEventListener('alpine:init', () => {
                 if (this.sisaOtp === 0) clearInterval(this.timerOtp);
             }, 1000);
         },
-        kirimOtp() {
-            this.langkahSandi = 2;
-            this.infoOtp = '';
-            this.otpDigits = ['', '', '', '', '', ''];
-            this.mulaiTimerOtp();
-            this.$nextTick(() => document.getElementById('otp-sandi-0')?.focus());
+        async postSandi(langkah, payload = {}) {
+            const response = await fetch('/api/v1/dosen/profil/ganti-sandi/' + langkah, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfTokenBlade},
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) {
+                throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'Permintaan gagal. Silakan coba lagi.');
+            }
+            return result.data;
         },
-        kirimUlangOtp() {
-            this.otpDigits = ['', '', '', '', '', ''];
-            this.sandiSelesai = false;
-            this.mulaiTimerOtp();
-            this.infoOtp = 'Kode baru telah dikirim (simulasi).';
-            this.$nextTick(() => document.getElementById('otp-sandi-0')?.focus());
+        async kirimOtp() {
+            if (this.prosesSandi || this.sandiSelesai) return;
+            this.prosesSandi = true;
+            this.infoOtp = '';
+            try {
+                await this.postSandi('kirim-otp');
+                this.idOtp = null;
+                this.langkahSandi = 2;
+                this.otpDigits = ['', '', '', '', '', ''];
+                this.mulaiTimerOtp();
+                this.infoOtp = 'Kode OTP telah dikirim.';
+                this.$nextTick(() => document.getElementById('otp-sandi-0')?.focus());
+            } catch (error) {
+                this.infoOtp = error.message;
+            } finally {
+                this.prosesSandi = false;
+            }
         },
         masukOtp(event, i) {
             const digit = event.target.value.replace(/\D/g, '').slice(-1);
@@ -740,12 +757,27 @@ document.addEventListener('alpine:init', () => {
             angka.split('').forEach((d, i) => { this.otpDigits[i] = d; });
             document.getElementById(`otp-sandi-${Math.min(angka.length, 5)}`)?.focus();
         },
-        simpanSandi() {
-            if (this.urlSimpanSandi === '#') {
+        async simpanSandi() {
+            if (!this.bisaSimpanSandi) return;
+            this.prosesSandi = true;
+            this.infoOtp = '';
+            try {
+                if (this.idOtp === null) {
+                    const data = await this.postSandi('verifikasi', {otp: this.otpDigits.join('')});
+                    this.idOtp = data.otp_id;
+                }
+                await this.postSandi('simpan', {
+                    otp_id: this.idOtp, password: this.sandiBaru, password_confirmation: this.konfirmasiSandi,
+                });
+                clearInterval(this.timerOtp);
+                this.sandiBaru = '';
+                this.konfirmasiSandi = '';
                 this.sandiSelesai = true;
-                return;
+            } catch (error) {
+                this.infoOtp = error.message;
+            } finally {
+                this.prosesSandi = false;
             }
-            this.$refs.formSandi?.submit();
         },
     }));
 });

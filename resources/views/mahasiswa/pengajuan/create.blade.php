@@ -1,4 +1,4 @@
-@extends('layouts.pengajuan-app')
+@extends(($formDosen ?? false) ? 'layouts.app' : 'layouts.pengajuan-app')
 @section('title', request()->routeIs('kegiatan.create') ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru'))
 @section('content')
 @php
@@ -19,6 +19,10 @@
     $formAction = $item
         ? route('pengajuan.update', $item['id'])
         : ($isActivityHistory ? route('kegiatan.store') : route('pengajuan.store'));
+    if ($formDosen ?? false) {
+        $cancelUrl = route('pengajuan.dosen');
+        $formAction = route('pengajuan.dosen.store');
+    }
 @endphp
 
 <div class="flex flex-col gap-6 px-4 pb-10 pt-7 sm:px-6 lg:px-12"
@@ -60,7 +64,7 @@
 
     <div class="flex flex-col gap-[18px]">
         <div class="flex flex-wrap gap-2.5 text-[13px]">
-            <a href="{{ $isActivityHistory ? route('kegiatan.index') : route('pengajuan.index') }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
+            <a href="{{ ($formDosen ?? false) ? $cancelUrl : ($isActivityHistory ? route('kegiatan.index') : route('pengajuan.index')) }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
             <span class="text-[#9CA3AF]">/</span>
             <span class="text-[#6B7280]">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Baru') }}</span>
             <span class="text-[#9CA3AF]">/</span>
@@ -160,7 +164,7 @@
                                 </template>
 
                                 {{-- Angka --}}
-                                <template x-if="field.jenis_input === 'angka'">
+                                <template x-if="['angka', 'rupiah'].includes(field.jenis_input)">
                                     <input type="number"
                                            :name="'detail[' + field.id_isian_kategori + ']'"
                                            :value="savedDetails[field.id_isian_kategori] ?? ''"
@@ -231,7 +235,7 @@
                                             </div>
                                         </template>
                                         <template x-if="!Array.isArray(field.pilihan)">
-                                            <input :type="field.jenis_input === 'angka' ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
+                                            <input :type="['angka', 'rupiah'].includes(field.jenis_input) ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
                                                    :name="'detail[' + field.id_isian_kategori + '][]'"
                                                    x-model="multiValues[field.id_isian_kategori][idx]"
                                                    :required="field.wajib && idx === 0"
@@ -259,9 +263,9 @@
                 {{-- LAMPIRAN PENDUKUNG UMUM --}}
                 <div class="flex flex-col gap-1.5">
                     <label class="text-[13px] font-semibold leading-5 text-[#374151]">
-                        Lampiran Dokumen Pendukung <span class="font-normal text-[#6B7280]">(opsional, PDF/JPG/PNG maks 5MB)</span>
+                        <span x-text="activeCategory?.lampiran_peserta ? 'Lampiran peserta' : 'Lampiran dokumen pendukung'"></span> <span class="font-normal text-[#6B7280]">({{ ($formDosen ?? false) ? 'wajib' : 'opsional' }}, PDF/JPG/PNG maks 2MB)</span>
                     </label>
-                    <input type="file" name="lampiran" accept=".pdf,.jpg,.jpeg,.png"
+                    <input type="file" name="lampiran" @required($formDosen ?? false) accept=".pdf,.jpg,.jpeg,.png"
                            class="block w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] text-[#374151] file:mr-3 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#2277FF]">
                     @error('lampiran')<p class="text-xs text-[#FF3F3F]">{{ $message }}</p>@enderror
                 </div>

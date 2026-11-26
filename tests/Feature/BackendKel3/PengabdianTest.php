@@ -66,9 +66,11 @@ class PengabdianTest extends TestCase
         $this->seed(MasterRisetDosenSeeder::class);
         $dosen = $this->buatDosen();
         $this->actingAs($dosen->user)->get('/dosen/kegiatan/create')->assertOk()->assertSee($dosen->nama);
+        $master = $this->withHeader('Origin', 'http://localhost')->getJson('/api/v1/kategori-kegiatan?jenis=Kegiatan+Dosen')
+            ->assertOk()->assertJsonCount(2, 'data')->json('data');
         foreach (['Pengabdian' => 'Pengabdian Kemitraan Masyarakat', 'Penelitian' => 'Penelitian Terapan'] as $kategori => $skim) {
             $id = $this->actingAs($dosen->user, 'sanctum')->postJson('/api/v1/dosen/'.strtolower($kategori), [
-                'kategori' => $kategori, 'nama_kegiatan' => 'Uji form', 'penyelenggara' => 'TRK',
+                'id_kategori' => collect($master)->firstWhere('nama_kategori', $kategori)['id_kategori'], 'nama_kegiatan' => 'Uji form', 'penyelenggara' => 'TRK',
                 'tanggal_mulai' => '2026-11-25', 'tanggal_selesai' => '2026-11-26',
                 'detail' => ['skim' => $skim, 'kelompok_bidang' => 'Pendidikan', 'lokasi' => 'Semarang',
                     'tahun_pelaksanaan_ke' => 1, 'lama_kegiatan' => 1, 'dana_perguruan_tinggi' => 10000],
