@@ -2,12 +2,6 @@
 Form pengajuan berita. Dipakai bersama oleh halaman Ajukan Berita (create) dan Edit Berita (edit).
 --}}
 @php
-<<<<<<< HEAD
-$awal = $awal ?? [];
-$id = $id ?? null;
-
-=======
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
 $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
 $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
 $labelClass   = 'text-[15px] font-medium';
@@ -17,12 +11,6 @@ $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-whit
 $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
 $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
-
-<<<<<<< HEAD
-{{-- Pastikan ada meta tag CSRF token --}}
-@if (!request()->hasHeader('X-CSRF-TOKEN'))
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-@endif
 
 {{-- Styling CKEditor 5 --}}
 <style>
@@ -36,61 +24,10 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
 .ck-powered-by, .ck.ck-powered-by, a.ck-powered-by { display: none !important; }
 </style>
 
-<form x-data="formBerita(@js($awal), @js($id))" x-on:submit.prevent="ajukan()"
+<form x-data="formBerita()" x-on:submit.prevent="ajukan()"
       method="POST" action="#" enctype="multipart/form-data"
       class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
     @csrf
-=======
-{{-- Styling CKEditor 5 agar menyatu dengan Tailwind & mengembalikan format heading/list --}}
-<style>
-    .ck-editor__top .ck-sticky-panel .ck-toolbar {
-        border-color: #e5e7eb !important;
-        border-radius: 0.5rem 0.5rem 0 0 !important;
-        background-color: #f9fafb !important;
-    }
-    .ck.ck-editor__main > .ck-editor__editable {
-        min-height: 180px;
-        border-color: #e5e7eb !important;
-        border-radius: 0 0 0.5rem 0.5rem !important;
-        padding: 0.5rem 0.875rem !important;
-        font-size: 15px;
-        color: #111827;
-        box-shadow: none !important;
-    }
-    .ck.ck-editor__main > .ck-editor__editable.ck-focused {
-        border-color: #1f66e5 !important;
-    }
-    .ck-editor__editable .ck-placeholder::before {
-        color: #9ca3af !important;
-        font-style: normal !important;
-    }
-    /* Mengembalikan style HTML bawaan yang di-reset oleh Tailwind Preflight */
-    .ck-content h2 { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0; }
-    .ck-content h3 { font-size: 1.15rem; font-weight: 600; margin: 0.4rem 0; }
-    .ck-content h4 { font-size: 1rem; font-weight: 600; margin: 0.3rem 0; }
-    .ck-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.4rem 0; }
-    .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.4rem 0; }
-    .ck-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.875rem; color: #4b5563; margin: 0.5rem 0; }
-    .ck-content a { color: #1f66e5; text-decoration: underline; }
-    /* Sembunyikan badge watermark "Powered by CKEditor" */
-    .ck-powered-by,
-    .ck.ck-powered-by,
-    a.ck-powered-by {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
-</style>
-
-
-<form x-data="formBerita(@js($idBerita ?? null))" x-on:submit.prevent="ajukan()"
-      method="POST" action="#" enctype="multipart/form-data"
-      class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
-    @csrf
-    <p x-show="error" x-cloak role="alert" class="text-red-700" x-text="error"></p>
-    <p x-show="catatan" x-cloak class="rounded-md bg-orange-50 p-3">Catatan reviewer: <span x-text="catatan"></span></p>
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
 
     {{-- 1. SUMBER KEGIATAN --}}
     <section class="{{ $sectionClass }}">
@@ -106,7 +43,6 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
                 <input type="radio" name="sumber" value="kegiatan" x-model="sumber" required class="size-4 accent-[#1f66e5]"> Dari kegiatan sebelumnya
             </label>
             <label class="{{ $radioKartu }}">
-<<<<<<< HEAD
                 <input type="radio" name="sumber" value="mandiri" x-model="sumber" required class="size-4 accent-[#1f66e5]"> Tanpa kegiatan sebelumnya
             </label>
         </div>
@@ -124,40 +60,14 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
                     </datalist>
                 </div>
             </div>
-=======
-                <input type="radio" value="prestasi" name="sumber" x-model="sumber"> Dari prestasi
-            </label>
-            <label class="{{ $radioKartu }}">
-                <input type="radio" name="sumber" value="mandiri" x-model="sumber" required class="size-4 accent-[#1f66e5]">
-                Tanpa kegiatan sebelumnya
-            </label>
-        </div>
-        <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-            <label x-show="sumber === 'kegiatan'" class="grid gap-2">Kegiatan sebelumnya
-                <select x-model="kegiatan" :required="sumber === 'kegiatan'" class="{{ $selectClass }}">
-                    <option value="">Pilih kegiatan</option>
-                    <template x-for="k in kegiatanList" :key="k.id"><option :value="k.id" x-text="k.nama"></option></template>
-                </select>
-            </label>
-            <label x-show="sumber === 'prestasi'" class="grid gap-2">Prestasi sebelumnya
-                <select x-model="prestasi" :required="sumber === 'prestasi'" class="{{ $selectClass }}">
-                    <option value="">Pilih prestasi</option>
-                    <template x-for="p in prestasiList" :key="p.id_prestasi"><option :value="p.id_prestasi" x-text="p.nama_lomba"></option></template>
-                </select>
-            </label>
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
             <div class="flex flex-col gap-2">
                 <label for="kategori" class="{{ $labelClass }}">Kategori Kegiatan</label>
                 <div class="relative">
-                    <select id="kategori" name="kategori" x-model="kategori" :disabled="sumber !== 'mandiri'"  class="{{ $selectClass }}">
+                    <select id="kategori" name="kategori" x-model="kategori" :disabled="sumber !== 'mandiri'" :required="sumber === 'mandiri'" class="{{ $selectClass }}">
                         <option value="">Pilih kategori kegiatan</option>
-<<<<<<< HEAD
                         <template x-for="k in kategoriList" :key="k.id_kategori">
                             <option :value="k.nama_kategori" x-text="k.nama_kategori"></option>
                         </template>
-=======
-                        <template x-for="k in kategoriList" :key="k.id_kategori"><option :value="k.id_kategori" x-text="k.nama_kategori"></option></template>
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
                     </select>
                     {!! $chevron !!}
                 </div>
@@ -227,9 +137,9 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
     <div class="flex flex-wrap items-center justify-end gap-3 pt-4">
         <a href="{{ route('berita.index') }}"
            class="flex h-11 items-center rounded-md bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</a>
-        <button type="button" x-on:click="simpanDraft()" :disabled="loading || !siap"
+        <button type="button" x-on:click="simpanDraft()" :disabled="loading"
                 class="h-11 cursor-pointer rounded-md bg-blue-100 px-6 text-base text-brand hover:bg-blue-200 disabled:opacity-50">Simpan Draft</button>
-        <button type="submit" :disabled="loading || !siap"
+        <button type="submit" :disabled="loading"
                 class="h-11 cursor-pointer rounded-md bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:opacity-50">Ajukan Berita</button>
     </div>
 </form>
@@ -239,21 +149,27 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
 @include('dosen.berita._api')
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('formBerita', (awal, editId) => ({
-        sumber: awal.sumber || '',
-        kategori: awal.kategori || '',
-        judul: awal.judul || '',
-        isi: awal.isi || '',
+    Alpine.data('formBerita', () => ({
+        sumber: '',
+        kategori: '',
+        judul: '',
+        isi: '',
         namaFile: '',
         galatFile: '',
         loading: false,
         kegiatanList: [],
         kategoriList: [],
-        editId: editId,
-        editorInstance: null,
+        editId: null,
 
         async init() {
-            // LANGKAH 1: Ambil data berita dulu jika mode edit
+            // Parse ID dari URL jika mode edit
+            const pathParts = window.location.pathname.split('/');
+            const editIdx = pathParts.indexOf('edit');
+            if (editIdx > 0) {
+                this.editId = parseInt(pathParts[editIdx - 1]);
+            }
+
+            // Load data edit jika ada
             if (this.editId) {
                 try {
                     const { data } = await apiBerita(`/${this.editId}`);
@@ -267,18 +183,16 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            // LANGKAH 2: Ambil opsi kegiatan + kategori dari API
+            // Fetch opsi dari API
             try {
                 const { data } = await apiBerita('/opsi');
                 this.kegiatanList = data.kegiatan || [];
                 this.kategoriList = data.kategori || [];
             } catch (e) {
                 console.error('Gagal memuat opsi:', e);
-                this.kegiatanList = [];
-                this.kategoriList = [];
             }
 
-            // LANGKAH 3: BARU buat CKEditor (setelah data terisi)
+            // Init CKEditor
             this.$nextTick(() => {
                 if (!this.$refs.editorIsi || typeof ClassicEditor === 'undefined') return;
                 ClassicEditor.create(this.$refs.editorIsi, {
@@ -357,7 +271,6 @@ document.addEventListener('alpine:init', () => {
                     formData.append('foto', fotoInput.files[0]);
                 }
 
-                // Mode edit: kirim sebagai POST + topeng _method=PUT
                 if (this.editId) {
                     formData.append('_method', 'PUT');
                     await apiBerita(`/${this.editId}`, 'POST', formData);
