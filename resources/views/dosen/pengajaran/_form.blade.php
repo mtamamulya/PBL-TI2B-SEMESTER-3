@@ -73,42 +73,51 @@
             </div>
         </section>
 
-        {{-- 2. MATA KULIAH DAN DOSEN --}}
-        <section class="{{ $sectionClass }}" aria-labelledby="h-matkul">
-            <div class="flex items-center gap-2.5">
-                <span class="{{ $numClass }}">2</span>
-                <h2 id="h-matkul" class="text-[15px] font-semibold">Mata Kuliah dan Dosen</h2>
+        {{-- 2. Mata Kuliah dan Dosen --}}
+        <section class="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-6">
+            <div class="flex items-center gap-3">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">2</span>
+                <h2 class="text-base font-semibold text-gray-900">Mata Kuliah dan Dosen</h2>
             </div>
 
-            <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                <div class="flex flex-col gap-2">
-                    <label for="matkul" class="{{ $labelClass }}">Mata kuliah</label>
-                    <div class="relative">
-                        <select id="matkul" required x-model="matkul" class="{{ $selectClass }}">
-                            <option value="">Pilih mata kuliah</option>
-                            <template x-for="m in daftarMatkul" :key="m.id">
-                                <option :value="String(m.id)" x-text="m.label"></option>
-                            </template>
-                        </select>
-                        {!! $chevron !!}
-                    </div>
-                    <template x-if="errors.id_enrollment_mk">
-                        <p class="text-[13px] text-red-600" x-text="errors.id_enrollment_mk[0]"></p>
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                {{-- Dropdown Kurikulum (GET /kurikulum) --}}
+                <div class="flex flex-col gap-1.5">
+                    <label for="kurikulum" class="text-sm font-medium text-gray-800">Kurikulum</label>
+                    <select id="kurikulum" x-model="kurikulum"
+                            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none">
+                        <option value="">Pilih kurikulum</option>
+                        <template x-for="k in opsi.kurikulum" :key="k.id">
+                            <option :value="String(k.id)" x-text="k.label"></option>
+                        </template>
+                    </select>
+                </div>
+
+                {{-- Dropdown Mata Kuliah (GET /kurikulum/{id}/mata-kuliah) --}}
+                <div class="flex flex-col gap-1.5">
+                    <label for="matkul" class="text-sm font-medium text-gray-800">Mata kuliah</label>
+                    <select id="matkul" x-model="matkul" :disabled="!kurikulum || isLoadingMatkul"
+                            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500">
+                        <option value="" x-text="!kurikulum ? 'Pilih kurikulum terlebih dahulu' : (isLoadingMatkul ? 'Memuat mata kuliah...' : 'Pilih mata kuliah')"></option>
+                        <template x-for="m in daftarMatkul" :key="m.id">
+                            <option :value="String(m.id)" x-text="m.label"></option>
+                        </template>
+                    </select>
+                    <template x-if="errors.id_mk">
+                        <p class="text-[13px] text-red-600" x-text="errors.id_mk[0]"></p>
                     </template>
                 </div>
 
-                <div class="flex flex-col gap-2">
-                    <label for="dosen" class="{{ $labelClass }}">Dosen pengampu</label>
-                    <div class="relative">
-                        <select id="dosen" disabled aria-describedby="dosen-info"
-                                class="h-11 w-full appearance-none rounded-lg border border-dashed border-gray-300 bg-gray-50 pr-10 pl-3.5 text-[15px] text-gray-700">
-                            <option x-text="dosenName"></option>
-                        </select>
-                        {!! $chevron !!}
-                    </div>
+                {{-- Dosen Pengampu (Otomatis) --}}
+                <div class="flex flex-col gap-1.5 md:col-span-2">
+                    <label for="dosen_pengampu" class="text-sm font-medium text-gray-800">Dosen pengampu</label>
+                    <select id="dosen_pengampu" disabled
+                            class="h-11 w-full rounded-lg border border-gray-200 bg-gray-100 px-3.5 text-sm text-gray-600">
+                        <option x-text="dosenName"></option>
+                    </select>
+                    <p class="text-xs text-gray-500">Dosen pengampu terisi otomatis dari akun yang login.</p>
                 </div>
             </div>
-            <p id="dosen-info" class="text-[15px] text-gray-400">Dosen pengampu terisi otomatis dari akun yang login.</p>
         </section>
 
         {{-- RINGKASAN --}}
@@ -203,12 +212,13 @@
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('formPengajaran', (isEdit = false) => ({
-            opsi: { tahun: [], rombel: [], matkul: [], jenis_dokumen: [] },
-            tahun: '', prodi: '', rombel: '', matkul: '',
+            opsi: { tahun: [], rombel: [], kurikulum: [], matkul: [], jenis_dokumen: [] },
+            tahun: '', prodi: '', rombel: '', kurikulum: '', matkul: '',
             editId: null,
-            
+
             dosenName: 'Memuat data akun...',
             isFetchingOpsi: true,
+            isLoadingMatkul: false,
             isInitializing: true,
             isSubmitting: false,
             errors: {},
@@ -220,7 +230,7 @@
                 return this.opsi.rombel.filter(r => String(r.ta) === String(this.tahun) && r.prodi === this.prodi);
             },
             get daftarMatkul() {
-                return this.opsi.matkul.filter(m => String(m.ta) === String(this.tahun));
+                return this.opsi.matkul;
             },
             get semester() {
                 const t = this.opsi.tahun.find(t => String(t.id) === String(this.tahun));
@@ -251,30 +261,80 @@
                 };
             },
 
+            async muatMatkulByKurikulum(idKurikulum) {
+                this.opsi.matkul = [];
+                if (!idKurikulum) return;
+
+                this.isLoadingMatkul = true;
+                try {
+                    const templateUrl = @js(route('api.kurikulum.mata-kuliah', ['id' => 0], false));
+                    const url = templateUrl.replace('/0/mata-kuliah', `/${encodeURIComponent(idKurikulum)}/mata-kuliah`);
+
+                    const res = await fetch(url, { credentials: 'same-origin', headers: this.header() });
+                    const json = await res.json();
+                    const list = Array.isArray(json?.data) ? json.data : [];
+
+                    this.opsi.matkul = list.map(m => ({
+                        id: m.id_mk,
+                        id_kurikulum: m.id_kurikulum,
+                        semester: m.semester,
+                        label: `${m.nama_mk} (${m.kode_mk}) · Sem ${m.semester}`,
+                    }));
+                } catch (e) {
+                    console.error('Gagal memuat mata kuliah:', e);
+                } finally {
+                    this.isLoadingMatkul = false;
+                }
+            },
+
             async init() {
                 this.$watch('tahun', () => {
                     if (this.isInitializing) return;
-                    this.prodi = ''; this.rombel = ''; this.matkul = '';
+                    this.prodi = ''; this.rombel = '';
                 });
                 this.$watch('prodi', () => {
                     if (this.isInitializing) return;
                     this.rombel = '';
                 });
+                this.$watch('kurikulum', async (val) => {
+                    if (this.isInitializing) return;
+                    this.matkul = '';
+                    await this.muatMatkulByKurikulum(val);
+                });
 
                 try {
-                    const res = await fetch('/api/v1/pengajaran/opsi', { credentials: 'same-origin', headers: this.header() });
+                    const [res, resKurikulum] = await Promise.all([
+                        fetch('/api/v1/pengajaran/opsi', { credentials: 'same-origin', headers: this.header() }),
+                        fetch(@js(route('api.kurikulum.index', ['per_page' => 100], false)), {
+                            credentials: 'same-origin',
+                            headers: this.header()
+                        }),
+                    ]);
 
                     if (res.status === 401) {
                         this.dosenName = 'Sesi login berakhir. Silakan masuk kembali.';
                         return;
                     }
+
                     const json = await res.json();
+                    const jsonKurikulum = await resKurikulum.json();
+                    const listKurikulum = Array.isArray(jsonKurikulum?.data)
+                        ? jsonKurikulum.data
+                        : (jsonKurikulum?.data?.data ?? []);
 
                     if (json.status === 'success') {
                         this.opsi = {
                             tahun: json.data.tahun ?? [],
                             rombel: json.data.rombel ?? [],
-                            matkul: json.data.matkul ?? [],
+                            kurikulum: listKurikulum.map(k => {
+                                const tahun = k.tahun_terbit ? ` (${k.tahun_terbit})` : '';
+                                const status = k.status === false ? ' [Nonaktif]' : '';
+                                return {
+                                    id: k.id_kurikulum,
+                                    label: `${k.nama_kurikulum}${tahun}${status}`,
+                                };
+                            }),
+                            matkul: [],
                             jenis_dokumen: json.data.jenis_dokumen ?? [],
                         };
                         this.dosenName = (json.data.dosen || 'Akun Anda') + ' (akun Anda)';
@@ -295,7 +355,12 @@
                             this.tahun = String(f.tahun);
                             this.prodi = f.prodi;
                             this.rombel = String(f.rombel);
-                            this.matkul = String(f.matkul);
+
+                            if (f.id_kurikulum) {
+                                this.kurikulum = String(f.id_kurikulum);
+                                await this.muatMatkulByKurikulum(this.kurikulum);
+                            }
+                            this.matkul = String(f.id_mk ?? f.matkul);
 
                             if (Array.isArray(jsonDetail.data.dokumen) && jsonDetail.data.dokumen.length > 0) {
                                 this.dokumen = jsonDetail.data.dokumen.map((d, idx) => ({
@@ -323,7 +388,7 @@
 
                 const payload = {
                     id_enrollment_tingkat_kelas: this.rombel,
-                    id_enrollment_mk: this.matkul,
+                    id_mk: this.matkul,
                     dokumen: this.dokumen.map(d => ({
                         nama: d.nama,
                         id_jenis_dokumen: d.id_jenis_dokumen,
