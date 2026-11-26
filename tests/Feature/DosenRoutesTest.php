@@ -19,8 +19,85 @@ class DosenRoutesTest extends TestCase
         $this->withoutVite();
     }
 
+    private function loginDosen(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
+    }
+
+    public function test_halaman_dosen_memerlukan_login_dan_peran_yang_tepat(): void
+    {
+        foreach (['/dosen/dashboard', '/profil', '/prestasi', '/berita', '/notifikasi', '/penelitian', '/pengabdian', '/pengajaran', '/pengajuan/dosen', '/pengajuan/mahasiswa', '/pengajuan'] as $path) {
+            $this->get($path)->assertRedirect(route('login'));
+        }
+        foreach (['admin', 'kaprodi', 'mahasiswa'] as $role) {
+            $id = DB::table('roles')->insertGetId(['nama_role' => $role], 'id_role');
+            $this->actingAs(User::factory()->create(['id_role' => $id, 'status' => true]));
+            $this->get('/profil')->assertRedirect(route('dashboard'));
+            $this->get('/dashboard')->assertRedirect(route($role.'.dashboard'));
+            $this->post('/pengajuan/dosen')->assertForbidden();
+        }
+    }
+
+    public function test_tautan_lama_dan_tombol_form_tetap_di_area_dosen(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
+
+        foreach ([
+            '/dashboard' => '/dosen/dashboard',
+            '/kegiatan' => '/dosen/kegiatan',
+            '/kegiatan/create' => '/dosen/kegiatan/create',
+            '/kegiatan/42' => '/dosen/kegiatan/42',
+            '/kegiatan/42/edit' => '/dosen/kegiatan/42/edit',
+            '/pengajuan' => '/pengajuan/dosen',
+            '/pengajuan/baru' => '/pengajuan/dosen/baru',
+            '/pengajuan/dashboard' => '/dosen/dashboard',
+            '/pengajuan/42' => '/pengajuan/dosen/42',
+            '/pengajuan/42/edit' => '/pengajuan/dosen/42',
+            '/pengajuan/berita' => '/berita',
+            '/pengajuan/berita/baru' => '/berita/create',
+            '/pengajuan/berita/42' => '/berita/42',
+            '/pengajuan/berita/42/edit' => '/berita/42/edit',
+        ] as $lama => $tujuan) {
+            $this->get($lama)->assertRedirect($tujuan);
+        }
+
+        $this->get('/dosen/kegiatan/create')->assertOk()
+            ->assertSee('href="'.route('dosen.kegiatan.index').'"', false)
+            ->assertDontSee('href="'.route('kegiatan.index').'"', false)
+            ->assertDontSee('Tampilan mahasiswa');
+        $this->from('/mahasiswa/dashboard')->get('/pengajuan/dosen/42')->assertOk()
+            ->assertDontSee('href="'.route('mahasiswa.dashboard').'"', false);
+    }
+
+    public function test_simpan_kegiatan_dosen_tetap_tersimpan_setelah_refresh(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $owner = User::factory()->create(['id_role' => 3, 'status' => true]);
+        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Dosen'], 'id_jenis_kegiatan');
+        $category = DB::table('kategori')->insertGetId(['nama_kategori' => 'Seminar', 'id_jenis_kegiatan' => $jenis], 'id_kategori');
+        $field = DB::table('isian_kategori')->insertGetId(['id_kategori' => $category, 'input' => 'lokasi'], 'id_isian_kategori');
+        $id = DB::table('kegiatan')->insertGetId(['id_user' => $owner->getKey(), 'id_kategori' => $category, 'nama_kegiatan' => 'Seminar lama'], 'id_kegiatan');
+        $edit = route('dosen.kegiatan.edit', $id);
+        $update = route('dosen.kegiatan.update', $id);
+        $show = route('dosen.kegiatan.show', $id);
+
+        $this->actingAs($owner)->get($edit)->assertOk()->assertSee('Seminar lama')->assertSee($update);
+        $this->put($update, ['nama_kegiatan' => 'Seminar baru', 'detail' => [$field => 'Gedung A']])->assertRedirect($show);
+        $this->get($show)->assertOk()->assertSee('Seminar baru');
+        $this->get($show)->assertOk()->assertSee('Seminar baru')->assertDontSee('Seminar lama');
+        $this->get($edit)->assertOk()->assertSee('Gedung A');
+        $this->get(route('dosen.kegiatan.index'))->assertOk()->assertSee('Seminar baru');
+        $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'isian' => 'Gedung A']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]))
+            ->put($update, ['nama_kegiatan' => 'Timpa'])->assertForbidden();
+        $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'nama_kegiatan' => 'Seminar baru']);
+    }
+
     public function test_dosen_dashboard_has_its_own_route_and_view(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.dashboard'))
             ->assertOk()
             ->assertViewIs('dosen.dashboard')
@@ -36,10 +113,10 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_navigation_routes_render_their_dosen_views(): void
     {
+        $this->loginDosen();
         $routes = [
             ['dosen.kegiatan.index'],
             ['dosen.kegiatan.create'],
-            ['dosen.kegiatan.edit', ['id' => 1]],
             ['penelitian.index'],
             ['penelitian.create'],
             ['penelitian.show', ['id' => 1]],
@@ -66,8 +143,8 @@ class DosenRoutesTest extends TestCase
         ];
 
         $this->get(route('pengabdian.create'))->assertNotFound(); // Belum ada kategori pengabdian.
-        $this->get(route('pengabdian.show', ['id' => 1]))->assertRedirect(route('login'));
-        $this->get(route('pengabdian.edit', ['id' => 1]))->assertRedirect(route('login'));
+        $this->get(route('pengabdian.show', ['id' => 1]))->assertNotFound();
+        $this->get(route('pengabdian.edit', ['id' => 1]))->assertNotFound();
 
         foreach ($routes as $route) {
             $routeName = $route[0];
@@ -82,6 +159,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_activity_list_uses_its_own_content_instead_of_student_summary(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.kegiatan.index'))
             ->assertOk()
             ->assertViewIs('dosen.kegiatan.index')
@@ -119,6 +197,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_berita_list_keeps_detail_and_edit_links_in_dosen_routes(): void
     {
+        $this->loginDosen();
         $this->get(route('berita.index'))
             ->assertOk()
             ->assertSee(url('/berita').'/${b.id}', false)
@@ -144,6 +223,24 @@ class DosenRoutesTest extends TestCase
         $id = DB::table('kegiatan')->where('nama_kegiatan', 'Seminar Integrasi')->value('id_kegiatan');
         $this->assertNotNull($id);
         $response->assertRedirect(route('pengajuan.dosen.show', $id));
+        $dokumen = DB::table('dokumen')->where('id_kegiatan', $id)->sole();
+        $replace = route('dosen.kegiatan.dokumen.update', [$id, $dokumen->id_dokumen]);
+        $this->get(route('dosen.kegiatan.show', $id))->assertDontSee('Perbaiki kegiatan');
+        $this->get(route('dosen.kegiatan.edit', $id))->assertForbidden();
+        $this->put($replace, ['file' => UploadedFile::fake()->create('baru.pdf', 10, 'application/pdf')])->assertForbidden();
+        $this->actingAs($roles['admin'], 'sanctum')->postJson("/api/v1/admin/pengajuan/$id/keputusan", [
+            'aksi' => 'revisi', 'catatan_revisi' => 'Perbarui proposal.',
+        ])->assertOk();
+        $this->actingAs($roles['dosen'], 'web')->get(route('dosen.kegiatan.edit', $id))->assertSee('Simpan lampiran');
+        $this->put($replace, ['file' => UploadedFile::fake()->create('baru.pdf', 10, 'application/pdf')])->assertRedirect();
+        $this->get(route('dosen.kegiatan.show', $id))->assertSee('baru.pdf');
+        $this->assertSame(1, DB::table('dokumen')->where('id_kegiatan', $id)->count());
+        $baru = DB::table('dokumen')->where('id_dokumen', $dokumen->id_dokumen)->firstOrFail();
+        $this->assertNotSame($dokumen->link_dokumen, $baru->link_dokumen);
+        Storage::disk('public')->assertExists('dokumen_perbaikan/'.basename($baru->link_dokumen));
+        $this->actingAs($roles['dosen'], 'sanctum')->postJson("/api/v1/dosen/pengajuan/$id/ajukan-ulang")->assertCreated();
+        $this->get(route('dosen.kegiatan.show', $id))->assertDontSee('Perbaiki kegiatan');
+        $this->put(route('dosen.kegiatan.update', $id), ['nama_kegiatan' => 'Edit setelah ajukan ulang'])->assertForbidden();
         $this->actingAs($roles['admin'])->get('/admin/pengajuan')->assertOk()->assertSee('Seminar Integrasi');
         $this->actingAs($roles['admin'], 'sanctum')->postJson("/api/v1/admin/pengajuan/$id/keputusan", [
             'aksi' => 'setujui', 'nomor_sk' => 'SK/123',
@@ -154,6 +251,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_views_load_the_scripts_for_their_interactive_lists(): void
     {
+        $this->loginDosen();
         $this->get(route('berita.index'))
             ->assertOk()
             ->assertSee("Alpine.data('beritaDaftar'", false);
@@ -161,6 +259,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_pengajuan_pages_render_their_list_data(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.dashboard'))
             ->assertOk()
             ->assertSee('href="'.route('pengajuan.dosen').'"', false);

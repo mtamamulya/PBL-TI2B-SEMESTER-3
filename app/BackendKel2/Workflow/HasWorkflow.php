@@ -32,25 +32,43 @@ trait HasWorkflow
         return $this->workflowStore()->current($this);
     }
 
+    /** Data tanpa riwayat status yang dikenal alurnya (mis. kegiatan yang dicatat langsung). */
+    public function tercatat(): bool
+    {
+        return $this->statusKode() === null && $this->workflowDefinition()->untrackedLabel() !== null;
+    }
+
     public function statusLabel(string $default = 'Belum diajukan'): string
     {
         $kode = $this->statusKode();
 
-        return $kode === null ? $default : $this->workflowDefinition()->label($kode);
+        if ($kode !== null) {
+            return $this->workflowDefinition()->label($kode);
+        }
+
+        return $this->workflowDefinition()->untrackedLabel() ?? $default;
     }
 
     public function bolehDiedit(): bool
     {
         $kode = $this->statusKode();
 
-        return $kode !== null && $this->workflowDefinition()->isEditable($kode);
+        if ($kode === null) {
+            return $this->tercatat() && $this->workflowDefinition()->isUntrackedEditable();
+        }
+
+        return $this->workflowDefinition()->isEditable($kode);
     }
 
     public function bolehDihapus(): bool
     {
         $kode = $this->statusKode();
 
-        return $kode !== null && $this->workflowDefinition()->isDeletable($kode);
+        if ($kode === null) {
+            return $this->tercatat() && $this->workflowDefinition()->isUntrackedDeletable();
+        }
+
+        return $this->workflowDefinition()->isDeletable($kode);
     }
 
     /**
@@ -73,6 +91,32 @@ trait HasWorkflow
     public function scopeWhereStatus(Builder $query, string|array $codes): Builder
     {
         return $this->workflowStore()->whereStatus($query, (array) $codes);
+    }
+
+    /** Hanya data yang pernah diajukan (punya riwayat status). Dipakai halaman Pengajuan. */
+    public function scopePengajuan(Builder $query): Builder
+    {
+        return $this->workflowStore()->whereTracked($query, true);
+    }
+
+    /** Hanya data yang dicatat langsung (tanpa riwayat status). */
+    public function scopeTercatat(Builder $query): Builder
+    {
+        return $this->workflowStore()->whereTracked($query, false);
+    }
+
+    /**
+     * Data tercatat ATAU yang statusnya salah satu dari $codes. Dipakai halaman Kegiatan:
+     * Kegiatan::where('id_user', $id)->tercatatAtauStatus('selesai').
+     */
+    public function scopeTercatatAtauStatus(Builder $query, string|array $codes): Builder
+    {
+        $store = $this->workflowStore();
+
+        return $query->where(function (Builder $grup) use ($store, $codes) {
+            $grup->where(fn (Builder $q) => $store->whereTracked($q, false))
+                ->orWhere(fn (Builder $q) => $store->whereStatus($q, (array) $codes));
+        });
     }
 
     protected function workflowDefinition(): WorkflowDefinition

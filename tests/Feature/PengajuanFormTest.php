@@ -42,13 +42,21 @@ class PengajuanFormTest extends TestCase
         $this->idJenisMahasiswa = $this->insertJenisKegiatan('Kegiatan Mahasiswa');
         $this->idJenisDosen = $this->insertJenisKegiatan('Kegiatan Dosen');
 
+        $kategoriExtra = [];
+        if (Schema::hasColumn('kategori', 'butuh_surat')) {
+            $kategoriExtra['butuh_surat'] = true;
+        }
+        if (Schema::hasColumn('kategori', 'kebutuhan')) {
+            $kategoriExtra['kebutuhan'] = 'surat';
+        }
+
         foreach (['Lomba', 'Volunteer', 'Magang', 'Pengabdian'] as $namaKategori) {
-            $idKategori = DB::table('kategori')->insertGetId([
+            $idKategori = DB::table('kategori')->insertGetId(array_merge([
                 'id_jenis_kegiatan' => $this->idJenisMahasiswa,
                 'nama_kategori' => $namaKategori,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ], $kategoriExtra));
 
             DB::table('isian_kategori')->insert([
                 [
@@ -72,12 +80,12 @@ class PengajuanFormTest extends TestCase
             ]);
         }
 
-        DB::table('kategori')->insert([
+        DB::table('kategori')->insert(array_merge([
             'id_jenis_kegiatan' => $this->idJenisDosen,
             'nama_kategori' => 'Penelitian Dosen',
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], $kategoriExtra));
 
         $this->actingAs(User::findOrFail($this->userId));
     }
@@ -426,8 +434,9 @@ class PengajuanFormTest extends TestCase
 
     public function test_existing_dosen_and_mahasiswa_pages_remain_available(): void
     {
-        $this->get(route('pengajuan.dosen'))
-            ->assertOk()
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]))
+            ->get(route('pengajuan.dosen'))->assertOk()
             ->assertViewIs('dosen.pengajuan.dosen')
             ->assertSee('<title>Pengajuan Dosen | DOSEN</title>', false)
             ->assertSee('Cari kegiatan atau nama dosen...')

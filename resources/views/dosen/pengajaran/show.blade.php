@@ -38,10 +38,10 @@
                 </div>
 
                 <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                    <x-detail-field label="Tahun akademik" x-text="p.tahun_akademik" icon="chevron" />
+                    <x-detail-field label="Tahun akademik" x-text="p.tahun_akademik" />
                     <x-detail-field label="Semester" x-text="p.semester" locked />
-                    <x-detail-field label="Program studi" x-text="p.prodi" icon="chevron" />
-                    <x-detail-field label="Kelas" x-text="p.kelas" icon="chevron" />
+                    <x-detail-field label="Program studi" x-text="p.prodi" />
+                    <x-detail-field label="Kelas" x-text="p.kelas" />
                 </dl>
             </section>
 
@@ -53,8 +53,8 @@
                 </div>
 
                 <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                    <x-detail-field label="Mata kuliah" x-text="p.matkul" icon="chevron" />
-                    <x-detail-field label="Dosen pengampu" x-text="p.dosen" icon="chevron" locked />
+                    <x-detail-field label="Mata kuliah" x-text="p.matkul" />
+                    <x-detail-field label="Dosen pengampu" x-text="p.dosen" locked />
                 </dl>
 
                 {{-- Rincian mata kuliah --}}
@@ -125,7 +125,7 @@
 
                             <dl class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
                                 <x-detail-field label="Nama dokumen" x-text="d.nama" />
-                                <x-detail-field label="Jenis dokumen" x-text="d.jenis" icon="chevron" />
+                                <x-detail-field label="Jenis dokumen" x-text="d.jenis" />
                             </dl>
                         </div>
                     </div>

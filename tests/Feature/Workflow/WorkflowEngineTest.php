@@ -60,11 +60,11 @@ class WorkflowEngineTest extends TestCase
         $this->engine = app(WorkflowEngine::class);
     }
 
-    private function kegiatan(): DummyKegiatan
+    private function kegiatan(?User $pemilik = null): DummyKegiatan
     {
         return DummyKegiatan::create([
             'id_kategori' => $this->category,
-            'id_user' => $this->owner->getKey(),
+            'id_user' => ($pemilik ?? $this->owner)->getKey(),
             'nama_kegiatan' => 'Workflow test activity',
         ]);
     }
@@ -270,6 +270,58 @@ class WorkflowEngineTest extends TestCase
 
         $this->expectException(LogicException::class);
         $baris->delete();
+    }
+
+    // ---------------------------------------------------------------- kegiatan dicatat langsung (tanpa timeline)
+
+    public function test_kegiatan_dicatat_langsung_berlabel_tercatat_tanpa_timeline(): void
+    {
+        $k = $this->kegiatan();                       // tanpa start(): tidak ada persetujuan
+
+        $this->assertNull($k->statusKode());
+        $this->assertSame('Tercatat', $k->statusLabel());
+        $this->assertTrue($k->tercatat());
+        $this->assertTrue($k->bolehDiedit());
+        $this->assertTrue($k->bolehDihapus());
+        $this->assertTrue($k->timeline()->isEmpty());
+        $this->assertSame(0, Timeline::count());
+    }
+
+    public function test_kegiatan_tercatat_tidak_bisa_diproses_workflow(): void
+    {
+        $k = $this->kegiatan();
+
+        $this->expectException(InvalidTransition::class);
+        $this->engine->transition($k, 'direview', $this->staff);
+    }
+
+    public function test_daftar_kegiatan_memuat_tercatat_dan_selesai_milik_pemilik(): void
+    {
+        $catat = $this->kegiatan();
+        $diproses = $this->kegiatan();
+        $selesai = $this->kegiatan();
+        $milikLain = $this->kegiatan($this->stranger);   // tercatat, tetapi bukan milik owner
+
+        $this->engine->start($diproses, $this->owner);
+        $this->engine->start($selesai, $this->owner);
+        $this->engine->transition($selesai, 'direview', $this->staff);
+        $this->engine->transition($selesai, 'diterima', $this->staff);
+        $this->engine->transition($selesai, 'selesai', null);
+
+        $owner = fn () => DummyKegiatan::where('id_user', $this->owner->getKey());
+
+        $daftar = $owner()->tercatatAtauStatus('selesai')->pluck('id_kegiatan')->sort()->values()->all();
+        $this->assertSame([$catat->getKey(), $selesai->getKey()], $daftar);
+        $this->assertNotContains($milikLain->getKey(), $daftar);
+
+        $this->assertSame([$catat->getKey()], $owner()->tercatat()->pluck('id_kegiatan')->all());
+        $this->assertSame(
+            [$diproses->getKey(), $selesai->getKey()],
+            $owner()->pengajuan()->pluck('id_kegiatan')->sort()->values()->all()
+        );
+
+        // Kegiatan tercatat bukan pengajuan, jadi tidak ikut hitungan status.
+        $this->assertSame(['diajukan' => 1, 'selesai' => 1], $this->engine->countByStatus($owner()));
     }
 
     // ---------------------------------------------------------------- berita (kolom status)

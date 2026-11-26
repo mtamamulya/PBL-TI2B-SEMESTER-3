@@ -6,35 +6,6 @@
 <div dosen-shell>
 
 @php
-    // DATA TIRUAN. $id berasal dari alamat (/kegiatan/{id}).
-    // Nanti diganti data kegiatan dari controller / database oleh tim backend.
-    // Contoh data. Urutannya sama dengan daftar di halaman Kegiatan (id 1–10), jadi ikon mata di baris ke-2
-    // membuka contoh "Direvisi", baris ke-3 contoh "Disetujui", dst. Isi halaman menyesuaikan statusnya.
-    $contoh = [
-        1  => ['nama' => 'Seminar nasional AI',  'kategori' => 'Lomba',              'jenis' => 'Kegiatan dosen',       'mulai' => '12 September 2026', 'selesai' => '14 September 2026', 'status' => 'Diajukan',  'catatan' => null],
-        2  => ['nama' => 'Pelatihan industri',   'kategori' => 'Magang',             'jenis' => 'Kegiatan Prodi',       'mulai' => '20 Agustus 2026',   'selesai' => '22 Agustus 2026',   'status' => 'Direvisi',  'catatan' => 'Lampirkan surat tugas yang sudah ditandatangani dan perjelas jadwal kegiatan.'],
-        3  => ['nama' => 'Kunjungan industri',   'kategori' => 'Kunjungan Industri', 'jenis' => 'Prodi dan mahasiswa', 'mulai' => '3 Agustus 2026',    'selesai' => '3 Agustus 2026',    'status' => 'Disetujui', 'catatan' => null],
-        4  => ['nama' => 'Lomba karya ilmiah',   'kategori' => 'Lomba',              'jenis' => 'Kegiatan mahasiswa',   'mulai' => '15 Juli 2026',      'selesai' => '16 Juli 2026',      'status' => 'Ditolak',   'catatan' => 'Lomba tidak termasuk daftar kegiatan yang diakui program studi.'],
-        5  => ['nama' => 'Computer Vision',      'kategori' => 'Lomba',              'jenis' => 'Kegiatan mahasiswa',   'mulai' => '3 Agustus 2026',    'selesai' => '5 Agustus 2026',    'status' => 'Diajukan',  'catatan' => null],
-        6  => ['nama' => 'Sistem Operasi',       'kategori' => 'Kunjungan Industri', 'jenis' => 'Prodi dan mahasiswa', 'mulai' => '3 Agustus 2026',    'selesai' => '3 Agustus 2026',    'status' => 'Direvisi',  'catatan' => 'Daftar anggota belum lengkap. Tambahkan mahasiswa yang ikut.'],
-        7  => ['nama' => 'Jaringan Komputer',    'kategori' => 'Lomba',              'jenis' => 'Kegiatan Prodi',       'mulai' => '12 September 2026', 'selesai' => '14 September 2026', 'status' => 'Disetujui', 'catatan' => null],
-        8  => ['nama' => 'Sistem Basis Data',    'kategori' => 'Lomba',              'jenis' => 'Kegiatan dosen',       'mulai' => '12 September 2026', 'selesai' => '14 September 2026', 'status' => 'Ditolak',   'catatan' => 'Jadwal bentrok dengan kegiatan fakultas pada tanggal yang sama.'],
-        9  => ['nama' => 'Sistem Operasi',       'kategori' => 'Kunjungan Industri', 'jenis' => 'Prodi dan mahasiswa', 'mulai' => '20 Agustus 2026',   'selesai' => '20 Agustus 2026',   'status' => 'Diajukan',  'catatan' => null],
-        10 => ['nama' => 'Internet of Things',   'kategori' => 'Magang',             'jenis' => 'Prodi dan mahasiswa',  'mulai' => '3 Agustus 2026',    'selesai' => '30 September 2026', 'status' => 'Direvisi',  'catatan' => 'Dokumen proposal belum memuat rencana anggaran.'],
-    ];
-    $c = $contoh[max(1, min(10, (int) ($id ?? 1)))];
-    $k = [
-        'kategori'      => $c['kategori'],
-        'jenis'         => $c['jenis'],
-        'nama'          => $c['nama'],
-        'penyelenggara' => 'Politeknik Negeri Semarang',
-        'tahun'         => 2026,
-        'mulai'         => $c['mulai'],
-        'selesai'       => $c['selesai'],
-        'status'        => $c['status'],
-    ];
-    $catatan = $c['catatan'];   // catatan revisi / alasan penolakan dari reviewer
-
     $warna = [
         'Diajukan'  => 'border-blue-200 bg-blue-100 text-blue-700',
         'Direvisi'  => 'border-orange-200 bg-orange-100 text-orange-700',
@@ -42,25 +13,11 @@
         'Ditolak'   => 'border-red-200 bg-red-100 text-red-600',
     ];
 
-    $anggota = [
-        ['nama' => 'Kuwat Santoso , S.T., M.Kom.', 'status' => 'Dosen'],
-        ['nama' => 'Mukhlis Pratama Mulya',        'status' => 'Mahasiswa'],
-    ];
-
-    // Dokumen. 'tautan' = alamat dokumen di cloud (Google Drive dll.), dibuka di tab baru.
-    $dokumen = [
-        [
-            'nama'       => 'Proposal Kegiatan',
-            'jenis'      => 'Proposal',
-            'keterangan' => 'Ini adalah proposal kegiatan seminar',
-            'tautan'     => 'https://drive.google.com/drive/folders/contoh',
-        ],
-    ];
-
     $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-white p-4.5';
     $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
 @endphp
 
+    @if (session('success')) <p role="status">{{ session('success') }}</p> @endif
     {{-- Judul halaman + tombol kembali --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
@@ -68,14 +25,14 @@
             <p class="text-2xl text-gray-400">Dashboard / Kegiatan / Detail Kegiatan</p>
         </div>
         <div class="mt-2 flex items-center gap-3">
-            @if ($k['status'] === 'Direvisi')
-                <a href="{{ route('kegiatan.edit', $id ?? 1) }}"
+            @if ($editable)
+                <a href="{{ route('dosen.kegiatan.edit', $id) }}"
                    class="flex h-11 items-center gap-2 rounded-md bg-brand px-4 text-base font-medium text-white hover:bg-blue-700">
                     <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
                     Perbaiki kegiatan
                 </a>
             @endif
-            <a href="{{ route('kegiatan.index') }}"
+            <a href="{{ route('dosen.kegiatan.index') }}"
                class="flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
                 Kembali
@@ -131,7 +88,7 @@
 
                 <div class="flex flex-col gap-2 md:col-span-2">
                     <dt class="text-[15px] font-medium">Status pengajuan</dt>
-                    <dd><span class="inline-block rounded-md border px-2 py-0.5 text-[13px] {{ $warna[$k['status']] }}">{{ $k['status'] }}</span></dd>
+                    <dd><span class="inline-block rounded-md border px-2 py-0.5 text-[13px] {{ $warna[$k['status']] ?? 'bg-gray-100' }}">{{ $k['status'] }}</span></dd>
                 </div>
             </dl>
         </section>
