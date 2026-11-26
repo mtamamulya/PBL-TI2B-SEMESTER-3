@@ -49,7 +49,7 @@
                     <ul class="overflow-hidden rounded-lg bg-white shadow-sm">
                         <template x-for="n in g.item" :key="n.id">
                             <li class="border-t border-gray-200 first:border-t-0">
-                                <a :href="n.href" x-on:click="n.href === '#' && $event.preventDefault(); baca(n)"
+                                <a :href="n.href" x-on:click="buka(n, $event)"
                                    :class="n.unread ? 'bg-blue-50' : 'bg-white'"
                                    class="flex items-start gap-3.5 px-5 py-4 hover:bg-blue-50/60">
                                     {{-- ikon sesuai jenis --}}
@@ -149,12 +149,18 @@
                 });
             },
 
-            baca(n) {
-                if (!n.unread) return;
-                n.unread = false;
-                this.kirim(konfig.urlBaca.replace('__ID__', n.id))
-                    .then(response => { if (!response.ok) n.unread = true; })
-                    .catch(() => { n.unread = true; });
+            async buka(n, event) {
+                const navigasiBiasa = !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
+                if (n.href === '#' || navigasiBiasa) event.preventDefault();
+                if (n.unread) {
+                    try {
+                        const response = await this.kirim(konfig.urlBaca.replace('__ID__', n.id));
+                        if (response.ok) n.unread = false;
+                    } catch {
+                        // Biarkan notifikasi belum dibaca jika penyimpanan gagal.
+                    }
+                }
+                if (navigasiBiasa && n.href !== '#') window.location.assign(n.href);
             },
 
             async tandaiSemua() {

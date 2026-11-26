@@ -37,7 +37,7 @@ class FrontendLayoutTest extends TestCase
         $this->withoutVite();
     }
 
-    public function test_existing_student_and_lecturer_pages_render_directly_without_login(): void
+    public function test_mahasiswa_melihat_halaman_sendiri_dan_diarahkan_dari_halaman_dosen(): void
     {
         $this->actingAs($this->studentUser());
 
@@ -76,17 +76,17 @@ class FrontendLayoutTest extends TestCase
             ->assertSee('lg:ml-60', false);
         $this->get('/mahasiswa/akademik')->assertRedirect('/mahasiswa/mahasiswa/dashboard');
         foreach (['/dosen/dashboard', '/dosen/kegiatan', '/dosen/kegiatan/create', '/profil', '/notifikasi', '/pengajuan/dosen', '/pengajuan/mahasiswa', '/pengajuan/dosen/1', '/pengajuan/mahasiswa/1', '/verifikasi/1'] as $path) {
-            $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+            $this->get($path)->assertRedirect(route('dashboard'));
         }
         foreach (['penelitian', 'pengabdian', 'prestasi'] as $module) {
             $paths = $module === 'pengabdian' ? [''] : ['', '/create', '/1', '/1/edit'];
             foreach ($paths as $suffix) {
-                $this->get('/'.$module.$suffix)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+                $this->get('/'.$module.$suffix)->assertRedirect(route('dashboard'));
             }
         }
         // Pengajaran sudah memakai database: daftar & form bisa dibuka, detail/edit dicek di PengajaranTest.
         foreach (['/pengajaran', '/pengajaran/create'] as $path) {
-            $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+            $this->get($path)->assertRedirect(route('dashboard'));
         }
     }
 
