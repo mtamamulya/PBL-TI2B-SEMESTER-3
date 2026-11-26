@@ -4,8 +4,16 @@
 
 @section('content')
 
+    @php
+        // Alamat untuk menyimpan status "dibaca" ke server (supaya tidak hilang saat halaman dimuat ulang).
+        $konfig = [
+            'csrf' => csrf_token(),
+            'urlBaca' => url('/notifikasi/__ID__/baca'),
+            'urlSemua' => url('/notifikasi/baca-semua'),
+        ];
+    @endphp
 
-    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi ?? []))">
+    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi ?? []), @js($konfig))">
 
         {{-- Judul + tombol --}}
         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -93,7 +101,7 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('notifikasi', (daftar) => ({
+        Alpine.data('notifikasi', (daftar, konfig) => ({
             daftar: daftar,
             filter: 'semua',
 
@@ -127,8 +135,38 @@
                     .filter(g => g.item.length > 0);
             },
 
-            baca(n) { n.unread = false; },
-            tandaiSemua() { this.daftar.forEach(n => { n.unread = false; }); },
+            // Kirim ke server. keepalive supaya permintaan tetap jalan walau halaman langsung berpindah ke detail.
+            kirim(url) {
+                return fetch(url, {
+                    method: 'POST',
+                    keepalive: true,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRF-TOKEN': konfig.csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+            },
+
+            baca(n) {
+                if (!n.unread) return;
+                n.unread = false;
+                this.kirim(konfig.urlBaca.replace('__ID__', n.id))
+                    .then(response => { if (!response.ok) n.unread = true; })
+                    .catch(() => { n.unread = true; });
+            },
+
+            async tandaiSemua() {
+                const belum = this.daftar.filter(n => n.unread);
+                belum.forEach(n => { n.unread = false; });
+                try {
+                    const r = await this.kirim(konfig.urlSemua);
+                    if (!r.ok) throw new Error('gagal');
+                } catch (e) {
+                    belum.forEach(n => { n.unread = true; }); // batalkan bila server gagal menyimpan
+                }
+            },
         }));
     });
 </script>
