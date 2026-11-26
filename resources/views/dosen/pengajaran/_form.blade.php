@@ -29,7 +29,7 @@
                     <div class="relative">
                         <select id="tahunAkademik" required x-model="tahun" class="{{ $selectClass }}">
                             <option value="">Pilih tahun</option>
-                            <template x-for="t in opsi.tahun" :key="t.id">
+                            <template x-for="t in daftarTahun" :key="t.id">
                                 <option :value="String(t.id)" x-text="t.label"></option>
                             </template>
                         </select>
@@ -73,7 +73,7 @@
             </div>
         </section>
 
-        {{-- 2. Mata Kuliah dan Dosen --}}
+        {{-- 2. MATA KULIAH DAN DOSEN --}}
         <section class="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-6">
             <div class="flex items-center gap-3">
                 <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">2</span>
@@ -84,25 +84,35 @@
                 {{-- Dropdown Kurikulum (GET /kurikulum) --}}
                 <div class="flex flex-col gap-1.5">
                     <label for="kurikulum" class="text-sm font-medium text-gray-800">Kurikulum</label>
-                    <select id="kurikulum" x-model="kurikulum"
-                            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none">
-                        <option value="">Pilih kurikulum</option>
-                        <template x-for="k in opsi.kurikulum" :key="k.id">
-                            <option :value="String(k.id)" x-text="k.label"></option>
-                        </template>
-                    </select>
+                    <div class="relative">
+                        <select id="kurikulum" x-model="kurikulum"
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-white pr-10 pl-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none">
+                            <option value="">Pilih kurikulum</option>
+                            <template x-for="k in opsi.kurikulum" :key="k.id">
+                                <option :value="String(k.id)" x-text="k.label"></option>
+                            </template>
+                        </select>
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
                 </div>
 
                 {{-- Dropdown Mata Kuliah (GET /kurikulum/{id}/mata-kuliah) --}}
                 <div class="flex flex-col gap-1.5">
                     <label for="matkul" class="text-sm font-medium text-gray-800">Mata kuliah</label>
-                    <select id="matkul" x-model="matkul" :disabled="!kurikulum || isLoadingMatkul"
-                            class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500">
-                        <option value="" x-text="!kurikulum ? 'Pilih kurikulum terlebih dahulu' : (isLoadingMatkul ? 'Memuat mata kuliah...' : 'Pilih mata kuliah')"></option>
-                        <template x-for="m in daftarMatkul" :key="m.id">
-                            <option :value="String(m.id)" x-text="m.label"></option>
-                        </template>
-                    </select>
+                    <div class="relative">
+                        <select id="matkul" required x-model="matkul" :disabled="!kurikulum || isLoadingMatkul"
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-white pr-10 pl-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500">
+                            <option value="" x-text="!kurikulum ? 'Pilih kurikulum terlebih dahulu' : (isLoadingMatkul ? 'Memuat mata kuliah...' : 'Pilih mata kuliah')"></option>
+                            <template x-for="m in daftarMatkul" :key="m.id">
+                                <option :value="String(m.id)" x-text="m.label"></option>
+                            </template>
+                        </select>
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
                     <template x-if="errors.id_mk">
                         <p class="text-[13px] text-red-600" x-text="errors.id_mk[0]"></p>
                     </template>
@@ -111,10 +121,15 @@
                 {{-- Dosen Pengampu (Otomatis) --}}
                 <div class="flex flex-col gap-1.5 md:col-span-2">
                     <label for="dosen_pengampu" class="text-sm font-medium text-gray-800">Dosen pengampu</label>
-                    <select id="dosen_pengampu" disabled
-                            class="h-11 w-full rounded-lg border border-gray-200 bg-gray-100 px-3.5 text-sm text-gray-600">
-                        <option x-text="dosenName"></option>
-                    </select>
+                    <div class="relative">
+                        <select id="dosen_pengampu" disabled
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-gray-100 pr-10 pl-3.5 text-sm text-gray-600">
+                            <option x-text="dosenName"></option>
+                        </select>
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
                     <p class="text-xs text-gray-500">Dosen pengampu terisi otomatis dari akun yang login.</p>
                 </div>
             </div>
@@ -223,6 +238,16 @@
             isSubmitting: false,
             errors: {},
 
+            get daftarTahun() {
+                const empatTeratas = this.opsi.tahun.slice(0, 4);
+
+                if (this.tahun && !empatTeratas.some(t => String(t.id) === String(this.tahun))) {
+                    const terpilih = this.opsi.tahun.find(t => String(t.id) === String(this.tahun));
+                    if (terpilih) return [...empatTeratas, terpilih];
+                }
+
+                return empatTeratas;
+            },
             get daftarProdi() {
                 return [...new Set(this.opsi.rombel.filter(r => String(r.ta) === String(this.tahun)).map(r => r.prodi))];
             },
