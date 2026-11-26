@@ -64,6 +64,40 @@ class ProfilProdi
         ];
     }
 
+    /**
+     * Data cadangan landing saat API tidak bisa dihubungi / data prodi belum ada.
+     * Isinya footer lama (aman ditampilkan ke publik), BUKAN data contoh seperti bawaan().
+     */
+    public static function cadangan(): array
+    {
+        return [
+            'kode_prodi' => 'TRK',
+            'nama_prodi' => 'Teknologi Rekayasa Komputer',
+            'jenjang' => 'D4',
+            'deskripsi' => null,
+            'visi' => null,
+            'misi' => [],
+            'tujuan' => [],
+            'profil_lulusan' => [],
+            'email' => 'sekretariat@polines.ac.id',
+            'no_wa' => null,
+            'alamat' => 'Gedung TI, Tembalang',
+            'instagram' => null,
+            'youtube' => null,
+            'tiktok' => null,
+            'facebook' => null,
+            'logo_url' => null,
+            'logo_footer_url' => null,
+        ];
+    }
+
+    /** Mode dummy (hanya untuk pengembangan tanpa API): PROFIL_DUMMY=true di .env. Tidak pernah aktif di tes. */
+    public static function modeDummy(): bool
+    {
+        return ! app()->runningUnitTests()
+            && filter_var(env('PROFIL_DUMMY', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
     /** Aturan validasi. Semua `sometimes` supaya tiap bagian form boleh disimpan sendiri-sendiri. */
     public static function aturan(): array
     {
