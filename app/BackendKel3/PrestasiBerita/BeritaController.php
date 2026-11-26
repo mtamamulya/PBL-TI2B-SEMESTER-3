@@ -52,30 +52,6 @@ class BeritaController extends Controller
     public function opsi(Request $request)
     {
         $user = $request->user();
-<<<<<<< HEAD
-
-        $kegiatan = Kegiatan::untukPrestasi($user)
-            ->with('kategori')
-            ->orderBy('nama_kegiatan')
-            ->get()
-            ->map(fn (Kegiatan $k) => [
-                'id' => $k->id_kegiatan,
-                'nama' => $k->nama_kegiatan.' · '.($k->kategori?->nama_kategori ?? 'Umum'),
-            ]);
-
-        // Return SEMUA kategori (master kategori Kel 1)
-        $kategori = Kategori::orderBy('nama_kategori')
-            ->get(['id_kategori', 'nama_kategori']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Opsi form berita berhasil diambil.',
-            'data' => [
-                'kegiatan' => $kegiatan,
-                'kategori' => $kategori,
-            ],
-        ]);
-=======
         $kegiatan = Kegiatan::untukUser($user)
             ->orderBy('nama_kegiatan')
             ->get()
@@ -90,7 +66,6 @@ class BeritaController extends Controller
             'kategori' => Kategori::orderBy('nama_kategori')->get(['id_kategori', 'nama_kategori']),
             'status' => ['draft', 'diajukan'],
         ]]);
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
     }
 
     public function store(BeritaRequest $request)
@@ -100,69 +75,9 @@ class BeritaController extends Controller
 
         $this->periksaSumber($request, $validated);
 
-<<<<<<< HEAD
-            DB::beginTransaction();
-
-            $dataSimpan = [
-                'id_user' => $user->id_user,
-                'judul_berita' => $validated['judul'],
-                'isi_berita' => $validated['isi'],
-                'status' => $validated['status'],
-            ];
-
-            // Handle sumber kegiatan
-            if ($validated['sumber'] === 'kegiatan' && ! empty($validated['kegiatan_sebelumnya'])) {
-                $kegiatan = Kegiatan::untukPrestasi($user)
-                    ->where('nama_kegiatan', 'like', '%'.$validated['kegiatan_sebelumnya'].'%')
-                    ->first();
-
-                if ($kegiatan) {
-                    $dataSimpan['id_kegiatan'] = $kegiatan->id_kegiatan;
-                    $dataSimpan['id_kategori'] = $kegiatan->id_kategori;
-                }
-            }
-
-            // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
-                // UBAH: Hapus ->where('kebutuhan', 'berita')
-                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
-
-                if ($kategori) {
-                    $dataSimpan['id_kategori'] = $kategori->id_kategori;
-                }
-            }
-
-            // Handle upload foto
-            if ($request->hasFile('foto')) {
-                $dataSimpan['sampul'] = $request->file('foto')->store('berita/sampul', 'public');
-            }
-
-            $berita = Berita::create($dataSimpan);
-            DB::commit();
-
-            Log::info('Berita created:', ['id' => $berita->id_berita]);
-
-            return response()->json([
-                'success' => true,
-                'message' => $validated['status'] === 'diajukan'
-                    ? 'Berita berhasil diajukan.'
-                    : 'Draft berhasil disimpan.',
-                'data' => ['id' => $berita->id_berita],
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Berita store error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menyimpan berita: '.$e->getMessage(),
-            ], 500);
-=======
         $pathSampul = null;
         if ($request->hasFile('sampul')) {
             $pathSampul = $request->file('sampul')->store('berita/sampul', 'public');
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
         }
 
         $berita = Berita::create([
@@ -191,43 +106,7 @@ class BeritaController extends Controller
             ->with(['kegiatan.kategori', 'kategori'])
             ->findOrFail($id);
 
-<<<<<<< HEAD
-            $kategori = Kategori::where('kebutuhan', 'berita')
-                ->orderBy('nama_kategori')
-                ->get(['id_kategori', 'nama_kategori']);
-
-            $kategoriNama = $berita->kategori?->nama_kategori
-                ?? $berita->kegiatan?->kategori?->nama_kategori
-                ?? 'Mandiri';
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Detail berita berhasil diambil.',
-                'data' => [
-                    'id' => $berita->id_berita,
-                    'sumber' => $berita->id_kegiatan ? 'kegiatan' : 'mandiri',
-                    'kegiatan_sebelumnya' => $berita->kegiatan?->nama_kegiatan,
-                    'kategori' => $kategoriNama,
-                    'judul' => $berita->judul_berita,
-                    'isi' => $berita->isi_berita,
-                    'sampul' => $berita->sampul ? Storage::url($berita->sampul) : null,
-                    'status' => self::STATUS_LABELS[$berita->status] ?? $berita->status,
-                    'status_code' => $berita->status,
-                    'catatan_revisi' => $berita->catatan_revisi,
-                    'tanggal' => $berita->created_at->format('d F Y'),
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Berita show error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal mengambil detail berita.',
-            ], 500);
-        }
-=======
         return response()->json(['success' => true, 'message' => 'Detail berita berhasil diambil.', 'data' => $berita]);
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
     }
 
     public function update(BeritaRequest $request, int $id)
@@ -262,20 +141,8 @@ class BeritaController extends Controller
             }
             $berita->update($validated);
 
-<<<<<<< HEAD
-            // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
-                // UBAH: Hapus ->where('kebutuhan', 'berita')
-                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
-
-                if ($kategori) {
-                    $dataUpdate['id_kategori'] = $kategori->id_kategori;
-                }
-            }
-=======
             return $berita;
         });
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
 
         return response()->json([
             'success' => true,

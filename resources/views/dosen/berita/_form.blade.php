@@ -12,7 +12,6 @@ $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-f
 $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
 
-{{-- Styling CKEditor 5 --}}
 <style>
 .ck-editor__top .ck-sticky-panel .ck-toolbar { border-color: #e5e7eb !important; border-radius: 0.5rem 0.5rem 0 0 !important; background-color: #f9fafb !important; }
 .ck.ck-editor__main > .ck-editor__editable { min-height: 180px; border-color: #e5e7eb !important; border-radius: 0 0 0.5rem 0.5rem !important; padding: 0.5rem 0.875rem !important; font-size: 15px; color: #111827; box-shadow: none !important; }
@@ -146,30 +145,38 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
 
 @push('scripts')
 <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
-@include('dosen.berita._api')
 <script>
+async function apiBerita(path = '', method = 'GET', data = null) {
+    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || @js(csrf_token());
+    if (method !== 'GET' && csrfToken) { headers['X-CSRF-TOKEN'] = csrfToken; }
+    let body = null;
+    if (data !== null) {
+        if (data instanceof FormData) { body = data; }
+        else { headers['Content-Type'] = 'application/json'; body = JSON.stringify(data); }
+    }
+    const response = await fetch('/api/v1/dosen/berita' + path, { method, headers, credentials: 'same-origin', body });
+    const result = await response.json();
+    if (!response.ok) {
+        if (response.status === 401) { throw new Error('Belum login atau sesi telah berakhir. Silakan login ulang.'); }
+        if (response.status === 403) { throw new Error('Anda tidak memiliki akses untuk melakukan ini.'); }
+        if (response.status === 422 && result.errors) { throw new Error(Object.values(result.errors).flat().join(', ')); }
+        throw new Error(result.message || 'Gagal mengakses berita.');
+    }
+    return result;
+}
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('formBerita', () => ({
-        sumber: '',
-        kategori: '',
-        judul: '',
-        isi: '',
-        namaFile: '',
-        galatFile: '',
-        loading: false,
-        kegiatanList: [],
-        kategoriList: [],
-        editId: null,
+        sumber: '', kategori: '', judul: '', isi: '',
+        namaFile: '', galatFile: '', loading: false,
+        kegiatanList: [], kategoriList: [], editId: null,
 
         async init() {
-            // Parse ID dari URL jika mode edit
             const pathParts = window.location.pathname.split('/');
             const editIdx = pathParts.indexOf('edit');
-            if (editIdx > 0) {
-                this.editId = parseInt(pathParts[editIdx - 1]);
-            }
+            if (editIdx > 0) { this.editId = parseInt(pathParts[editIdx - 1]); }
 
-            // Load data edit jika ada
             if (this.editId) {
                 try {
                     const { data } = await apiBerita(`/${this.editId}`);
@@ -178,28 +185,21 @@ document.addEventListener('alpine:init', () => {
                     this.judul = data.judul || '';
                     this.isi = data.isi || '';
                     this.namaFile = data.sampul ? 'Foto sudah ada (upload baru untuk mengganti)' : '';
-                } catch (e) {
-                    console.error('Gagal memuat data berita:', e);
-                }
+                } catch (e) { console.error('Gagal memuat data berita:', e); }
             }
 
-            // Fetch opsi dari API
             try {
                 const { data } = await apiBerita('/opsi');
                 this.kegiatanList = data.kegiatan || [];
                 this.kategoriList = data.kategori || [];
-            } catch (e) {
-                console.error('Gagal memuat opsi:', e);
-            }
+            } catch (e) { console.error('Gagal memuat opsi:', e); }
 
-            // Init CKEditor
             this.$nextTick(() => {
                 if (!this.$refs.editorIsi || typeof ClassicEditor === 'undefined') return;
                 ClassicEditor.create(this.$refs.editorIsi, {
                     placeholder: 'Tuliskan isi berita di sini',
                     toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo'],
                 }).then((editor) => {
-                    this.editorInstance = editor;
                     if (this.isi) editor.setData(this.isi);
                     editor.model.document.on('change:data', () => { this.isi = editor.getData(); });
                 }).catch((error) => console.error('Gagal memuat CKEditor:', error));
@@ -251,6 +251,7 @@ document.addEventListener('alpine:init', () => {
         async kirimKeAPI(status) {
             if (this.loading) return;
             this.loading = true;
+
             try {
                 const formData = new FormData();
                 formData.append('sumber', this.sumber);
@@ -271,6 +272,7 @@ document.addEventListener('alpine:init', () => {
                     formData.append('foto', fotoInput.files[0]);
                 }
 
+                // Mode edit: kirim sebagai POST + topeng _method=PUT (bisa upload file)
                 if (this.editId) {
                     formData.append('_method', 'PUT');
                     await apiBerita(`/${this.editId}`, 'POST', formData);
@@ -281,10 +283,13 @@ document.addEventListener('alpine:init', () => {
                 this.$dispatch('tampil-alert', {
                     tipe: 'sukses',
                     judul: status === 'diajukan' ? 'Berita berhasil diajukan' : 'Draf tersimpan',
-                    pesan: status === 'diajukan' ? 'Berita Anda sedang menunggu review admin.' : 'Draf berhasil disimpan.'
+                    pesan: status === 'diajukan'
+                        ? 'Berita Anda sedang menunggu review admin.'
+                        : 'Draf berhasil disimpan.'
                 });
 
                 setTimeout(() => { window.location.href = '{{ route("berita.index") }}'; }, 1500);
+
             } catch (e) {
                 this.$dispatch('tampil-alert', { tipe: 'error', judul: 'Gagal menyimpan', pesan: e.message });
             } finally {

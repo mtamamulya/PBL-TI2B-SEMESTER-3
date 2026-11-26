@@ -11,17 +11,11 @@ async function apiBerita(path = '', method = 'GET', data = null) {
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest'
     };
-<<<<<<< HEAD
-    
-    // Ambil CSRF token langsung dari Blade (100% pasti ada)
-    const csrfToken = @js(csrf_token());
-=======
 
     // Ambil CSRF token dari meta tag
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || @js(csrf_token());
 
     // Tambah CSRF token untuk method non-GET
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
     if (method !== 'GET' && csrfToken) {
         headers['X-CSRF-TOKEN'] = csrfToken;
     }
@@ -46,10 +40,6 @@ async function apiBerita(path = '', method = 'GET', data = null) {
     const result = await response.json();
 
     if (!response.ok) {
-<<<<<<< HEAD
-        if (response.status === 401) throw new Error('Sesi berakhir. Silakan login ulang.');
-        if (response.status === 403) throw new Error('Anda tidak memiliki akses.');
-=======
         // Handle error 401 (belum login) dan 403 (forbidden)
         if (response.status === 401) {
             throw new Error('Belum login atau sesi telah berakhir. Silakan login ulang.');
@@ -59,14 +49,9 @@ async function apiBerita(path = '', method = 'GET', data = null) {
         }
 
         // Handle validation error (422)
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
         if (response.status === 422 && result.errors) {
             throw new Error(Object.values(result.errors).flat().join(', '));
         }
-<<<<<<< HEAD
-=======
-
->>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
         throw new Error(result.message || 'Gagal mengakses berita.');
     }
 
