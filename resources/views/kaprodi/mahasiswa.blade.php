@@ -132,10 +132,9 @@
             <div class="relative w-full sm:w-[187px]">
                 <select id="fStatus" class="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#E8E8EC] bg-white px-4 pr-10 text-base text-[#2E2E2E] shadow-[inset_0_0_0_1px_rgba(0,0,45,0.09)] outline-none focus:ring-2 focus:ring-[#2277FF]/40">
                     <option value="all">Semua Status</option>
-                    <option value="Aktif">Aktif</option>
-                    <option value="Cuti">Cuti</option>
-                    <option value="Lulus">Lulus</option>
-                    <option value="Non-aktif">Non-aktif</option>
+                    @foreach ($statuses ?? [] as $st)
+                        <option value="{{ $st }}">{{ $st }}</option>
+                    @endforeach
                 </select>
                 <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>
             </div>
@@ -210,9 +209,11 @@
                 data: 'status', searchable: false,
                 render: function (d, type) {
                     if (type !== 'display') return d;
-                    var warna = d === 'Aktif' ? 'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]'
-                              : d === 'Cuti'  ? 'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]'
-                              :                 'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]';
+                    var warna = d === 'Aktif'           ? 'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]'
+                              : d === 'Skripsi/TA'      ? 'border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4ED8]'
+                              : d === 'Cuti'            ? 'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]'
+                              : d === 'Drop Out'        ? 'border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]'
+                              :                         'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]';
                     return '<span class="inline-flex rounded-lg border px-2 py-0.5 text-xs font-medium leading-4 ' + warna + '">' + esc(d) + '</span>';
                 }
             },

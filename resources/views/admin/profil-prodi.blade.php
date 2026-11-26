@@ -15,9 +15,19 @@
         <span class="text-[#6E6E76]" aria-current="page">Profil Prodi</span>
     </nav>
 
-    {{-- Isi halaman Profil Prodi menyusul. --}}
-    <section class="mt-[26px] max-w-[1152px] rounded-lg border border-[#EFEFF1] bg-white p-[25px] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
-        <p class="text-sm text-[#6E6E76]">Halaman ini sedang disiapkan.</p>
-    </section>
+    @if ($dummy ?? false)
+        <p class="mt-4 max-w-[1152px] rounded-lg border border-[#F5D58A] bg-[#FFF8E6] px-4 py-2 text-sm text-[#8A5A00]">
+            Mode dummy: data disimpan sementara di session, belum ke database.
+        </p>
+    @endif
+
+    {{-- Tiap bagian = satu file sendiri (pembagian kerja Fase 2). Kirim $profil, $prefix. --}}
+    <div class="mt-[26px] max-w-[1152px] space-y-6">
+        @include('admin.profil-prodi._identitas')         {{-- Fase 2A --}}
+        @include('admin.profil-prodi._visi-deskripsi')    {{-- Fase 2A --}}
+        @include('admin.profil-prodi._daftar-poin')       {{-- Fase 2B --}}
+        @include('admin.profil-prodi._kontak-sosial')     {{-- Fase 2A --}}
+        @include('admin.profil-prodi._logo')              {{-- Fase 2B --}}
+    </div>
 </div>
 @endsection

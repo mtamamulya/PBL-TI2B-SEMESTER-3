@@ -128,7 +128,6 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/mahasiswa/{id}/edit', [LandingMahasiswaController::class, 'edit'])->name('admin.mahasiswa.edit');
     Route::put('/mahasiswa/{id}', [LandingMahasiswaController::class, 'update'])->name('admin.mahasiswa.update');
     Route::post('/mahasiswa/buat-kelas', [LandingMahasiswaController::class, 'buatKelasSemester'])->name('admin.mahasiswa.buat-kelas');
-    Route::post('/mahasiswa/luluskan-ta', [LandingMahasiswaController::class, 'luluskanTa'])->name('admin.mahasiswa.luluskan-ta');
     Route::patch('/mahasiswa/{id}/toggle-status', [LandingMahasiswaController::class, 'toggleStatus'])->name('admin.mahasiswa.toggle-status');
 
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
@@ -177,6 +176,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
 
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('admin.prodi.profil');
+    Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('admin.prodi.profil.update');
 
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
@@ -226,6 +226,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.kelompok-bidang',
         'admin.kegiatan.skim',
         'admin.prodi.profil',
+        'admin.prodi.profil.update',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -311,6 +312,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
 
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('kaprodi.prodi.profil');
+    Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('kaprodi.prodi.profil.update');
 
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
@@ -349,6 +351,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.kelompok-bidang',
         'kaprodi.kegiatan.skim',
         'kaprodi.prodi.profil',
+        'kaprodi.prodi.profil.update',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',

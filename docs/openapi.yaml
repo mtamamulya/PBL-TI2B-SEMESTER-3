@@ -1160,38 +1160,6 @@ paths:
         '422':
           description: Tidak ada tahun akademik yang berstatus aktif.
 
-  /mahasiswa/luluskan-ta:
-    post:
-      tags: [Mahasiswa]
-      summary: Luluskan seluruh mahasiswa berstatus Skripsi/TA
-      description: Khusus peran **admin**. Mengubah status akademik seluruh mahasiswa yang sedang berstatus `Skripsi/TA` menjadi `Lulus`.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Proses kelulusan mahasiswa Skripsi/TA selesai dijalankan.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  message:
-                    type: string
-                    example: 3 mahasiswa berstatus Skripsi/TA berhasil diluluskan.
-                  data:
-                    type: object
-                    properties:
-                      lulus:
-                        type: integer
-                        example: 3
-        '401':
-          $ref: '#/components/responses/TidakLogin'
-        '403':
-          $ref: '#/components/responses/DilarangPeran'
-
   /jenis-dokumen:
     get:
       tags: [Jenis Dokumen]
