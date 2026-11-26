@@ -22,6 +22,8 @@ final class WorkflowDefinition
      * @param  array<int,array{from:string,to:string,by:array<int,string>,note?:bool}>  $transitions
      * @param  array<int,string>  $editable  status yang masih boleh diedit
      * @param  array<int,string>  $deletable  status yang masih boleh dihapus
+     * @param  string|null  $untrackedLabel  label untuk data yang tidak punya riwayat status (mis. kegiatan
+     *                                       yang dicatat langsung tanpa pengajuan). Null = tidak dikenal
      */
     public function __construct(
         public readonly string $key,
@@ -30,6 +32,9 @@ final class WorkflowDefinition
         array $transitions,
         private readonly array $editable = [],
         private readonly array $deletable = [],
+        private readonly ?string $untrackedLabel = null,
+        private readonly bool $untrackedEditable = false,
+        private readonly bool $untrackedDeletable = false,
     ) {
         if ($startable === []) {
             throw new InvalidArgumentException("Alur '{$key}' harus punya minimal satu status awal.");
@@ -140,6 +145,22 @@ final class WorkflowDefinition
     public function isDeletable(string $status): bool
     {
         return in_array($status, $this->deletable, true);
+    }
+
+    /** Label untuk data tanpa riwayat status ("Tercatat"). Null bila alur ini tidak mengenal data seperti itu. */
+    public function untrackedLabel(): ?string
+    {
+        return $this->untrackedLabel;
+    }
+
+    public function isUntrackedEditable(): bool
+    {
+        return $this->untrackedEditable;
+    }
+
+    public function isUntrackedDeletable(): bool
+    {
+        return $this->untrackedDeletable;
     }
 
     private function assertKnown(string $status): void
