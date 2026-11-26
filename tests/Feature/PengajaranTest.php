@@ -122,7 +122,7 @@ class PengajaranTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->postJson(self::API, [
             'id_enrollment_tingkat_kelas' => $this->rombel()->getKey(),
-            'id_enrollment_mk' => $this->matkul()->getKey(),
+            'id_mk' => $this->matkul()->id_mk,
         ])->assertCreated();
     }
 
@@ -188,7 +188,7 @@ class PengajaranTest extends TestCase
 
         $this->sebagai($dosen)->postJson(self::API, [
             'id_enrollment_tingkat_kelas' => $rombel->getKey(),
-            'id_enrollment_mk' => $mk->getKey(),
+            'id_mk' => $mk->id_mk,
             'id_dosen' => 999, // dosen tidak boleh bisa dipilih dari luar
         ])->assertCreated()->assertJsonPath('status', 'success');
 
@@ -203,27 +203,31 @@ class PengajaranTest extends TestCase
 
         $this->sebagai($dosen)->postJson(self::API, [])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['id_enrollment_tingkat_kelas', 'id_enrollment_mk']);
+            ->assertJsonValidationErrors(['id_enrollment_tingkat_kelas', 'id_mk']);
 
         $this->sebagai($dosen)->postJson(self::API, [
             'id_enrollment_tingkat_kelas' => 9999,
-            'id_enrollment_mk' => 9999,
-        ])->assertStatus(422)->assertJsonValidationErrors(['id_enrollment_tingkat_kelas', 'id_enrollment_mk']);
+            'id_mk' => 9999,
+        ])->assertStatus(422)->assertJsonValidationErrors(['id_enrollment_tingkat_kelas', 'id_mk']);
 
         $this->assertDatabaseCount('enrollment_kelas_mata_kuliah', 0);
     }
 
-    public function test_class_and_course_must_be_from_the_same_academic_year(): void
+    public function test_course_is_automatically_enrolled_to_the_class_academic_year(): void
     {
         $dosen = $this->dosen();
         $genap = TahunAkademik::create(['tahun_akademik' => 'Genap 2025/2026', 'status' => false]);
+        $mkGenap = $this->matkul('Sistem Operasi', 'TI2102', $genap);
 
         $this->sebagai($dosen)->postJson(self::API, [
             'id_enrollment_tingkat_kelas' => $this->rombel()->getKey(),
-            'id_enrollment_mk' => $this->matkul('Sistem Operasi', 'TI2102', $genap)->getKey(),
-        ])->assertStatus(422)->assertJsonValidationErrors('id_enrollment_mk');
+            'id_mk' => $mkGenap->id_mk,
+        ])->assertCreated();
 
-        $this->assertDatabaseCount('enrollment_kelas_mata_kuliah', 0);
+        $this->assertDatabaseHas('enrollment_mata_kuliah', [
+            'id_mk' => $mkGenap->id_mk,
+            'id_tahun_akademik' => $this->ta->getKey(),
+        ]);
     }
 
     public function test_a_course_in_a_class_cannot_have_two_lecturers_or_be_added_twice(): void
@@ -234,15 +238,15 @@ class PengajaranTest extends TestCase
         $mk = $this->matkul();
         $this->ampu($lain, $rombel, $mk);
 
-        $data = ['id_enrollment_tingkat_kelas' => $rombel->getKey(), 'id_enrollment_mk' => $mk->getKey()];
+        $data = ['id_enrollment_tingkat_kelas' => $rombel->getKey(), 'id_mk' => $mk->id_mk];
 
         $this->sebagai($saya)->postJson(self::API, $data)
             ->assertStatus(422)
-            ->assertJsonPath('errors.id_enrollment_mk.0', 'Mata kuliah ini di kelas tersebut sudah diampu dosen lain.');
+            ->assertJsonPath('errors.id_mk.0', 'Mata kuliah ini di kelas tersebut sudah diampu dosen lain.');
 
         $this->sebagai($lain)->postJson(self::API, $data)
             ->assertStatus(422)
-            ->assertJsonPath('errors.id_enrollment_mk.0', 'Anda sudah mengampu mata kuliah ini di kelas tersebut.');
+            ->assertJsonPath('errors.id_mk.0', 'Anda sudah mengampu mata kuliah ini di kelas tersebut.');
 
         $this->assertDatabaseCount('enrollment_kelas_mata_kuliah', 1);
     }
@@ -275,7 +279,7 @@ class PengajaranTest extends TestCase
 
         $this->sebagai($saya)->putJson(self::API.'/'.$item->getKey(), [
             'id_enrollment_tingkat_kelas' => $rombelBaru->getKey(),
-            'id_enrollment_mk' => $mkBaru->getKey(),
+            'id_mk' => $mkBaru->id_mk,
         ])->assertOk()->assertJsonPath('status', 'success');
 
         $item->refresh();
@@ -293,7 +297,7 @@ class PengajaranTest extends TestCase
 
         $this->sebagai($saya)->putJson(self::API.'/'.$item->getKey(), [
             'id_enrollment_tingkat_kelas' => $rombel->getKey(),
-            'id_enrollment_mk' => $mk->getKey(),
+            'id_mk' => $mk->id_mk,
         ])->assertOk();
     }
 
@@ -307,7 +311,7 @@ class PengajaranTest extends TestCase
 
         $this->sebagai($saya)->putJson(self::API.'/'.$orangLain->getKey(), [
             'id_enrollment_tingkat_kelas' => $this->rombel(3, 'C')->getKey(),
-            'id_enrollment_mk' => $mk->getKey(),
+            'id_mk' => $mk->id_mk,
         ])->assertNotFound();
 
         $this->assertSame($rombel->getKey(), $orangLain->fresh()->id_enrollment_tingkat_kelas);
