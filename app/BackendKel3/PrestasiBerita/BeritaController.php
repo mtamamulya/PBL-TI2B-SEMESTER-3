@@ -83,37 +83,29 @@ class BeritaController extends Controller
 
     public function opsi(Request $request)
     {
-        try {
-            $user = $request->user();
-
-            $kegiatan = Kegiatan::untukPrestasi($user)
-                ->with('kategori')
-                ->orderBy('nama_kegiatan')
-                ->get()
-                ->map(function (Kegiatan $k) {
-                    return [
-                        'id' => $k->id_kegiatan,
-                        'nama' => $k->nama_kegiatan.' · '.($k->kategori?->nama_kategori ?? 'Umum'),
-                        'nama_kegiatan' => $k->nama_kegiatan,
-                        'kategori' => $k->kategori?->nama_kategori ?? 'Umum',
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Opsi form berita berhasil diambil.',
-                'data' => [
-                    'kegiatan' => $kegiatan,
-                ],
+        $user = $request->user();
+    
+        $kegiatan = Kegiatan::untukPrestasi($user)
+            ->with('kategori')
+            ->orderBy('nama_kegiatan')
+            ->get()
+            ->map(fn (Kegiatan $k) => [
+                'id' => $k->id_kegiatan,
+                'nama' => $k->nama_kegiatan . ' · ' . ($k->kategori?->nama_kategori ?? 'Umum'),
             ]);
-        } catch (\Exception $e) {
-            Log::error('Berita opsi error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal mengambil opsi.',
-            ], 500);
-        }
+    
+        // Return SEMUA kategori (master kategori Kel 1)
+        $kategori = \App\Models\Kategori::orderBy('nama_kategori')
+            ->get(['id_kategori', 'nama_kategori']);
+    
+        return response()->json([
+            'success' => true,
+            'message' => 'Opsi form berita berhasil diambil.',
+            'data' => [
+                'kegiatan' => $kegiatan,
+                'kategori' => $kategori,
+            ],
+        ]);
     }
 
     public function store(BeritaRequest $request)
@@ -151,8 +143,10 @@ class BeritaController extends Controller
             }
 
             // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
-                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
+            if ($validated['sumber'] === 'mandiri' && !empty($validated['kategori'])) {
+                // UBAH: Hapus ->where('kebutuhan', 'berita')
+                $kategori = \App\Models\Kategori::where('nama_kategori', $validated['kategori'])->first();
+
                 if ($kategori) {
                     $dataSimpan['id_kategori'] = $kategori->id_kategori;
                 }
@@ -193,6 +187,10 @@ class BeritaController extends Controller
             $berita = Berita::where('id_user', $request->user()->id_user)
                 ->with(['kegiatan.kategori', 'kategori'])
                 ->findOrFail($id);
+
+            $kategori = \App\Models\Kategori::where('kebutuhan', 'berita')
+                ->orderBy('nama_kategori')
+                ->get(['id_kategori', 'nama_kategori']);
 
             $kategoriNama = $berita->kategori?->nama_kategori
                 ?? $berita->kegiatan?->kategori?->nama_kategori
@@ -263,8 +261,10 @@ class BeritaController extends Controller
             }
 
             // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
-                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
+            if ($validated['sumber'] === 'mandiri' && !empty($validated['kategori'])) {
+                // UBAH: Hapus ->where('kebutuhan', 'berita')
+                $kategori = \App\Models\Kategori::where('nama_kategori', $validated['kategori'])->first();
+                
                 if ($kategori) {
                     $dataUpdate['id_kategori'] = $kategori->id_kategori;
                 }
