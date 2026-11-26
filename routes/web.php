@@ -11,6 +11,7 @@ use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\MahasiswaController;
 use App\Http\Controllers\PengajuanController;
 use App\Http\Middleware\MahasiswaOnly;
+use App\Support\ApiClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -79,6 +80,15 @@ Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
     Route::post('/pengajuan/dosen', [PengajuanController::class, 'storeDosen'])->name('pengajuan.dosen.store');
     Route::view('/pengajuan/dosen', 'dosen.pengajuan.dosen')->name('pengajuan.dosen');
     Route::view('/pengajuan/dosen/{id}', 'dosen.pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('pengajuan.dosen.show');
+    Route::get('/pengajuan/dosen/{id}/surat', function (int $id) {
+        $pdf = ApiClient::pengguna()->pdf("/dosen/pengajuan/{$id}/surat/pdf-final");
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="Surat-'.$id.'.pdf"',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    })->whereNumber('id')->name('pengajuan.dosen.surat');
     Route::view('/pengajuan/mahasiswa', 'pengajuan.mahasiswa')->name('pengajuan.mahasiswa');
     Route::view('/pengajuan/mahasiswa/{id}', 'dosen.pengajuan.show', ['asal' => 'mahasiswa'])->whereNumber('id')->name('pengajuan.mahasiswa.show');
 
