@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\BackendKel2\Workflow\HasWorkflow;
+use App\BackendKel2\Workflow\Workflowable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Berita extends Model
+class Berita extends Model implements Workflowable
 {
+    use HasWorkflow;
+
     public const STATUSES = ['draft', 'diajukan', 'direvisi', 'revisi', 'ditolak', 'publish'];
 
     protected $table = 'berita';
@@ -30,6 +34,16 @@ class Berita extends Model
     protected $casts = [
         'tanggal_publish' => 'datetime',
     ];
+
+    public static function workflowKey(): string
+    {
+        return 'berita';
+    }
+
+    public function workflowOwnerId(): int|string|null
+    {
+        return $this->id_user;
+    }
 
     public function kegiatan(): BelongsTo
     {
