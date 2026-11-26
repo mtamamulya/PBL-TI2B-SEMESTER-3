@@ -128,8 +128,8 @@ class DosenRoutesTest extends TestCase
     public function test_dosen_pengajuan_form_uses_dosen_store_route(): void
     {
         $roles = [];
-        foreach (['admin', 'kaprodi', 'dosen'] as $name) {
-            $role = DB::table('roles')->insertGetId(['nama_role' => $name], 'id_role');
+        foreach ([1 => 'admin', 2 => 'kaprodi', 3 => 'dosen'] as $role => $name) {
+            DB::table('roles')->insert(['id_role' => $role, 'nama_role' => $name]);
             $roles[$name] = User::factory()->create(['id_role' => $role, 'status' => true]);
         }
         $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Dosen'], 'id_jenis_kegiatan');
