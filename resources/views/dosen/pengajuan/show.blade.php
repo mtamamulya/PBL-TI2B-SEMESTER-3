@@ -19,7 +19,7 @@
             <h1 class="text-3xl font-bold tracking-tight">Detail Pengajuan</h1>
             <p class="text-2xl text-gray-400">Dashboard / Pengajuan / {{ $dosen ? 'Dosen' : 'Mahasiswa' }} / Detail</p>
         </div>
-        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route($dosen ? 'pengajuan.dosen' : 'pengajuan.mahasiswa') }}"
+        <a href="{{ $dosen ? route('pengajuan.dosen') : (url()->previous() !== url()->current() ? url()->previous() : route('pengajuan.mahasiswa')) }}"
            class="mt-2 flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
             Kembali
@@ -72,10 +72,16 @@
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
                     <div class="flex flex-col gap-2 px-4 pb-3">
-                        <label for="catatan-revisi" class="text-[15px]">Catatan revisi dari reviewer</label>
-                        <textarea id="catatan-revisi" rows="3" readonly x-model="catatanRevisiTerakhir"
-                                  class="min-h-20 w-full resize-none rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900"></textarea>
+                        <p class="text-[15px] font-medium">Catatan revisi dari reviewer</p>
+                        <p class="whitespace-pre-wrap break-words rounded-md bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900" x-text="catatanRevisiTerakhir"></p>
                     </div>
+                </section>
+            </template>
+
+            <template x-if="isDosen && !loading && statusSekarang === 'Draft'">
+                <section class="{{ $cardClass }}">
+                    <button type="button" @click="kirimPengajuan()" :disabled="submitting" class="rounded-lg bg-brand px-4 py-2 text-white">Ajukan ke admin</button>
+                    <p x-show="galat" x-text="galat" role="alert" class="text-sm text-red-600"></p>
                 </section>
             </template>
 
@@ -94,7 +100,7 @@
 
                         <p x-show="galat" x-cloak x-text="galat" role="alert" class="text-sm text-red-600"></p>
 
-                        <button type="button" x-on:click="ajukanUlang()" :disabled="submitting"
+                        <button type="button" x-on:click="kirimPengajuan()" :disabled="submitting"
                                 class="flex h-10 w-full cursor-pointer items-center justify-center rounded-md bg-brand text-base text-white hover:bg-blue-700 disabled:opacity-50">
                             <span x-text="submitting ? 'Mengirim...' : 'Ajukan kembali'"></span>
                         </button>
@@ -165,7 +171,7 @@
             },
 
             formatStatus(raw) {
-                if (!raw) return 'Diajukan';
+                if (!raw) return 'Draft';
                 return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
             },
 
@@ -221,16 +227,18 @@
                 .finally(() => { this.loading = false; });
             },
 
-            ajukanUlang() {
+            kirimPengajuan() {
+                if (this.submitting) return;
+                const aksi = this.statusSekarang === 'Direvisi' ? 'ajukan-ulang' : 'ajukan';
                 this.galat = '';
                 this.submitting = true;
 
-                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/ajukan-ulang`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/${aksi}`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
@@ -241,7 +249,7 @@
                 .then(async response => {
                     const result = await response.json();
                     if (!response.ok) {
-                        throw new Error(result.message || 'Gagal mengajukan ulang.');
+                        throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'Gagal mengirim pengajuan.');
                     }
                     return result;
                 })
@@ -249,7 +257,7 @@
                     if (result.status === 'success') {
                         this.kembali = true;
                         this.catatanPerbaikan = '';
-                        this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
+                        this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan dikirim', pesan: 'Menunggu review admin.' });
                         this.ambilTimeline(); // Muat ulang timeline terbaru dari database
                     }
                 })

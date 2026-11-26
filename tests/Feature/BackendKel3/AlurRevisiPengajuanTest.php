@@ -99,9 +99,6 @@ class AlurRevisiPengajuanTest extends TestCase
             'files' => [UploadedFile::fake()->create('surat_tugas_revisi.pdf', 50, 'application/pdf')],
         ])->assertCreated();
 
-        // Majukan waktu simulasi agar tanggal_status ajukan-ulang lebih baru dari status direvisi
-        $this->travel(2)->minutes();
-
         // 6. Dosen melakukan ajukan ulang dengan catatan perbaikan
         $this->postJson("/api/v1/dosen/pengajuan/{$kegiatan->id_kegiatan}/ajukan-ulang", [
             'catatan' => 'Surat tugas bertanda tangan sudah dilampirkan.',

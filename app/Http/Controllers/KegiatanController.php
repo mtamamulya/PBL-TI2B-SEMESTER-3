@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class KegiatanController extends Controller
 {
@@ -27,6 +29,8 @@ class KegiatanController extends Controller
             return [
                 'id' => $isDosen ? $k->getKey() : 'kegiatan-'.$k->getKey(),
                 'name' => $k->nama_kegiatan,
+                'peran' => (int) $k->id_user === (int) auth()->id() ? 'Ketua' : 'Anggota',
+                'editable' => $isDosen && $this->canEdit($k),
                 'type' => $k->kategori?->nama_kategori ?? '—',
                 'date' => $k->tanggal_mulai?->locale('id')->translatedFormat('d M Y') ?? '—',
                 'raw_date' => $k->tanggal_mulai?->toDateString() ?? '',
@@ -34,7 +38,7 @@ class KegiatanController extends Controller
                     'diajukan' => 'Diajukan',
                     'direview' => 'Direview',
                     'diterima' => 'Disetujui',
-                    'direvisi' => 'Perlu revisi',
+                    'direvisi' => $isDosen ? 'Direvisi' : 'Perlu revisi',
                     'ditolak' => 'Ditolak',
                     'selesai' => 'Selesai',
                     default => 'Tercatat',
@@ -86,6 +90,65 @@ class KegiatanController extends Controller
         ]);
     }
 
+    private function canEdit(Kegiatan $kegiatan): bool
+    {
+        return (int) $kegiatan->id_user === (int) auth()->id()
+            && in_array($kegiatan->statusTerkini?->status, [null, 'draft', 'direvisi', 'diajukan', 'direview'], true);
+    }
+
+    private function editableFields(Kegiatan $kegiatan)
+    {
+        return $kegiatan->kategori->isianKategori->filter(fn ($field) => $field->jumlah_isian === 1 && in_array($field->jenis_input, ['teks', 'angka', 'rupiah', 'tanggal'], true));
+    }
+
+    public function edit(int $id)
+    {
+        $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail', 'statusTerkini'])->findOrFail($id);
+        abort_unless($this->canEdit($kegiatan), 403);
+
+        return view('dosen.kegiatan.edit', ['kegiatan' => $kegiatan, 'fields' => $this->editableFields($kegiatan)]);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        DB::transaction(function () use ($request, $id) {
+            $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail'])->lockForUpdate()->findOrFail($id);
+            abort_unless($this->canEdit($kegiatan), 403);
+
+            $rules = ['nama_kegiatan' => ['required', 'string', 'max:255']];
+            $fields = $this->editableFields($kegiatan);
+            foreach ($fields as $field) {
+                $rules['detail.'.$field->getKey()] = ['sometimes', $field->aturan === 'NOT NULL' ? 'required' : 'nullable', match ($field->jenis_input) {
+                    'angka', 'rupiah' => 'numeric',
+                    'tanggal' => 'date_format:Y-m-d',
+                    default => 'string',
+                }];
+            }
+            $data = $request->validate($rules);
+            $kegiatan->update(['nama_kegiatan' => $data['nama_kegiatan']]);
+            foreach ($fields as $field) {
+                $key = $field->getKey();
+                if (! array_key_exists($key, $data['detail'] ?? [])) {
+                    continue;
+                }
+                $answer = $kegiatan->detail->firstWhere('id_isian_kategori', $key);
+                $value = $data['detail'][$key];
+                if ($value === null) {
+                    if ($answer?->dokumen()->exists()) {
+                        throw ValidationException::withMessages(['detail.'.$key => 'Isian yang terhubung ke dokumen tidak bisa dikosongkan.']);
+                    }
+                    if ($answer) {
+                        $answer->delete();
+                    }
+                } elseif (! $answer || $answer->isian !== (string) $value) {
+                    $kegiatan->detail()->updateOrCreate(['id_isian_kategori' => $key], ['isian' => (string) $value]);
+                }
+            }
+        });
+
+        return redirect()->route('dosen.kegiatan.show', $id)->with('success', 'Perubahan kegiatan berhasil disimpan.');
+    }
+
     public function show(Request $request, int $id)
     {
         $kegiatan = Kegiatan::untukUser($request->user())->with([
@@ -96,6 +159,7 @@ class KegiatanController extends Controller
         return view($request->routeIs('dosen.*') ? 'dosen.kegiatan.show' : 'kegiatan.show', [
             'id' => $kegiatan->getKey(),
             'catatan' => $kegiatan->statusTerkini?->catatan_revisi,
+            'editable' => $this->canEdit($kegiatan),
             'k' => [
                 'nama' => $kegiatan->nama_kegiatan,
                 'kategori' => $kegiatan->kategori?->nama_kategori ?? '—',

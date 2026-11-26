@@ -3,32 +3,17 @@
 @section('title', 'Profil')
 
 @section('content')
-@php
-    // Aktivitas per tab (tetap dipertahankan jika belum terhubung ke API aktivitas).
-    $aktivitas = [
-        'Penelitian' => [
-            ['judul' => 'Deteksi hoaks dengan machine learning',  'meta' => '2026 • Penelitian Terapan',       'peran' => 'Ketua'],
-            ['judul' => 'Analisis sentimen ulasan aplikasi',      'meta' => '2025 • Penelitian Dasar',         'peran' => 'Anggota'],
-            ['judul' => 'Sistem rekomendasi mata kuliah',         'meta' => '2025 • Penelitian Pengembangan',  'peran' => 'Anggota'],
-        ],
-        'Pengabdian' => [
-            ['judul' => 'Pelatihan Industri',                     'meta' => '2026 • Pengabdian Masyarakat',    'peran' => 'Ketua'],
-            ['judul' => 'Seminar Nasional AI',                    'meta' => '2025 • Pengabdian Masyarakat',    'peran' => 'Anggota'],
-        ],
-        'Pengajaran' => [
-            ['judul' => 'Kecerdasan Buatan',                      'meta' => '2025/2026 Ganjil • Kelas 2A',     'peran' => 'Pengampu'],
-            ['judul' => 'Sistem Basis Data',                      'meta' => '2025/2026 Genap • Kelas 3A',      'peran' => 'Pengampu'],
-        ],
-        'Kegiatan' => [
-            ['judul' => 'Kuliah Tamu',                            'meta' => '10 Juli 2026 • Pengajaran',       'peran' => 'Peserta'],
-        ],
-    ];
 
+@php
     $badge = 'rounded-full border border-blue-200 bg-blue-100 px-2.5 py-0.5 text-[13px] text-brand';
 @endphp
 
-<div x-data="profilDosen()" x-init="muatData()" class="flex flex-col gap-6">
-    {{-- Judul halaman + tombol kembali --}}
+<div x-data="profilDosenPage(@js(csrf_token()))"
+     x-init="muatData()"
+     x-on:profil-foto-diperbarui.window="sinkronkanFotoDariEvent($event.detail)"
+     class="flex flex-col gap-6">
+
+    {{-- Judul halaman + tombol --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
             <h1 class="text-3xl font-bold tracking-tight">Profil</h1>
@@ -40,62 +25,58 @@
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
                 Kembali
             </a>
+            <button type="button" x-on:click="bukaModalSandi()"
+                    class="flex h-11 cursor-pointer items-center gap-2 rounded-md bg-brand px-4 text-base font-medium text-white hover:bg-blue-700">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
+                Ubah Kata Sandi
+            </button>
         </div>
     </div>
 
-    {{-- Pesan sukses / error --}}
-    <template x-if="sukses">
-        <div role="status" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700" x-text="sukses"></div>
-    </template>
-    <template x-if="error">
-        <div role="alert" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" x-text="error"></div>
+    {{-- Notifikasi halaman --}}
+    <template x-if="pesanHalaman">
+        <div class="rounded-lg px-4 py-3 text-sm font-medium"
+             :class="tipePesanHalaman === 'sukses'
+                ? 'border border-green-200 bg-green-50 text-green-800'
+                : 'border border-red-200 bg-red-50 text-red-800'"
+             x-text="pesanHalaman"></div>
     </template>
 
     {{-- Kartu identitas --}}
     <section class="flex flex-col gap-8 rounded-lg bg-white p-5 shadow-sm">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-5">
-                {{-- Avatar dengan ikon pensil saat hover --}}
-                <div class="group relative size-[88px] shrink-0 overflow-hidden rounded-full">
-                    <template x-if="profil.foto_profil">
-                        <img :src="profil.foto_profil" :alt="profil.nama || 'Foto Profil'" class="size-full rounded-full object-cover">
-                    </template>
-                    <template x-if="!profil.foto_profil">
-                        <span class="flex size-full items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white"
-                              aria-hidden="true" x-text="inisial(profil.nama)"></span>
-                    </template>
+        <div class="flex items-center gap-5">
+            <div class="relative shrink-0">
+                <template x-if="urlFotoTampil">
+                    <img :src="urlFotoTampil"
+                         :alt="profil.nama ? 'Foto ' + profil.nama : 'Foto Profil'"
+                         class="size-[88px] rounded-full object-cover">
+                </template>
+                <template x-if="!urlFotoTampil">
+                    <span class="flex size-[88px] items-center justify-center rounded-full bg-red-600 text-3xl font-semibold text-white"
+                          aria-hidden="true"
+                          x-text="inisialNama(profil.nama)"></span>
+                </template>
 
-                    <button type="button"
-                            :disabled="mengupload"
-                            x-on:click="bukaPilihFoto()"
-                            title="Ganti foto profil"
-                            aria-label="Ganti foto profil"
-                            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-not-allowed">
-                        <template x-if="!mengupload">
-                            <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M12 20h9" />
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                            </svg>
-                        </template>
-                        <template x-if="mengupload">
-                            <span class="text-xs font-medium">...</span>
-                        </template>
-                    </button>
+                <input type="file"
+                       x-ref="inputFoto"
+                       accept="image/jpeg,image/png,image/webp"
+                       x-on:change="pilihFileFoto($event)"
+                       class="hidden">
 
-                    <input x-ref="inputFoto"
-                           type="file"
-                           accept="image/png,image/jpeg,image/jpg,image/webp"
-                           x-on:change="pilihFileUntukCrop($event)"
-                           class="hidden">
+                <button type="button"
+                        aria-label="Ganti foto profil"
+                        x-on:click="$refs.inputFoto.click()"
+                        class="absolute right-0 bottom-0 flex size-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-blue-200 text-brand hover:bg-blue-300">
+                    <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
+                </button>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+                <div class="flex flex-wrap items-center gap-4">
+                    <h2 class="text-2xl font-semibold" x-text="sedangMemuat ? 'Memuat...' : (profil.nama || '-')"></h2>
+                    <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">Aktif</span>
                 </div>
-
-                <div class="flex min-w-0 flex-col gap-1">
-                    <div class="flex flex-wrap items-center gap-4">
-                        <h2 class="text-2xl font-semibold" x-text="loading ? 'Memuat...' : (profil.nama || '-')"></h2>
-                        <span class="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[13px] text-green-700">Aktif</span>
-                    </div>
-                    <p class="text-xl text-gray-400" x-text="profil.nip ? `NIP ${profil.nip}` : 'NIP -'"></p>
-                </div>
+                <p class="text-xl text-gray-400" x-text="profil.nip ? 'NIP ' + profil.nip : '-'"></p>
             </div>
         </div>
 
@@ -110,7 +91,8 @@
             </div>
             <div class="flex min-w-0 flex-col gap-1.5">
                 <dt class="text-lg text-gray-400">Pangkat / golongan saat ini</dt>
-                <dd class="text-xl font-medium break-words" x-text="formatPangkatTerakhir()"></dd>
+                <dd class="text-xl font-medium break-words"
+                    x-text="profil.pangkat_terakhir ? `${profil.pangkat_terakhir.pangkat || '-'}, ${profil.pangkat_terakhir.golongan || '-'}` : 'Belum ada data'"></dd>
             </div>
             <div class="flex min-w-0 flex-col gap-1.5">
                 <dt class="text-lg text-gray-400">Akun login</dt>
@@ -134,17 +116,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-if="loading">
+                    <template x-if="!sedangMemuat && riwayatPangkat.length === 0">
                         <tr>
-                            <td colspan="4" class="px-2.5 py-4 text-center text-gray-400">Memuat riwayat pangkat...</td>
+                            <td colspan="4" class="px-2.5 py-4 text-center text-gray-500">Belum ada riwayat pangkat dan golongan.</td>
                         </tr>
                     </template>
-                    <template x-if="!loading && riwayat.length === 0">
-                        <tr>
-                            <td colspan="4" class="px-2.5 py-4 text-center text-gray-400">Belum ada data riwayat pangkat.</td>
-                        </tr>
-                    </template>
-                    <template x-for="(r, idx) in riwayat" :key="r.id_histori_pangkat_golongan ?? idx">
+
+                    <template x-for="(r, idx) in riwayatPangkat" :key="r.id_histori_pangkat_golongan ?? idx">
                         <tr class="border-b border-gray-300 last:border-b-0">
                             <td class="px-2.5 py-3">
                                 <span class="flex flex-wrap items-center gap-2">
@@ -156,7 +134,7 @@
                             </td>
                             <td class="px-2.5 py-3" x-text="r.golongan || '-'"></td>
                             <td class="px-2.5 py-3" x-text="r.nomor_sk || '-'"></td>
-                            <td class="px-2.5 py-3" x-text="formatTanggal(r.tanggal_sk)"></td>
+                            <td class="px-2.5 py-3" x-text="r.tanggal_sk || '-'"></td>
                         </tr>
                     </template>
                 </tbody>
@@ -164,151 +142,263 @@
         </div>
     </section>
 
-    {{-- Aktivitas dosen: tab berpindah dengan Alpine.js --}}
-    <section class="flex flex-col gap-6 rounded-lg bg-white p-5 shadow-sm"
-            x-data="{ tab: 'Penelitian', data: @js($aktivitas) }">
-        <h2 class="text-2xl font-medium">Aktivitas Dosen</h2>
-
-        <div class="w-full border-b border-gray-200">
-            <div role="tablist" aria-label="Jenis aktivitas"
-                class="flex overflow-x-auto whitespace-nowrap gap-4 no-scrollbar">
-                @foreach (array_keys($aktivitas) as $nama)
-                    <button type="button" role="tab" id="tab-{{ $nama }}"
-                            x-on:click="tab = '{{ $nama }}'"
-                            :aria-selected="tab === '{{ $nama }}'"
-                            :class="tab === '{{ $nama }}' ? 'border-brand text-gray-900 font-medium' : 'border-transparent text-gray-400 hover:text-gray-700'"
-                            class="-mb-px flex shrink-0 cursor-pointer items-center gap-2 border-b-2 pb-3 pt-1 text-sm transition-colors">
-                        <span>{{ $nama }}</span>
-
-                        <span x-show="tab === '{{ $nama }}'" x-cloak
-                            class="flex size-5 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white"
-                            x-text="data['{{ $nama }}'].length"></span>
-                    </button>
-                @endforeach
-            </div>
-        </div>
-
-        <ul role="tabpanel" :aria-labelledby="`tab-${tab}`" class="flex flex-col">
-            <template x-for="(a, i) in data[tab]" :key="tab + i">
-                <li class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3.5 last:border-b-0">
-                    <div class="flex min-w-0 flex-col gap-0.5">
-                        <span class="truncate text-[17px]" x-text="a.judul"></span>
-                        <span class="text-sm text-gray-500" x-text="a.meta"></span>
-                    </div>
-                    <span class="{{ $badge }} shrink-0" x-text="a.peran"></span>
-                </li>
-            </template>
-        </ul>
-    </section>
-
-    {{-- Modal Crop & Zoom Foto Profil --}}
+    {{-- MODAL CROP & ZOOM FOTO PROFIL --}}
     <div x-show="modalCropTerbuka"
          x-cloak
          x-on:keydown.escape.window="tutupModalCrop()"
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
          role="dialog"
          aria-modal="true"
          aria-labelledby="judul-modal-crop">
-        <div class="flex w-full max-w-md flex-col gap-4 rounded-xl bg-white p-5 shadow-xl" x-on:click.stop>
-            <div class="flex items-center justify-between border-b border-gray-200 pb-3">
-                <h3 id="judul-modal-crop" class="text-lg font-semibold text-gray-900">Atur & Crop Foto Profil</h3>
+        <div class="flex w-full max-w-md flex-col gap-4 rounded-xl bg-white p-6 shadow-xl" x-on:click.stop>
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h2 id="judul-modal-crop" class="text-2xl font-medium">Ubah foto profil</h2>
+                    <p class="text-sm text-gray-400">Geser gambar untuk mengatur posisi, lalu zoom in / zoom out.</p>
+                </div>
                 <button type="button"
                         x-on:click="tutupModalCrop()"
-                        class="cursor-pointer rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                        aria-label="Tutup modal">
-                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        aria-label="Tutup"
+                        class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-gray-100">
+                    <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
                 </button>
             </div>
 
-            <p class="text-xs text-gray-500">Geser gambar untuk mengatur posisi, lalu gunakan zoom in / zoom out sesuai area lingkaran.</p>
+            <template x-if="pesanErrorCrop">
+                <p role="alert" class="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-sm text-red-600" x-text="pesanErrorCrop"></p>
+            </template>
 
-            {{-- Area kanvas crop --}}
-            <div class="relative mx-auto flex size-[280px] items-center justify-center overflow-hidden rounded-lg bg-gray-900 select-none">
+            <div class="flex justify-center py-1">
                 <canvas x-ref="canvasCrop"
-                        width="280"
-                        height="280"
-                        x-on:pointerdown="mulaiGeser($event)"
-                        x-on:pointermove="geserGambar($event)"
-                        x-on:pointerup="selesaiGeser()"
-                        x-on:pointercancel="selesaiGeser()"
+                        width="240"
+                        height="240"
+                        x-on:mousedown="mulaiGeser($event)"
+                        x-on:mousemove="geserGambar($event)"
+                        x-on:mouseup="selesaiGeser()"
+                        x-on:mouseleave="selesaiGeser()"
+                        x-on:touchstart.prevent="mulaiGeser($event)"
+                        x-on:touchmove.prevent="geserGambar($event)"
+                        x-on:touchend="selesaiGeser()"
                         x-on:wheel.prevent="zoomDenganWheel($event)"
-                        class="size-[280px] cursor-grab active:cursor-grabbing touch-none"></canvas>
-
-                {{-- Panduan lingkaran preview crop --}}
-                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div class="size-[220px] rounded-full border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"></div>
-                </div>
+                        class="cursor-grab rounded-full border-2 border-brand bg-gray-900 active:cursor-grabbing"></canvas>
             </div>
 
-            {{-- Kontrol Zoom In / Zoom Out --}}
-            <div class="flex flex-col gap-2">
-                <div class="flex items-center justify-between text-xs font-medium text-gray-600">
-                    <span>Zoom</span>
-                    <span x-text="`${Math.round(zoom * 100)}%`"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button type="button"
-                            x-on:click="ubahZoom(-0.15)"
-                            title="Zoom Out"
-                            aria-label="Zoom Out"
-                            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
-                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/></svg>
-                    </button>
-
-                    <input type="range"
-                           min="1"
-                           max="3"
-                           step="0.05"
-                           x-model.number="zoom"
-                           x-on:input="terapkanZoom()"
-                           aria-label="Tingkat zoom"
-                           class="h-2 w-full cursor-pointer accent-brand">
-
-                    <button type="button"
-                            x-on:click="ubahZoom(0.15)"
-                            title="Zoom In"
-                            aria-label="Zoom In"
-                            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
-                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
-                    </button>
-
-                    <button type="button"
-                            x-on:click="resetCrop()"
-                            class="ml-1 shrink-0 cursor-pointer rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-                        Reset
-                    </button>
-                </div>
-            </div>
-
-            {{-- Tombol aksi modal --}}
-            <div class="flex items-center justify-end gap-2.5 border-t border-gray-200 pt-3">
+            <div class="flex items-center justify-center gap-3">
                 <button type="button"
-                        :disabled="mengupload"
+                        x-on:click="ubahZoom(-0.15)"
+                        class="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Zoom Out (-)
+                </button>
+                <span class="min-w-14 text-center text-sm font-semibold text-gray-700"
+                      x-text="Math.round(skalaZoom * 100) + '%'"></span>
+                <button type="button"
+                        x-on:click="ubahZoom(0.15)"
+                        class="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Zoom In (+)
+                </button>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button"
                         x-on:click="tutupModalCrop()"
-                        class="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50">
+                        :disabled="sedangMenyimpanFoto"
+                        class="h-11 cursor-pointer rounded-lg border border-red-500 bg-red-500 px-5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50">
                     Batal
                 </button>
                 <button type="button"
-                        :disabled="mengupload"
                         x-on:click="simpanHasilCrop()"
-                        class="cursor-pointer rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50">
-                    <span x-show="!mengupload">Simpan Foto</span>
-                    <span x-show="mengupload" x-cloak>Mengunggah...</span>
+                        :disabled="sedangMenyimpanFoto"
+                        class="h-11 cursor-pointer rounded-lg bg-brand px-5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <span x-text="sedangMenyimpanFoto ? 'Menyimpan...' : 'Simpan foto'"></span>
                 </button>
             </div>
         </div>
     </div>
+
+    {{-- MODAL UBAH KATA SANDI --}}
+    <div x-show="modalSandiTerbuka"
+         x-cloak
+         x-on:keydown.escape.window="tutupModalSandi()"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+
+        <form x-ref="formSandi"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Ubah Kata Sandi"
+              method="POST"
+              autocomplete="off"
+              x-on:submit.prevent="langkahSandi === 1 ? (bisaKirimOtp && kirimOtp()) : (bisaSimpanSandi && simpanSandi())"
+              class="grid max-h-full w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-2xl bg-white shadow-2xl md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+
+            {{-- KIRI --}}
+            <div class="flex flex-col justify-between gap-10 bg-blue-50 p-6 sm:p-8">
+                <div class="flex flex-col gap-8">
+                    <div class="flex flex-col gap-2">
+                        <p class="text-sm font-medium tracking-[0.2em] text-[#02215c] uppercase">Keamanan akun</p>
+                        <h2 class="text-3xl font-medium">Ubah Kata Sandi</h2>
+                    </div>
+
+                    <ol class="flex flex-col">
+                        <li class="flex gap-4">
+                            <div class="flex flex-col items-center">
+                                <span class="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-brand text-sm"
+                                      :class="langkahSandi > 1 ? 'bg-brand text-white' : 'bg-white text-brand'">
+                                    <span x-show="langkahSandi === 1">01</span>
+                                    <svg x-show="langkahSandi > 1" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                                </span>
+                                <span class="my-1 h-8 w-0.5 bg-brand"></span>
+                            </div>
+                            <div class="flex flex-col gap-1 pt-1.5">
+                                <span class="text-lg font-medium">Kata sandi baru</span>
+                                <span class="text-base">Buat kata sandi yang kuat</span>
+                            </div>
+                        </li>
+                        <li class="flex gap-4">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-full border-2 bg-white text-sm"
+                                  :class="langkahSandi === 2 ? 'border-brand text-brand' : 'border-gray-300 text-gray-500'">02</span>
+                            <div class="flex flex-col gap-1 pt-1.5" :class="langkahSandi === 2 ? '' : 'text-gray-400'">
+                                <span class="text-lg font-medium">Verifikasi OTP</span>
+                                <span class="text-base">Konfirmasi dengan kode dari email Anda.</span>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <svg class="mt-0.5 size-6 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.7-7 9.5-4.1-1.8-7-5.3-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>
+                    <p class="text-base">Kata sandi lama tidak diperlukan. Identitas Anda dipastikan lewat kode OTP.</p>
+                </div>
+            </div>
+
+            {{-- KANAN --}}
+            <div class="flex min-h-[420px] min-w-0 flex-col gap-5 p-6 sm:p-8">
+
+                {{-- LANGKAH 1 --}}
+                <div x-show="langkahSandi === 1" class="flex flex-1 flex-col gap-5">
+                    <div class="flex flex-col gap-2">
+                        <h3 class="text-3xl font-medium">Buat kata sandi baru</h3>
+                        <p class="text-base text-gray-400">Gunakan kata sandi yang berbeda dari sebelumnya dan belum pernah dipakai di tempat lain.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label for="sandi-baru" class="text-base font-medium">Kata sandi baru</label>
+                        <div class="relative">
+                            <input id="sandi-baru" name="password" x-ref="inputSandiBaru" x-model="sandiBaru"
+                                   :type="lihatSandi1 ? 'text' : 'password'" autocomplete="new-password"
+                                   placeholder="Masukkan kata sandi baru"
+                                   class="h-12 w-full rounded-lg border border-gray-200 bg-white pr-12 pl-4 text-base placeholder:text-gray-400">
+                            <button type="button" x-on:click="lihatSandi1 = !lihatSandi1"
+                                    :aria-label="lihatSandi1 ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'" :aria-pressed="lihatSandi1"
+                                    class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-gray-900 hover:bg-gray-100">
+                                <svg x-show="!lihatSandi1" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>
+                                <svg x-show="lihatSandi1" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-2" role="img" :aria-label="`Kekuatan kata sandi: ${skorSandi} dari 4`">
+                            <template x-for="n in 4" :key="n">
+                                <span class="h-1.5 rounded-full" :class="n <= skorSandi ? warnaSandi : 'bg-gray-200'"></span>
+                            </template>
+                        </div>
+
+                        <ul class="grid grid-cols-1 gap-x-6 gap-y-3 pt-2 sm:grid-cols-2">
+                            <template x-for="s in syaratSandi" :key="s.teks">
+                                <li class="flex items-center gap-3 text-base" :class="s.ok ? 'text-gray-900' : 'text-gray-400'">
+                                    <span class="flex size-6 shrink-0 items-center justify-center rounded-full border-2"
+                                          :class="s.ok ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300'">
+                                        <svg x-show="s.ok" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                                    </span>
+                                    <span x-text="s.teks"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label for="sandi-konfirmasi" class="text-base font-medium">Konfirmasi kata sandi baru</label>
+                        <div class="relative">
+                            <input id="sandi-konfirmasi" name="password_confirmation" x-model="konfirmasiSandi"
+                                   :type="lihatSandi2 ? 'text' : 'password'" autocomplete="new-password"
+                                   placeholder="Masukkan kata sandi baru"
+                                   class="h-12 w-full rounded-lg border border-gray-200 bg-white pr-12 pl-4 text-base placeholder:text-gray-400">
+                            <button type="button" x-on:click="lihatSandi2 = !lihatSandi2"
+                                    :aria-label="lihatSandi2 ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'" :aria-pressed="lihatSandi2"
+                                    class="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-gray-900 hover:bg-gray-100">
+                                <svg x-show="!lihatSandi2" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>
+                                <svg x-show="lihatSandi2" x-cloak class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <p x-show="konfirmasiSandi !== '' && !sandiCocok" x-cloak role="alert" class="text-sm text-red-600">Konfirmasi belum sama dengan kata sandi baru.</p>
+                    </div>
+
+                    <p class="text-base text-gray-400" x-text="`Kode OTP akan dikirim ke ${emailSamar}.`"></p>
+                </div>
+
+                {{-- LANGKAH 2 --}}
+                <div x-show="langkahSandi === 2" x-cloak class="flex flex-1 flex-col gap-5">
+                    <div class="flex flex-col gap-2">
+                        <h3 class="text-3xl font-medium">Masukkan kode OTP</h3>
+                        <p class="text-base text-gray-400" x-text="`Kami mengirim kode 6 digit ke ${emailSamar}. Kode berlaku 5 menit.`"></p>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <span id="label-otp" class="text-base font-medium">Kode OTP</span>
+                            <span class="text-base tabular-nums" :class="otpKedaluwarsa ? 'text-red-600' : ''" x-text="waktuOtp" aria-live="off"></span>
+                        </div>
+
+                        <div class="flex gap-2 sm:gap-3" role="group" aria-labelledby="label-otp">
+                            <template x-for="(d, i) in otpDigits" :key="i">
+                                <input :id="`otp-sandi-${i}`" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code"
+                                       :aria-label="`Digit ${i + 1}`" :value="d"
+                                       x-on:input="masukOtp($event, i)"
+                                       x-on:keydown.backspace="hapusOtp($event, i)"
+                                       x-on:paste.prevent="tempelOtp($event)"
+                                       :class="d ? 'border-brand' : 'border-gray-300 focus:border-brand'"
+                                       class="h-14 w-0 min-w-0 flex-1 rounded-xl border-2 bg-white text-center text-3xl font-medium sm:h-16">
+                            </template>
+                        </div>
+                        <input type="hidden" name="otp" :value="otpDigits.join('')">
+
+                        <p x-show="otpKedaluwarsa && !idOtp && !sandiSelesai" x-cloak role="alert" class="text-sm text-red-600">Kode sudah kedaluwarsa. Silakan kirim ulang kode.</p>
+
+                    </div>
+
+                    <div>
+                        <button type="button" x-on:click="kirimOtp()" :disabled="prosesSandi || sandiSelesai"
+                                class="cursor-pointer text-base text-brand hover:underline">Kirim ulang kode</button>
+                    </div>
+
+                    <p x-show="sandiSelesai" x-cloak role="status"
+                       class="rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-sm text-green-800">
+                        Kata sandi berhasil diubah.
+                    </p>
+                </div>
+
+                <p x-show="infoOtp" x-cloak role="status" class="text-sm" x-text="infoOtp"></p>
+                <div class="mt-auto flex flex-wrap items-center justify-end gap-3 pt-4">
+                    <button type="button" x-on:click="tutupModalSandi()"
+                            class="h-12 cursor-pointer rounded-lg bg-red-500 px-6 text-base text-white hover:bg-red-600" x-text="sandiSelesai ? 'Tutup' : 'Batal'"></button>
+
+                    <button x-show="langkahSandi === 1" type="submit" :disabled="!bisaKirimOtp"
+                            class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Kirim Kode OTP</button>
+                    <button x-show="langkahSandi === 2" x-cloak type="submit" :disabled="!bisaSimpanSandi"
+                            class="h-12 rounded-lg bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:hover:bg-gray-200">Simpan Kata Sandi</button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
-@endsection
 
 @push('scripts')
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('profilDosen', () => ({
-        loading: true,
-        mengupload: false,
-        error: '',
-        sukses: '',
+    Alpine.data('profilDosenPage', (csrfTokenBlade = '') => ({
+        csrfTokenBlade,
+        sedangMemuat: true,
+        sedangMenyimpanFoto: false,
+        pesanHalaman: '',
+        tipePesanHalaman: 'sukses',
         profil: {
             id_dosen: null,
             nama: '',
@@ -317,342 +407,380 @@ document.addEventListener('alpine:init', () => {
             foto_profil: null,
             pangkat_terakhir: null,
         },
-        riwayat: [],
+        riwayatPangkat: [],
+        urlFotoTampil: '',
 
-        // State modal crop & zoom
+        // Crop & Zoom
         modalCropTerbuka: false,
+        pesanErrorCrop: '',
         gambarSumber: null,
-        namaFileAsli: 'foto-profil.jpg',
-        mimeTipeOutput: 'image/jpeg',
-        zoom: 1,
+        mimeTipeAsli: 'image/jpeg',
+        skalaZoom: 1,
         offsetX: 0,
         offsetY: 0,
         sedangGeser: false,
-        startX: 0,
-        startY: 0,
-        canvasSize: 280,
-        cropDiameter: 220,
+        titikAwalX: 0,
+        titikAwalY: 0,
 
-        headers(isMultipart = false) {
-            const h = {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            };
+        // Modal Ubah Kata Sandi
+        modalSandiTerbuka: false,
+        langkahSandi: 1,
+        sandiBaru: '',
+        konfirmasiSandi: '',
+        lihatSandi1: false,
+        lihatSandi2: false,
+        otpDigits: ['', '', '', '', '', ''],
+        sisaOtp: 300,
+        timerOtp: null,
+        infoOtp: '',
+        prosesSandi: false,
+        idOtp: null,
+        sandiSelesai: false,
 
-            if (!isMultipart) {
-                h['Content-Type'] = 'application/json';
-            }
-
-            const csrfMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (csrfMeta) {
-                h['X-CSRF-TOKEN'] = csrfMeta;
-            } else {
-                const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-                if (match) {
-                    h['X-XSRF-TOKEN'] = decodeURIComponent(match[1]);
-                }
-            }
-
-            const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-            if (token) {
-                h['Authorization'] = `Bearer ${token}`;
-            }
-
-            return h;
+        get emailSamar() {
+            const email = this.profil.email || 'user@polines.ac.id';
+            const [nama, domain] = email.split('@');
+            if (!nama || !domain) return email;
+            return `${nama.slice(0, 1)}${'*'.repeat(11)}@${domain}`;
         },
 
+        get syaratSandi() {
+            return [
+                { teks: 'Minimal 8 karakter', ok: this.sandiBaru.length >= 8 },
+                { teks: 'Mengandung huruf',   ok: /[A-Za-z]/.test(this.sandiBaru) },
+                { teks: 'Mengandung angka',   ok: /\d/.test(this.sandiBaru) },
+                { teks: 'Mengandung simbol',  ok: /[^A-Za-z0-9]/.test(this.sandiBaru) },
+            ];
+        },
+        get skorSandi() { return this.syaratSandi.filter((s) => s.ok).length; },
+        get warnaSandi() { return ['', 'bg-red-500', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'][this.skorSandi]; },
+        get sandiCocok() { return this.konfirmasiSandi !== '' && this.konfirmasiSandi === this.sandiBaru; },
+        get bisaKirimOtp() { return !this.prosesSandi && this.skorSandi === 4 && this.sandiCocok; },
+        get waktuOtp() {
+            const m = String(Math.floor(this.sisaOtp / 60)).padStart(2, '0');
+            const s = String(this.sisaOtp % 60).padStart(2, '0');
+            return `${m}:${s}`;
+        },
+        get otpKedaluwarsa() { return this.sisaOtp === 0; },
+        get bisaSimpanSandi() { return !this.prosesSandi && this.otpDigits.every((d) => d !== '') && (this.idOtp !== null || !this.otpKedaluwarsa) && !this.sandiSelesai; },
+
         async muatData() {
-            this.loading = true;
-            this.error = '';
+            this.sedangMemuat = true;
+            this.pesanHalaman = '';
 
             try {
                 const [resProfil, resRiwayat] = await Promise.all([
                     fetch('/api/v1/dosen/profil', {
-                        headers: this.headers(false),
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                         credentials: 'same-origin',
                     }),
                     fetch('/api/v1/dosen/riwayat-pangkat', {
-                        headers: this.headers(false),
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                         credentials: 'same-origin',
                     }),
                 ]);
 
-                const jsonProfil = await resProfil.json().catch(() => ({}));
-                const jsonRiwayat = await resRiwayat.json().catch(() => ({}));
+                const dataProfil = await resProfil.json().catch(() => ({}));
+                const dataRiwayat = await resRiwayat.json().catch(() => ({}));
 
-                if (!resProfil.ok) {
-                    throw new Error(jsonProfil.message || `Gagal memuat profil (${resProfil.status})`);
-                }
-                if (!resRiwayat.ok) {
-                    throw new Error(jsonRiwayat.message || `Gagal memuat riwayat pangkat (${resRiwayat.status})`);
+                if (!resProfil.ok || dataProfil.success === false) {
+                    throw new Error(dataProfil.message || 'Gagal memuat data profil dosen.');
                 }
 
-                this.profil = jsonProfil.data ?? jsonProfil;
-                this.riwayat = Array.isArray(jsonRiwayat.data)
-                    ? jsonRiwayat.data
-                    : (Array.isArray(jsonRiwayat) ? jsonRiwayat : []);
-            } catch (err) {
-                this.error = err.message || 'Terjadi kesalahan saat mengambil data dari API.';
+                this.profil = dataProfil.data ?? this.profil;
+                this.riwayatPangkat = Array.isArray(dataRiwayat.data) ? dataRiwayat.data : [];
+                this.urlFotoTampil = this.tambahCacheBust(this.profil.foto_profil);
+            } catch (error) {
+                this.tampilkanPesanHalaman('error', error.message || 'Terjadi kesalahan saat memuat profil.');
             } finally {
-                this.loading = false;
+                this.sedangMemuat = false;
             }
         },
 
-        bukaPilihFoto() {
-            this.error = '';
-            this.sukses = '';
-            this.$refs.inputFoto?.click();
+        tampilkanPesanHalaman(tipe, pesan) {
+            this.tipePesanHalaman = tipe;
+            this.pesanHalaman = pesan;
         },
 
-        pilihFileUntukCrop(event) {
-            const file = event.target.files?.[0] || null;
+        tambahCacheBust(url) {
+            if (!url) return '';
+            const sep = url.includes('?') ? '&' : '?';
+            return `${url}${sep}v=${Date.now()}`;
+        },
+
+        sinkronkanFotoDariEvent(detail) {
+            if (detail?.foto_profil) {
+                this.profil.foto_profil = detail.foto_profil;
+                this.urlFotoTampil = this.tambahCacheBust(detail.foto_profil);
+            }
+        },
+
+        inisialNama(nama) {
+            if (!nama) return 'DS';
+            return nama.trim().split(/\s+/).slice(0, 2).map((b) => b[0]?.toUpperCase() || '').join('');
+        },
+
+        pilihFileFoto(event) {
+            const file = event.target.files?.[0];
             if (!file) return;
 
-            const tipeValid = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-            if (!tipeValid.includes(file.type)) {
-                this.error = 'Format foto profil harus jpg, jpeg, png, atau webp.';
+            this.pesanErrorCrop = '';
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                this.tampilkanPesanHalaman('error', 'Format file harus JPG, JPEG, PNG, atau WEBP.');
                 event.target.value = '';
                 return;
             }
 
             if (file.size > 2 * 1024 * 1024) {
-                this.error = 'Ukuran foto maksimal 2 MB.';
+                this.tampilkanPesanHalaman('error', 'Ukuran file maksimal 2 MB.');
                 event.target.value = '';
                 return;
             }
 
-            this.namaFileAsli = file.name;
-            this.mimeTipeOutput = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-
+            this.mimeTipeAsli = file.type;
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
                     this.gambarSumber = img;
+                    this.skalaZoom = 1;
+                    this.offsetX = 0;
+                    this.offsetY = 0;
                     this.modalCropTerbuka = true;
-                    this.$nextTick(() => {
-                        this.resetCrop();
-                    });
+                    this.$nextTick(() => this.gambarKeCanvas());
                 };
-                img.src = e.target?.result;
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
-
-            event.target.value = '';
         },
 
-        resetCrop() {
-            this.zoom = 1;
-            this.offsetX = 0;
-            this.offsetY = 0;
-            this.gambarCanvas();
+        tutupModalCrop() {
+            this.modalCropTerbuka = false;
+            this.sedangGeser = false;
+            this.pesanErrorCrop = '';
+            if (this.$refs.inputFoto) {
+                this.$refs.inputFoto.value = '';
+            }
         },
 
         ubahZoom(delta) {
-            const nilaiBaru = Math.min(3, Math.max(1, Number((this.zoom + delta).toFixed(2))));
-            this.zoom = nilaiBaru;
-            this.batasiOffset();
-            this.gambarCanvas();
-        },
-
-        terapkanZoom() {
-            this.zoom = Math.min(3, Math.max(1, Number(this.zoom) || 1));
-            this.batasiOffset();
-            this.gambarCanvas();
+            this.skalaZoom = Math.min(3, Math.max(0.5, Number((this.skalaZoom + delta).toFixed(2))));
+            this.gambarKeCanvas();
         },
 
         zoomDenganWheel(event) {
-            const delta = event.deltaY < 0 ? 0.1 : -0.1;
-            this.ubahZoom(delta);
+            this.ubahZoom(event.deltaY < 0 ? 0.1 : -0.1);
         },
 
         mulaiGeser(event) {
             this.sedangGeser = true;
-            this.startX = event.clientX - this.offsetX;
-            this.startY = event.clientY - this.offsetY;
-            event.currentTarget.setPointerCapture?.(event.pointerId);
+            const titik = this.ambilKoordinat(event);
+            this.titikAwalX = titik.x - this.offsetX;
+            this.titikAwalY = titik.y - this.offsetY;
         },
 
         geserGambar(event) {
             if (!this.sedangGeser) return;
-            this.offsetX = event.clientX - this.startX;
-            this.offsetY = event.clientY - this.startY;
-            this.batasiOffset();
-            this.gambarCanvas();
+            const titik = this.ambilKoordinat(event);
+            this.offsetX = titik.x - this.titikAwalX;
+            this.offsetY = titik.y - this.titikAwalY;
+            this.gambarKeCanvas();
         },
 
         selesaiGeser() {
             this.sedangGeser = false;
         },
 
-        hitungDimensiDasar() {
-            if (!this.gambarSumber) {
-                return { baseWidth: this.cropDiameter, baseHeight: this.cropDiameter };
+        ambilKoordinat(event) {
+            if (event.touches && event.touches.length > 0) {
+                return { x: event.touches[0].clientX, y: event.touches[0].clientY };
             }
-
-            const rasioGambar = this.gambarSumber.width / this.gambarSumber.height;
-            if (rasioGambar >= 1) {
-                return {
-                    baseHeight: this.cropDiameter,
-                    baseWidth: this.cropDiameter * rasioGambar,
-                };
-            }
-
-            return {
-                baseWidth: this.cropDiameter,
-                baseHeight: this.cropDiameter / rasioGambar,
-            };
+            return { x: event.clientX, y: event.clientY };
         },
 
-        batasiOffset() {
-            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
-            const scaledW = baseWidth * this.zoom;
-            const scaledH = baseHeight * this.zoom;
-
-            const maxOffsetX = Math.max(0, (scaledW - this.cropDiameter) / 2);
-            const maxOffsetY = Math.max(0, (scaledH - this.cropDiameter) / 2);
-
-            this.offsetX = Math.min(maxOffsetX, Math.max(-maxOffsetX, this.offsetX));
-            this.offsetY = Math.min(maxOffsetY, Math.max(-maxOffsetY, this.offsetY));
-        },
-
-        gambarCanvas() {
+        gambarKeCanvas() {
             const canvas = this.$refs.canvasCrop;
             if (!canvas || !this.gambarSumber) return;
 
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, this.canvasSize, this.canvasSize);
+            const ukuran = canvas.width;
+            ctx.clearRect(0, 0, ukuran, ukuran);
 
-            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
-            const scaledW = baseWidth * this.zoom;
-            const scaledH = baseHeight * this.zoom;
+            const rasio = Math.max(ukuran / this.gambarSumber.width, ukuran / this.gambarSumber.height);
+            const lebar = this.gambarSumber.width * rasio * this.skalaZoom;
+            const tinggi = this.gambarSumber.height * rasio * this.skalaZoom;
+            const x = (ukuran - lebar) / 2 + this.offsetX;
+            const y = (ukuran - tinggi) / 2 + this.offsetY;
 
-            const drawX = (this.canvasSize - scaledW) / 2 + this.offsetX;
-            const drawY = (this.canvasSize - scaledH) / 2 + this.offsetY;
-
-            ctx.drawImage(this.gambarSumber, drawX, drawY, scaledW, scaledH);
-        },
-
-        tutupModalCrop() {
-            if (this.mengupload) return;
-            this.modalCropTerbuka = false;
-            this.gambarSumber = null;
-            this.sedangGeser = false;
+            ctx.drawImage(this.gambarSumber, x, y, lebar, tinggi);
         },
 
         async simpanHasilCrop() {
-            if (!this.gambarSumber || this.mengupload) return;
+            const canvas = this.$refs.canvasCrop;
+            if (!canvas || this.sedangMenyimpanFoto) return;
 
-            const outputSize = 600;
-            const canvasHasil = document.createElement('canvas');
-            canvasHasil.width = outputSize;
-            canvasHasil.height = outputSize;
-
-            const ctx = canvasHasil.getContext('2d');
-            const skalaOutput = outputSize / this.cropDiameter;
-            const { baseWidth, baseHeight } = this.hitungDimensiDasar();
-
-            const scaledW = baseWidth * this.zoom * skalaOutput;
-            const scaledH = baseHeight * this.zoom * skalaOutput;
-            const drawX = (outputSize - scaledW) / 2 + (this.offsetX * skalaOutput);
-            const drawY = (outputSize - scaledH) / 2 + (this.offsetY * skalaOutput);
-
-            ctx.drawImage(this.gambarSumber, drawX, drawY, scaledW, scaledH);
-
-            const blob = await new Promise((resolve) => {
-                canvasHasil.toBlob(resolve, this.mimeTipeOutput, 0.9);
-            });
-
-            if (!blob) {
-                this.error = 'Gagal memproses hasil crop foto.';
-                return;
-            }
-
-            if (blob.size > 2 * 1024 * 1024) {
-                this.error = 'Hasil crop melebihi batas ukuran 2 MB. Coba perkecil zoom atau pilih foto lebih ringan.';
-                return;
-            }
-
-            const ekstensi = this.mimeTipeOutput === 'image/png' ? 'png' : 'jpg';
-            const namaBersih = this.namaFileAsli.replace(/\.[^/.]+$/, '') || 'foto-profil';
-            const fileCrop = new File([blob], `${namaBersih}.${ekstensi}`, { type: this.mimeTipeOutput });
-
-            this.mengupload = true;
-            this.error = '';
-            this.sukses = '';
+            this.sedangMenyimpanFoto = true;
+            this.pesanErrorCrop = '';
 
             try {
-                const fd = new FormData();
-                fd.append('foto_profil', fileCrop);
-                fd.append('_method', 'PATCH');
+                const mimeOutput = ['image/jpeg', 'image/png', 'image/webp'].includes(this.mimeTipeAsli)
+                    ? this.mimeTipeAsli
+                    : 'image/jpeg';
+                const ekstensi = mimeOutput === 'image/png' ? 'png' : (mimeOutput === 'image/webp' ? 'webp' : 'jpg');
 
-                const res = await fetch('/api/v1/dosen/profil', {
-                    method: 'POST',
-                    headers: this.headers(true),
-                    credentials: 'same-origin',
-                    body: fd,
-                });
-
-                const json = await res.json().catch(() => ({}));
-
-                if (!res.ok) {
-                    const pesanValidasi = json.errors
-                        ? Object.values(json.errors).flat().join(' ')
-                        : null;
-                    throw new Error(pesanValidasi || json.message || `Gagal memperbarui foto profil (${res.status})`);
+                const blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeOutput, 0.9));
+                if (!blob) {
+                    throw new Error('Gagal memproses hasil crop gambar.');
                 }
 
-                this.profil = json.data ?? json;
-                this.sinkronkanAvatarHeader(this.profil?.foto_profil);
-                this.sukses = json.message || 'Foto profil berhasil diperbarui.';
-                this.modalCropTerbuka = false;
-                this.gambarSumber = null;
-            } catch (err) {
-                this.error = err.message || 'Terjadi kesalahan saat mengunggah foto profil.';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    || this.csrfTokenBlade;
+
+                const formData = new FormData();
+                if (csrfToken) {
+                    formData.append('_token', csrfToken);
+                }
+                formData.append('_method', 'PATCH');
+                formData.append('foto_profil', blob, `foto-profil.${ekstensi}`);
+
+                const headers = {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                };
+                if (csrfToken) {
+                    headers['X-CSRF-TOKEN'] = csrfToken;
+                }
+
+                const response = await fetch('/api/v1/dosen/profil', {
+                    method: 'POST',
+                    headers,
+                    body: formData,
+                    credentials: 'same-origin',
+                });
+
+                const hasil = await response.json().catch(() => ({}));
+                if (!response.ok || hasil.success === false) {
+                    throw new Error(hasil.errors?.foto_profil?.[0] || hasil.message || `Gagal menyimpan foto profil (HTTP ${response.status}).`);
+                }
+
+                const fotoBaru = hasil.data?.foto_profil ?? this.profil.foto_profil;
+                this.profil = { ...this.profil, ...(hasil.data ?? {}), foto_profil: fotoBaru };
+                this.urlFotoTampil = this.tambahCacheBust(fotoBaru);
+
+                window.dispatchEvent(new CustomEvent('profil-foto-diperbarui', {
+                    detail: { foto_profil: this.urlFotoTampil },
+                }));
+
+                this.tutupModalCrop();
+                this.tampilkanPesanHalaman('sukses', hasil.message || 'Foto profil berhasil diperbarui.');
+            } catch (error) {
+                this.pesanErrorCrop = error.message || 'Gagal menyimpan foto profil.';
             } finally {
-                this.mengupload = false;
+                this.sedangMenyimpanFoto = false;
             }
         },
 
-        sinkronkanAvatarHeader(fotoUrl) {
-            if (!fotoUrl) return;
-            const cacheBustedUrl = `${fotoUrl}${fotoUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
-
-            document.querySelectorAll('header img').forEach((img) => {
-                if (img.closest('aside')) return;
-                const srcLower = (img.getAttribute('src') || '').toLowerCase();
-                if (srcLower.includes('logo') || srcLower.includes('ti')) return;
-                img.src = cacheBustedUrl;
+        // Modal Ubah Kata Sandi
+        bukaModalSandi() {
+            this.modalSandiTerbuka = true;
+            this.$nextTick(() => this.$refs.inputSandiBaru?.focus());
+        },
+        tutupModalSandi() {
+            if (this.prosesSandi) return;
+            this.idOtp = null;
+            this.modalSandiTerbuka = false;
+            clearInterval(this.timerOtp);
+            this.langkahSandi = 1;
+            this.sandiBaru = '';
+            this.konfirmasiSandi = '';
+            this.lihatSandi1 = false;
+            this.lihatSandi2 = false;
+            this.otpDigits = ['', '', '', '', '', ''];
+            this.sisaOtp = 300;
+            this.infoOtp = '';
+            this.sandiSelesai = false;
+        },
+        mulaiTimerOtp() {
+            clearInterval(this.timerOtp);
+            this.sisaOtp = 300;
+            this.timerOtp = setInterval(() => {
+                if (this.sisaOtp > 0) this.sisaOtp--;
+                if (this.sisaOtp === 0) clearInterval(this.timerOtp);
+            }, 1000);
+        },
+        async postSandi(langkah, payload = {}) {
+            const response = await fetch('/api/v1/dosen/profil/ganti-sandi/' + langkah, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfTokenBlade},
+                body: JSON.stringify(payload),
             });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.success) {
+                throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'Permintaan gagal. Silakan coba lagi.');
+            }
+            return result.data;
         },
-
-        inisial(nama) {
-            if (!nama) return 'DS';
-            return nama
-                .trim()
-                .split(/\s+/)
-                .slice(0, 2)
-                .map((bagian) => bagian[0]?.toUpperCase() || '')
-                .join('');
+        async kirimOtp() {
+            if (this.prosesSandi || this.sandiSelesai) return;
+            this.prosesSandi = true;
+            this.infoOtp = '';
+            try {
+                await this.postSandi('kirim-otp');
+                this.idOtp = null;
+                this.langkahSandi = 2;
+                this.otpDigits = ['', '', '', '', '', ''];
+                this.mulaiTimerOtp();
+                this.infoOtp = 'Kode OTP telah dikirim.';
+                this.$nextTick(() => document.getElementById('otp-sandi-0')?.focus());
+            } catch (error) {
+                this.infoOtp = error.message;
+            } finally {
+                this.prosesSandi = false;
+            }
         },
-
-        formatPangkatTerakhir() {
-            const pt = this.profil?.pangkat_terakhir;
-            if (!pt) return '-';
-            return pt.golongan ? `${pt.pangkat}, ${pt.golongan}` : (pt.pangkat || '-');
+        masukOtp(event, i) {
+            const digit = event.target.value.replace(/\D/g, '').slice(-1);
+            this.otpDigits[i] = digit;
+            event.target.value = digit;
+            if (digit && i < 5) document.getElementById(`otp-sandi-${i + 1}`)?.focus();
         },
-
-        formatTanggal(tgl) {
-            if (!tgl) return '-';
-            const tanggal = new Date(tgl);
-            if (Number.isNaN(tanggal.getTime())) return tgl;
-            return tanggal.toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-            });
+        hapusOtp(event, i) {
+            if (this.otpDigits[i] === '' && i > 0) {
+                this.otpDigits[i - 1] = '';
+                document.getElementById(`otp-sandi-${i - 1}`)?.focus();
+            }
+        },
+        tempelOtp(event) {
+            const angka = (event.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+            if (!angka) return;
+            angka.split('').forEach((d, i) => { this.otpDigits[i] = d; });
+            document.getElementById(`otp-sandi-${Math.min(angka.length, 5)}`)?.focus();
+        },
+        async simpanSandi() {
+            if (!this.bisaSimpanSandi) return;
+            this.prosesSandi = true;
+            this.infoOtp = '';
+            try {
+                if (this.idOtp === null) {
+                    const data = await this.postSandi('verifikasi', {otp: this.otpDigits.join('')});
+                    this.idOtp = data.otp_id;
+                }
+                await this.postSandi('simpan', {
+                    otp_id: this.idOtp, password: this.sandiBaru, password_confirmation: this.konfirmasiSandi,
+                });
+                clearInterval(this.timerOtp);
+                this.sandiBaru = '';
+                this.konfirmasiSandi = '';
+                this.sandiSelesai = true;
+            } catch (error) {
+                this.infoOtp = error.message;
+            } finally {
+                this.prosesSandi = false;
+            }
         },
     }));
 });
 </script>
 @endpush
+@endsection

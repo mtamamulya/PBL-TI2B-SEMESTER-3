@@ -95,8 +95,10 @@ class PengajaranTest extends TestCase
         $this->assertSame(url('/api/v1/pengajaran'), route('api.pengajaran.index'));
     }
 
-    public function test_web_pages_render_without_hitting_login(): void
+    public function test_web_pages_require_a_lecturer_session(): void
     {
+        $this->get(route('pengajaran.index'))->assertRedirect(route('login'));
+        $this->actingAs($this->dosen()->user);
         $this->get(route('pengajaran.index'))->assertOk()->assertSee('Tambah Pengajaran');
         $this->get(route('pengajaran.create'))->assertOk()->assertSee('Dokumen Pendukung')->assertSee('Tambah dokumen');
     }

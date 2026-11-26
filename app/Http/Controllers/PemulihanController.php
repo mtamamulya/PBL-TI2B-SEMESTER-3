@@ -13,6 +13,9 @@ class PemulihanController extends Controller
     /** Setelah OTP benar, waktu untuk mengisi dan menyimpan sandi baru (menit). */
     private const SANDI_BARU_MENIT = 7;
 
+    /** Masa berlaku kode OTP (menit); harus sama dengan sisi API. */
+    private const OTP_MENIT = 5;
+
     private const OTP_JEDA_KIRIM_DETIK = 60;
 
     public function show(Request $request)
@@ -25,16 +28,20 @@ class PemulihanController extends Controller
 
         // Langkah 3 hanya boleh tampil selama batas waktu pembuatan sandi baru belum habis.
         if ($step === 3 && ! $this->sesiSandiBaruMasihBerlaku()) {
-            session()->forget('pemulihan');
+            return $this->kembaliKeLangkahEmail('Waktu membuat kata sandi baru sudah habis. Minta kode OTP baru.');
+        }
 
-            return redirect()->route('password.request')
-                ->withErrors(['email' => 'Waktu membuat kata sandi baru sudah habis. Minta kode OTP baru.']);
+        // Langkah 2: kode OTP sudah lewat 5 menit -> kembali ke langkah 1 untuk meminta kode baru.
+        if ($step === 2 && $this->otpKedaluwarsa()) {
+            return $this->kembaliKeLangkahEmail('Kode OTP sudah kedaluwarsa. Silakan minta kode OTP baru.');
         }
 
         $data = [
             'step' => $step,
             'email' => session('pemulihan.email'),
             'batasMenit' => self::SANDI_BARU_MENIT,
+            'sisaOtpDetik' => $step === 2 ? $this->sisaDetik('pemulihan.otp_berlaku_sampai') : null,
+            'sisaSandiDetik' => $step === 3 ? $this->sisaDetik('pemulihan.berlaku_sampai') : null,
         ];
 
         $view = view('pemulihan', $data);
@@ -71,6 +78,7 @@ class PemulihanController extends Controller
                 'step' => 2,
                 'email' => $email,
                 'terakhir_kirim' => now()->timestamp,
+                'otp_berlaku_sampai' => now()->addMinutes(self::OTP_MENIT)->timestamp,
             ],
         ]);
 
@@ -102,7 +110,10 @@ class PemulihanController extends Controller
                 ->withErrors(['otp' => $e->getMessage()]);
         }
 
-        session(['pemulihan.terakhir_kirim' => now()->timestamp]);
+        session([
+            'pemulihan.terakhir_kirim' => now()->timestamp,
+            'pemulihan.otp_berlaku_sampai' => now()->addMinutes(self::OTP_MENIT)->timestamp,
+        ]);
 
         return redirect()->route('password.request')
             ->with('status', 'Jika email terdaftar, kode baru telah dikirim. Periksa kotak masuk atau folder spam.');
@@ -123,6 +134,11 @@ class PemulihanController extends Controller
             'otp.required' => 'Masukkan 6 digit kode OTP.',
             'otp.digits' => 'Kode OTP harus 6 digit angka.',
         ]);
+
+        // Kode sudah lewat masa berlakunya: jangan kirim ke API (tidak menghabiskan percobaan).
+        if ($this->otpKedaluwarsa()) {
+            return $this->kembaliKeLangkahEmail('Kode OTP sudah kedaluwarsa. Silakan minta kode OTP baru.');
+        }
 
         try {
             $hasil = ApiClient::publik()->post('/lupa-sandi/verifikasi', [
@@ -180,6 +196,32 @@ class PemulihanController extends Controller
         session(['pemulihan.step' => 4]);
 
         return redirect()->route('password.request');
+    }
+
+    private function otpKedaluwarsa(): bool
+    {
+        $batas = session('pemulihan.otp_berlaku_sampai');
+
+        // Sesi lama tanpa catatan waktu dianggap kedaluwarsa (lebih aman: pengguna diminta mulai dari awal).
+        return $batas === null || now()->timestamp > (int) $batas;
+    }
+
+    private function sisaDetik(string $kunciSesi): ?int
+    {
+        $batas = session($kunciSesi);
+
+        return $batas === null ? null : max(0, (int) $batas - now()->timestamp);
+    }
+
+    /** Hapus sesi pemulihan, kembali ke langkah 1 dengan email terisi dan pesan. */
+    private function kembaliKeLangkahEmail(string $pesan): RedirectResponse
+    {
+        $email = session('pemulihan.email');
+        session()->forget('pemulihan');
+
+        return redirect()->route('password.request')
+            ->withInput(['email' => $email])
+            ->withErrors(['email' => $pesan]);
     }
 
     private function sesiSandiBaruMasihBerlaku(): bool

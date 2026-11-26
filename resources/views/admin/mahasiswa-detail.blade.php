@@ -7,11 +7,12 @@
 @section('title', 'Detail Mahasiswa')
 
 @php
-    $mhsId     = $mahasiswa['id'] ?? request()->route('id');
-    $mahasiswa = $mahasiswa ?? [];
-    $academic  = $academic ?? [];
-    $history   = $history ?? [];
-    $kegiatan  = $kegiatan ?? [];
+    $mhsId      = $mahasiswa['id'] ?? request()->route('id');
+    $mahasiswa  = $mahasiswa ?? [];
+    $academic   = $academic ?? [];
+    $history    = $history ?? [];
+    $kegiatan   = $kegiatan ?? [];
+    $sudahLulus = ($mahasiswa['status'] ?? '') === 'Lulus';
 
     $tag        = 'inline-flex items-center rounded-lg border border-[#AAC8F8] bg-[#CDDEF9] px-2 py-0.5 text-xs font-medium leading-4 tracking-[-0.12px] text-[#2277FF]';
     $cardShadow = 'shadow-[1px_0_3px_rgba(0,0,0,0.02),5px_2px_6px_rgba(0,0,0,0.02)]';
@@ -36,14 +37,19 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6" /></svg>
             Kembali
         </a>
-        <a href="{{ route('admin.mahasiswa.edit', ['id' => $mhsId], false) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg>
-            Edit Mahasiswa
-        </a>
+        @unless ($sudahLulus)
+            <a href="{{ route('admin.mahasiswa.edit', ['id' => $mhsId], false) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#2277FF] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#FEFEFE] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg>
+                Edit Mahasiswa
+            </a>
+        @endunless
     </div>
 
     @if (session('status'))
         <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm font-medium text-[#4C7D08]" role="status">{{ session('status') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm font-medium text-[#E5484D]" role="alert">{{ session('error') }}</div>
     @endif
 
     {{-- Profil + informasi --}}
@@ -62,8 +68,10 @@
                     <span @class([
                         'rounded-lg border px-2 py-0.5 text-xs font-medium leading-4 tracking-[-0.12px]',
                         'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]' => ($mahasiswa['status'] ?? '') === 'Aktif',
+                        'border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4ED8]' => ($mahasiswa['status'] ?? '') === 'Skripsi/TA',
                         'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]' => ($mahasiswa['status'] ?? '') === 'Cuti',
-                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'] ?? '', ['Aktif', 'Cuti']),
+                        'border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]' => ($mahasiswa['status'] ?? '') === 'Drop Out',
+                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'] ?? '', ['Aktif', 'Skripsi/TA', 'Cuti', 'Drop Out']),
                     ])>{{ $mahasiswa['status'] ?? '-' }}</span>
                 </div>
                 <div class="text-base font-medium tracking-[-0.18px] text-[#A8A8A8]">NIM {{ $mahasiswa['nim'] ?? '-' }}</div>

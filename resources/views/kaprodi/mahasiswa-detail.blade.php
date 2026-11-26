@@ -55,10 +55,12 @@
                     <div class="text-xl font-semibold leading-6">{{ $mahasiswa['nama'] }}</div>
                     <span @class([
                         'rounded-lg border px-2 py-0.5 text-xs font-medium leading-4 tracking-[-0.12px]',
-                        'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]' => $mahasiswa['status'] === 'Aktif',
-                        'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]' => $mahasiswa['status'] === 'Cuti',
-                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'], ['Aktif', 'Cuti']),
-                    ])>{{ $mahasiswa['status'] }}</span>
+                        'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]' => ($mahasiswa['status'] ?? '') === 'Aktif',
+                        'border-[#BFDBFE] bg-[#DBEAFE] text-[#1D4ED8]' => ($mahasiswa['status'] ?? '') === 'Skripsi/TA',
+                        'border-[#FAD4A8] bg-[#FBE5CB] text-[#854700]' => ($mahasiswa['status'] ?? '') === 'Cuti',
+                        'border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]' => ($mahasiswa['status'] ?? '') === 'Drop Out',
+                        'border-[#E4E4E7] bg-[#EDEDF0] text-[#55555C]' => ! in_array($mahasiswa['status'] ?? '', ['Aktif', 'Skripsi/TA', 'Cuti', 'Drop Out']),
+                    ])>{{ $mahasiswa['status'] ?? '-' }}</span>
                 </div>
                 
                 {{-- Hanya NIM yang ditampilkan --}}
