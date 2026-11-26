@@ -32,14 +32,33 @@ class MahasiswaDashboardIdentityTest extends TestCase
         return User::findOrFail($id);
     }
 
+    private function createMahasiswaProfile(User $user, array $attributes = []): void
+    {
+        DB::table('mahasiswa')->insert(array_merge([
+            'id_user' => $user->getKey(),
+            'nim' => '2024'.substr(uniqid(), -8),
+            'nama' => 'Mahasiswa Profil DB',
+            'tahun_masuk' => 2024,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $attributes));
+    }
+
     public function test_dashboard_uses_authenticated_student_identity(): void
     {
-        $this->actingAs($this->student())->get(route('mahasiswa.dashboard'))
+        $student = $this->student();
+        $this->createMahasiswaProfile($student, [
+            'nim' => '4.33.25.1.11',
+            'nama' => 'Dashboard Identity DB',
+            'tahun_masuk' => 2025,
+        ]);
+
+        $this->actingAs($student)->get(route('mahasiswa.dashboard'))
             ->assertOk()
-            ->assertSee(config('mahasiswa.nama'))
+            ->assertSee('Dashboard Identity DB')
             ->assertSee('NIM:')
-            ->assertSee(config('mahasiswa.nim'))
-            ->assertSee('Angkatan '.config('mahasiswa.angkatan'))
+            ->assertSee('4.33.25.1.11')
+            ->assertSee('Angkatan 2025')
             ->assertDontSee('NIP:');
     }
 
@@ -172,16 +191,28 @@ class MahasiswaDashboardIdentityTest extends TestCase
 
     public function test_profile_and_header_show_the_logout_action(): void
     {
-        $this->actingAs($this->student())->get(route('mahasiswa.profil'))
+        $user = $this->student();
+        $this->createMahasiswaProfile($user, [
+            'nim' => '202443325115',
+            'nama' => 'Mahasiswa Profil Database',
+        ]);
+
+        $this->actingAs($user)->get(route('mahasiswa.profil'))
             ->assertOk()
             ->assertViewIs('mahasiswa.mahasiswa.profil')
-            ->assertSee(config('mahasiswa.nama'))
-            ->assertSee(config('mahasiswa.nim'))
+            ->assertSee('Mahasiswa Profil Database')
+            ->assertSee('202443325115')
+            ->assertSee('Angkatan 2024')
+            ->assertSee('Mahasiswa • NIM 202443325115')
+            ->assertDontSee('Arya Bima')
             ->assertSee('Keluar')
             ->assertSee('action="'.route('logout').'"', false);
 
         $this->get(route('mahasiswa.dashboard'))
             ->assertOk()
+            ->assertSee('Mahasiswa Profil Database')
+            ->assertSee('Mahasiswa • NIM 202443325115')
+            ->assertDontSee('Arya Bima')
             ->assertSee('action="'.route('logout').'"', false)
             ->assertSee('Keluar');
     }
@@ -190,6 +221,7 @@ class MahasiswaDashboardIdentityTest extends TestCase
     {
         $user = $this->student();
         $user->update(['email' => 'ivan.mahasiswa@example.test']);
+        $this->createMahasiswaProfile($user);
 
         $this->actingAs($user)
             ->get(route('mahasiswa.profil'))
@@ -199,19 +231,19 @@ class MahasiswaDashboardIdentityTest extends TestCase
             ->assertSee('Ubah email')
             ->assertSee('/api/v1/profil/ganti-email/kirim-otp', false)
             ->assertSee('/api/v1/profil/ganti-email/verifikasi', false)
-            ->assertSee('/api/v1/profil/ganti-sandi/kirim-otp', false)
-            ->assertSee('/api/v1/profil/ganti-sandi/verifikasi', false)
-            ->assertSee('/api/v1/profil/ganti-sandi/simpan', false)
+            ->assertSee(str_replace('/', '\\/', route('mahasiswa.profil.sandi.kirim-otp')), false)
+            ->assertSee(str_replace('/', '\\/', route('mahasiswa.profil.sandi.verifikasi')), false)
+            ->assertSee(str_replace('/', '\\/', route('mahasiswa.profil.sandi.simpan')), false)
             ->assertDontSee('alert(\'Kata sandi berhasil disimpan!\')', false);
     }
 
-    public function test_profile_shows_the_local_otp_recipient_for_the_designated_student(): void
+    public function test_profile_shows_the_effective_local_otp_recipient(): void
     {
         $user = $this->student();
         $user->update(['email' => 'student-original@test.local']);
         DB::table('mahasiswa')->insert([
             'id_user' => $user->getKey(),
-            'nim' => '43325111',
+            'nim' => '43325112',
             'nama' => 'Mahasiswa Tes',
             'tahun_masuk' => 2024,
             'created_at' => now(),

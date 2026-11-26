@@ -1,5 +1,6 @@
 <?php
 
+use App\BackendKel2\Mahasiswa\ProfilMahasiswaController;
 use App\BackendKel3\Dashboard\DosenDashboardController;
 use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
@@ -106,7 +107,18 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/mata-kuliah/semester-berjalan', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'berjalan')->name('mahasiswa.mata-kuliah.berjalan');
     Route::get('/mahasiswa/mata-kuliah/katalog', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'katalog')->name('mahasiswa.mata-kuliah.katalog');
     Route::get('/mahasiswa/mata-kuliah/riwayat', [MahasiswaController::class, 'mataKuliah'])->defaults('tab', 'semua')->name('mahasiswa.mata-kuliah.riwayat');
-    Route::view('/mahasiswa/profil', 'mahasiswa.mahasiswa.profil')->name('mahasiswa.profil');
+    Route::get('/mahasiswa/profil', [ProfilMahasiswaController::class, 'show'])->name('mahasiswa.profil');
+    Route::prefix('/mahasiswa/profil/sandi')->name('mahasiswa.profil.sandi.')->group(function () {
+        Route::post('/kirim-otp', [ProfilMahasiswaController::class, 'kirimOtp'])
+            ->middleware('throttle:5,1')
+            ->name('kirim-otp');
+        Route::post('/verifikasi', [ProfilMahasiswaController::class, 'verifikasi'])
+            ->middleware('throttle:10,1')
+            ->name('verifikasi');
+        Route::post('/simpan', [ProfilMahasiswaController::class, 'simpan'])
+            ->middleware('throttle:10,1')
+            ->name('simpan');
+    });
     Route::prefix('mahasiswa')->name('mahasiswa.')->group(function () {
         Route::get('/prestasi', [MahasiswaController::class, 'prestasi'])
             ->name('prestasi');
