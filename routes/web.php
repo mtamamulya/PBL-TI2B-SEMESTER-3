@@ -43,6 +43,7 @@ Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
     Route::get('/dosen/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('dosen.kegiatan.show');
     Route::get('/dosen/kegiatan/{id}/edit', [KegiatanController::class, 'edit'])->whereNumber('id')->name('dosen.kegiatan.edit');
     Route::put('/dosen/kegiatan/{id}', [KegiatanController::class, 'update'])->whereNumber('id')->name('dosen.kegiatan.update');
+    Route::put('/dosen/kegiatan/{id}/dokumen/{dokumenId}', [KegiatanController::class, 'gantiLampiran'])->whereNumber(['id', 'dokumenId'])->name('dosen.kegiatan.dokumen.update');
 
     Route::view('/prestasi', 'dosen.prestasi.index')->name('prestasi.index');
     Route::view('/prestasi/create', 'dosen.prestasi.create')->name('prestasi.create');

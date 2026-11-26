@@ -223,6 +223,24 @@ class DosenRoutesTest extends TestCase
         $id = DB::table('kegiatan')->where('nama_kegiatan', 'Seminar Integrasi')->value('id_kegiatan');
         $this->assertNotNull($id);
         $response->assertRedirect(route('pengajuan.dosen.show', $id));
+        $dokumen = DB::table('dokumen')->where('id_kegiatan', $id)->sole();
+        $replace = route('dosen.kegiatan.dokumen.update', [$id, $dokumen->id_dokumen]);
+        $this->get(route('dosen.kegiatan.show', $id))->assertDontSee('Perbaiki kegiatan');
+        $this->get(route('dosen.kegiatan.edit', $id))->assertForbidden();
+        $this->put($replace, ['file' => UploadedFile::fake()->create('baru.pdf', 10, 'application/pdf')])->assertForbidden();
+        $this->actingAs($roles['admin'], 'sanctum')->postJson("/api/v1/admin/pengajuan/$id/keputusan", [
+            'aksi' => 'revisi', 'catatan_revisi' => 'Perbarui proposal.',
+        ])->assertOk();
+        $this->actingAs($roles['dosen'], 'web')->get(route('dosen.kegiatan.edit', $id))->assertSee('Simpan lampiran');
+        $this->put($replace, ['file' => UploadedFile::fake()->create('baru.pdf', 10, 'application/pdf')])->assertRedirect();
+        $this->get(route('dosen.kegiatan.show', $id))->assertSee('baru.pdf');
+        $this->assertSame(1, DB::table('dokumen')->where('id_kegiatan', $id)->count());
+        $baru = DB::table('dokumen')->where('id_dokumen', $dokumen->id_dokumen)->firstOrFail();
+        $this->assertNotSame($dokumen->link_dokumen, $baru->link_dokumen);
+        Storage::disk('public')->assertExists('dokumen_perbaikan/'.basename($baru->link_dokumen));
+        $this->actingAs($roles['dosen'], 'sanctum')->postJson("/api/v1/dosen/pengajuan/$id/ajukan-ulang")->assertCreated();
+        $this->get(route('dosen.kegiatan.show', $id))->assertDontSee('Perbaiki kegiatan');
+        $this->put(route('dosen.kegiatan.update', $id), ['nama_kegiatan' => 'Edit setelah ajukan ulang'])->assertForbidden();
         $this->actingAs($roles['admin'])->get('/admin/pengajuan')->assertOk()->assertSee('Seminar Integrasi');
         $this->actingAs($roles['admin'], 'sanctum')->postJson("/api/v1/admin/pengajuan/$id/keputusan", [
             'aksi' => 'setujui', 'nomor_sk' => 'SK/123',

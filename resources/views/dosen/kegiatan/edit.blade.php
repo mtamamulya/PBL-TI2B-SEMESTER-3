@@ -31,6 +31,20 @@
         </div>
     </form>
     @if ($kegiatan->statusTerkini?->status === 'direvisi')
+        @if (session('success')) <p role="status">{{ session('success') }}</p> @endif
+        @foreach ($kegiatan->dokumen as $dokumen)
+            @unless ($dokumen->bukti_history_exists)
+                <form method="POST" enctype="multipart/form-data" action="{{ route('dosen.kegiatan.dokumen.update', [$kegiatan, $dokumen]) }}" class="my-4 grid gap-3 rounded-lg border bg-white p-4">
+                    @csrf
+                    @method('PUT')
+                    <label>Ganti lampiran {{ $dokumen->nama_file }}
+                        <input type="file" name="file" required accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                    </label>
+                    <p class="text-sm">PDF, Word, JPG, atau PNG. Maksimal 5 MB.</p>
+                    <button class="justify-self-start rounded-lg bg-brand px-4 py-2 text-white">Simpan lampiran</button>
+                </form>
+            @endunless
+        @endforeach
         <a href="{{ route('pengajuan.dosen.show', $kegiatan) }}">Buka pengajuan untuk mengajukan ulang</a>
     @endif
 @endsection
