@@ -74,7 +74,7 @@ class AlurPengajuan
             return Timeline::create([
                 'id_kegiatan' => $kegiatan->id_kegiatan,
                 'status' => self::STATUS_DIAJUKAN,
-                'tanggal_status' => now(),
+                'tanggal_status' => now()->max($statusTerakhir->tanggal_status->copy()->addSecond()),
                 'catatan_revisi' => $catatan,
             ]);
         });

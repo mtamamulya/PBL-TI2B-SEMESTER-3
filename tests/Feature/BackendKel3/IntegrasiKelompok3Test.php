@@ -205,5 +205,12 @@ class IntegrasiKelompok3Test extends TestCase
         $this->actingAs($this->owner, 'sanctum')->patchJson($url, ['status' => 'diajukan'])->assertOk();
         $this->patchJson($url, ['judul_berita' => 'Ubah sesudah kirim'])->assertForbidden();
         $this->assertNull(Berita::findOrFail($id)->tanggal_publish);
+        $admin = User::factory()->create(['status' => true, 'id_role' => DB::table('roles')->insertGetId(['nama_role' => 'admin'], 'id_role')]);
+        $review = "/api/v1/berita/$id/tinjau";
+        $this->actingAs($admin, 'sanctum')->patchJson($review, ['aksi' => 'revisi', 'catatan_revisi' => 'Perjelas judul'])->assertOk();
+        $this->actingAs($this->owner, 'sanctum')->getJson($url)->assertOk()->assertJsonPath('data.status', 'direvisi');
+        $this->patchJson($url, ['status' => 'diajukan', 'judul_berita' => 'Judul diperjelas'])->assertOk();
+        $this->actingAs($admin, 'sanctum')->patchJson($review, ['aksi' => 'terima'])->assertOk();
+        $this->actingAs($this->owner, 'sanctum')->getJson($url)->assertOk()->assertJsonPath('data.status', 'publish');
     }
 }

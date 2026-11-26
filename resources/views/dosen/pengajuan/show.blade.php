@@ -79,6 +79,13 @@
                 </section>
             </template>
 
+            <template x-if="isDosen && !loading && statusSekarang === 'Draft'">
+                <section class="{{ $cardClass }}">
+                    <button type="button" @click="kirimPengajuan()" :disabled="submitting" class="rounded-lg bg-brand px-4 py-2 text-white">Ajukan ke admin</button>
+                    <p x-show="galat" x-text="galat" role="alert" class="text-sm text-red-600"></p>
+                </section>
+            </template>
+
             {{-- FORM AJUKAN ULANG UNTUK DOSEN SAAT STATUS DIREVISI --}}
             <template x-if="isDosen && statusSekarang === 'Direvisi'">
                 <section class="{{ $cardClass }}" aria-labelledby="h-perbaikan">
@@ -94,7 +101,7 @@
 
                         <p x-show="galat" x-cloak x-text="galat" role="alert" class="text-sm text-red-600"></p>
 
-                        <button type="button" x-on:click="ajukanUlang()" :disabled="submitting"
+                        <button type="button" x-on:click="kirimPengajuan()" :disabled="submitting"
                                 class="flex h-10 w-full cursor-pointer items-center justify-center rounded-md bg-brand text-base text-white hover:bg-blue-700 disabled:opacity-50">
                             <span x-text="submitting ? 'Mengirim...' : 'Ajukan kembali'"></span>
                         </button>
@@ -165,7 +172,7 @@
             },
 
             formatStatus(raw) {
-                if (!raw) return 'Diajukan';
+                if (!raw) return 'Draft';
                 return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
             },
 
@@ -221,16 +228,18 @@
                 .finally(() => { this.loading = false; });
             },
 
-            ajukanUlang() {
+            kirimPengajuan() {
+                if (this.submitting) return;
+                const aksi = this.statusSekarang === 'Direvisi' ? 'ajukan-ulang' : 'ajukan';
                 this.galat = '';
                 this.submitting = true;
 
-                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/ajukan-ulang`, {
+                fetch(`/api/v1/dosen/pengajuan/${pengajuanId}/${aksi}`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
@@ -241,7 +250,7 @@
                 .then(async response => {
                     const result = await response.json();
                     if (!response.ok) {
-                        throw new Error(result.message || 'Gagal mengajukan ulang.');
+                        throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'Gagal mengirim pengajuan.');
                     }
                     return result;
                 })
@@ -249,7 +258,7 @@
                     if (result.status === 'success') {
                         this.kembali = true;
                         this.catatanPerbaikan = '';
-                        this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan diajukan kembali', pesan: 'Menunggu review admin.' });
+                        this.$dispatch('tampil-alert', { tipe: 'sukses', judul: 'Pengajuan dikirim', pesan: 'Menunggu review admin.' });
                         this.ambilTimeline(); // Muat ulang timeline terbaru dari database
                     }
                 })
