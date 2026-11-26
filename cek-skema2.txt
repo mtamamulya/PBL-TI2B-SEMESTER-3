@@ -1,0 +1,140 @@
+﻿TABEL: akreditasi, anggota_kegiatan, berita, bukti_history, bukti_prestasi, cache, cache_locks, detail_kegiatan, dokumen, dosen, enrollment_kelas_mata_kuliah, enrollment_mahasiswa_tingkat_kelas, enrollment_mata_kuliah, enrollment_tingkat_kelas, failed_jobs, gambar_berita, histori_pangkat_golongan, isian_kategori, jenis_dokumen, jenis_kegiatan, job_batches, jobs, kategori, kegiatan, kelas, kelompok_bidang, kurikulum, legacy_kegiatan_dosen, login_logs, mahasiswa, mata_kuliah, migrations, notifikasi_dibaca, otp_codes, password_reset_tokens, pengajaran, personal_access_tokens, prestasi, prodi, roles, sessions, skim, status_histories, tahun_akademik, timeline, tingkat, users
+
+== enrollment_kelas_mata_kuliah
+id_enrollment_kelas_mk | bigint unsigned | NOT NULL | default=- | AI
+id_enrollment_tingkat_kelas | bigint unsigned | NOT NULL | default=- | 
+id_enrollment_mk | bigint unsigned | NOT NULL | default=- | 
+id_dosen | bigint unsigned | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+FK: id_enrollment_tingkat_kelas -> enrollment_tingkat_kelas(id_enrollment_tingkat_kelas)
+FK: id_enrollment_mk -> enrollment_mata_kuliah(id_enrollment_mk)
+FK: id_dosen -> dosen(id_dosen)
+UNIQUE: id_enrollment_kelas_mk
+UNIQUE: id_enrollment_tingkat_kelas,id_enrollment_mk
+-- isi (maks 3):
+{"id_enrollment_kelas_mk":1,"id_enrollment_tingkat_kelas":7,"id_enrollment_mk":7,"id_dosen":30001,"created_at":"2026-11-23 07:10:10","updated_at":"2026-11-23 07:10:10"}
+
+== enrollment_mahasiswa_tingkat_kelas
+id_enrollment_mahasiswa_tingkat_kelas | bigint unsigned | NOT NULL | default=- | AI
+id_enrollment_tingkat_kelas | bigint unsigned | NOT NULL | default=- | 
+id_mahasiswa | bigint unsigned | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+FK: id_enrollment_tingkat_kelas -> enrollment_tingkat_kelas(id_enrollment_tingkat_kelas)
+FK: id_mahasiswa -> mahasiswa(id_mahasiswa)
+UNIQUE: id_enrollment_mahasiswa_tingkat_kelas
+UNIQUE: id_enrollment_tingkat_kelas,id_mahasiswa
+
+== enrollment_tingkat_kelas
+id_enrollment_tingkat_kelas | bigint unsigned | NOT NULL | default=- | AI
+id_kelas | bigint unsigned | NOT NULL | default=- | 
+id_prodi | bigint unsigned | NOT NULL | default=- | 
+id_tingkat | bigint unsigned | NOT NULL | default=- | 
+id_tahun_akademik | bigint unsigned | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+FK: id_kelas -> kelas(id_kelas)
+FK: id_prodi -> prodi(id_prodi)
+FK: id_tingkat -> tingkat(id_tingkat)
+FK: id_tahun_akademik -> tahun_akademik(id_tahun_akademik)
+UNIQUE: id_enrollment_tingkat_kelas
+UNIQUE: id_prodi,id_tingkat,id_kelas,id_tahun_akademik
+-- isi (maks 3):
+{"id_enrollment_tingkat_kelas":1,"id_kelas":1,"id_prodi":1,"id_tingkat":1,"id_tahun_akademik":1,"created_at":"2026-11-23 07:03:08","updated_at":"2026-11-23 07:03:08"}
+{"id_enrollment_tingkat_kelas":2,"id_kelas":1,"id_prodi":1,"id_tingkat":1,"id_tahun_akademik":2,"created_at":"2026-11-23 07:03:10","updated_at":"2026-11-23 07:03:10"}
+{"id_enrollment_tingkat_kelas":3,"id_kelas":1,"id_prodi":1,"id_tingkat":1,"id_tahun_akademik":3,"created_at":"2026-11-23 07:03:12","updated_at":"2026-11-23 07:03:12"}
+
+== kelas
+id_kelas | bigint unsigned | NOT NULL | default=- | AI
+jenis_kelas | char(1) | NOT NULL | default=- | 
+keterangan | varchar(50) | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+UNIQUE: id_kelas
+UNIQUE: jenis_kelas
+-- isi (maks 3):
+{"id_kelas":1,"jenis_kelas":"A","keterangan":"Kelas A","created_at":null,"updated_at":null}
+{"id_kelas":2,"jenis_kelas":"B","keterangan":"Kelas B","created_at":null,"updated_at":null}
+{"id_kelas":3,"jenis_kelas":"C","keterangan":"Kelas C","created_at":null,"updated_at":null}
+
+== mahasiswa
+id_mahasiswa | bigint unsigned | NOT NULL | default=- | AI
+id_user | bigint unsigned | NOT NULL | default=- | 
+nim | varchar(20) | NOT NULL | default=- | 
+nama | varchar(100) | NOT NULL | default=- | 
+tahun_masuk | year(4) | NOT NULL | default=- | 
+status_mahasiswa | varchar(30) | NOT NULL | default=Aktif | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+FK: id_user -> users(id_user)
+UNIQUE: id_mahasiswa
+UNIQUE: id_user
+UNIQUE: nim
+
+== prodi
+id_prodi | bigint unsigned | NOT NULL | default=- | AI
+kode_prodi | varchar(20) | NOT NULL | default=- | 
+nama_prodi | varchar(100) | NOT NULL | default=- | 
+jenjang | enum('D3','D4') | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+deskripsi | text | NULL | default=- | 
+visi | text | NULL | default=- | 
+misi | json | NULL | default=- | 
+tujuan | json | NULL | default=- | 
+profil_lulusan | json | NULL | default=- | 
+email | varchar(100) | NULL | default=- | 
+no_wa | varchar(20) | NULL | default=- | 
+alamat | varchar(500) | NULL | default=- | 
+instagram | varchar(255) | NULL | default=- | 
+youtube | varchar(255) | NULL | default=- | 
+tiktok | varchar(255) | NULL | default=- | 
+facebook | varchar(255) | NULL | default=- | 
+logo | varchar(255) | NULL | default=- | 
+logo_footer | varchar(255) | NULL | default=- | 
+UNIQUE: id_prodi
+UNIQUE: kode_prodi
+-- isi (maks 3):
+{"id_prodi":1,"kode_prodi":"TRK","nama_prodi":"Teknologi Rekayasa Komputer","jenjang":"D4","created_at":null,"updated_at":null,"deskripsi":null,"visi":null,"misi":null,"tujuan":null,"profil_lulusan":null,"email":null,"no_wa":null,"alamat":null,"instagram":null,"youtube":null,"tiktok":null,"facebook":null,"logo":null,"logo_footer":null}
+
+== roles
+id_role | bigint unsigned | NOT NULL | default=- | AI
+nama_role | varchar(50) | NOT NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+UNIQUE: id_role
+UNIQUE: nama_role
+-- isi (maks 3):
+{"id_role":1,"nama_role":"admin","created_at":"2026-11-18 01:41:50","updated_at":"2026-11-18 01:41:50"}
+{"id_role":2,"nama_role":"kaprodi","created_at":"2026-11-18 01:41:50","updated_at":"2026-11-18 01:41:50"}
+{"id_role":3,"nama_role":"dosen","created_at":"2026-11-18 01:41:50","updated_at":"2026-11-18 01:41:50"}
+
+== tahun_akademik
+id_tahun_akademik | bigint unsigned | NOT NULL | default=- | AI
+tahun_akademik | varchar(30) | NOT NULL | default=- | 
+status | tinyint(1) | NOT NULL | default=0 | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+UNIQUE: id_tahun_akademik
+UNIQUE: tahun_akademik
+-- isi (maks 3):
+{"id_tahun_akademik":1,"tahun_akademik":"Ganjil 2023\/2024","status":0,"created_at":null,"updated_at":null}
+{"id_tahun_akademik":2,"tahun_akademik":"Genap 2023\/2024","status":0,"created_at":null,"updated_at":null}
+{"id_tahun_akademik":3,"tahun_akademik":"Ganjil 2024\/2025","status":0,"created_at":null,"updated_at":null}
+
+== users
+id_user | bigint unsigned | NOT NULL | default=- | AI
+id_role | bigint unsigned | NOT NULL | default=- | 
+email | varchar(150) | NOT NULL | default=- | 
+password | varchar(255) | NOT NULL | default=- | 
+status | tinyint(1) | NOT NULL | default=1 | 
+foto_profil | varchar(255) | NULL | default=- | 
+remember_token | varchar(100) | NULL | default=- | 
+created_at | timestamp | NULL | default=- | 
+updated_at | timestamp | NULL | default=- | 
+tanda_tangan_path | varchar(255) | NULL | default=- | 
+FK: id_role -> roles(id_role)
+UNIQUE: id_user
+UNIQUE: email
+
