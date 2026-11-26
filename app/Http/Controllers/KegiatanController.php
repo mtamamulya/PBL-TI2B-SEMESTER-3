@@ -93,7 +93,7 @@ class KegiatanController extends Controller
     private function canEdit(Kegiatan $kegiatan): bool
     {
         return (int) $kegiatan->id_user === (int) auth()->id()
-            && in_array($kegiatan->statusTerkini?->status, [null, 'draft', 'direvisi', 'diajukan', 'direview'], true);
+            && in_array($kegiatan->statusTerkini?->status, [null, 'draft', 'direvisi'], true);
     }
 
     private function editableFields(Kegiatan $kegiatan)
@@ -103,7 +103,7 @@ class KegiatanController extends Controller
 
     public function edit(int $id)
     {
-        $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail', 'statusTerkini'])->findOrFail($id);
+        $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail', 'statusTerkini', 'dokumen' => fn ($q) => $q->withExists('buktiHistory')])->findOrFail($id);
         abort_unless($this->canEdit($kegiatan), 403);
 
         return view('dosen.kegiatan.edit', ['kegiatan' => $kegiatan, 'fields' => $this->editableFields($kegiatan)]);
@@ -147,6 +147,37 @@ class KegiatanController extends Controller
         });
 
         return redirect()->route('dosen.kegiatan.show', $id)->with('success', 'Perubahan kegiatan berhasil disimpan.');
+    }
+
+    public function gantiLampiran(Request $request, int $id, int $dokumenId)
+    {
+        $request->validate(['file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120']);
+        $disk = Storage::disk('public');
+        $path = null;
+        try {
+            DB::transaction(function () use ($request, $id, $dokumenId, $disk, &$path) {
+                $kegiatan = Kegiatan::where('id_user', $request->user()->getKey())->lockForUpdate()->findOrFail($id);
+                abort_unless($kegiatan->statusTerkini?->status === 'direvisi', 403);
+                $dokumen = $kegiatan->dokumen()->lockForUpdate()->findOrFail($dokumenId);
+                abort_if($dokumen->buktiHistory()->exists(), 403);
+
+                $file = $request->file('file');
+                $path = $file->store('dokumen_perbaikan', 'public');
+                abort_unless($path, 500, 'Gagal menyimpan berkas.');
+                $dokumen->update([
+                    'nama_file' => $file->getClientOriginalName(),
+                    'tipe_dokumen' => $file->getMimeType(),
+                    'link_dokumen' => $disk->url($path),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($path) {
+                $disk->delete($path);
+            }
+            throw $e;
+        }
+
+        return redirect()->route('dosen.kegiatan.edit', $id)->with('success', 'Lampiran berhasil diganti.');
     }
 
     public function show(Request $request, int $id)
