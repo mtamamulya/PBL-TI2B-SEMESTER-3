@@ -7,7 +7,7 @@
     $off     = 'text-white/85 hover:bg-white/10 hover:text-white';
 @endphp
 
-<nav class="mt-[27px] flex flex-1 flex-col gap-3 overflow-y-auto px-3" aria-label="Menu admin">
+<nav class="mt-[27px] flex flex-1 flex-col gap-3 overflow-y-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Menu admin">
     @foreach (config('admin.menu') as $m)
         @if (isset($m['children']))
             @php $open = collect($m['children'])->contains(fn ($c) => request()->routeIs($c['route'], $c['route'].'.*')); @endphp

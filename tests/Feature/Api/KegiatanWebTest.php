@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Api;
 
 use App\Models\Role;
 use App\Models\User;
@@ -95,6 +95,12 @@ class KegiatanWebTest extends TestCase
 
         $this->kaprodi()->get(route('admin.kegiatan.index'))->assertForbidden();
         $this->admin()->get(route('kaprodi.kegiatan.index'))->assertForbidden();
+    }
+
+    public function test_legacy_admin_dosen_route_redirects_to_the_combined_activities_tab(): void
+    {
+        $this->admin()->get(route('admin.kegiatan.dosen'))
+            ->assertRedirect(url('/admin/kegiatan?tab=dosen'));
     }
 
     // ---------- daftar ----------

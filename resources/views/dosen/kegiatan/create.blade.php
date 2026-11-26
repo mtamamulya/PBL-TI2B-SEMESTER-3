@@ -3,25 +3,29 @@
 @section('title', 'Ajukan Kegiatan')
 
 @php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    $daftarKategori = ['Lomba', 'Kunjungan Industri', 'Seminar', 'Pelatihan', 'Penelitian', 'Pengabdian'];
-    $daftarJenis    = ['Kegiatan dosen', 'Kegiatan Prodi', 'Prodi dan mahasiswa', 'Kegiatan mahasiswa'];
-
     // Isian tambahan per kategori (edit daftarnya di _medan-kategori.php) dan nilai awal form
     $medanKategori = require resource_path('views/dosen/kegiatan/_medan-kategori.php');
+    foreach (['Penelitian', 'Pengabdian'] as $modul) {
+        $sebelumnya = \App\Models\Kegiatan::untukUser(auth()->user())
+            ->whereHas('kategori', fn ($q) => $q->where('nama_kategori', $modul))
+            ->pluck('nama_kegiatan', 'id_kegiatan');
+        foreach ($medanKategori[$modul]['medan'] as &$field) {
+            if ($field['nama'] === 'sebelumnya') {
+                $field['opsi'] = $sebelumnya->keys()->values();
+                $field['labels'] = $sebelumnya;
+            }
+        }
+        unset($field);
+    }
     $awal = ['kategori' => '', 'nilai' => []];
 
-    // Calon anggota yang bisa dicari: nama => status
-    $kandidat = [
-        'Kuwat Santoso , S.T., M.Kom.' => 'Dosen',
-        'Wiktasari'                    => 'Dosen',
-        'Angga Wahyu Wibowo'           => 'Dosen',
-        'Arif Setyawan'                => 'Dosen',
-        'Mukhlis Pratama Mulya'        => 'Mahasiswa',
-    ];
-
-    // Pengaju = akun yang login. Nanti diganti nama user dari backend.
-    $pengaju = 'Kuwat Santoso , S.T., M.Kom.';
+    $kandidat = [];
+    foreach ((auth()->user()?->dosen ? ['mahasiswa' => 'Mahasiswa', 'dosen' => 'Dosen'] : []) as $tabel => $peran) {
+        foreach (DB::table($tabel)->whereNotNull('id_user')->pluck('nama') as $nama) {
+            $kandidat[$nama] = $peran;
+        }
+    }
+    $pengaju = auth()->user()?->dosen?->nama ?? auth()->user()?->email ?? 'Pengaju';
 
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
@@ -60,25 +64,20 @@
                 <div class="flex flex-col gap-2">
                     <label for="kategori" class="{{ $labelClass }}">Kategori</label>
                     <div class="relative">
-                        <select id="kategori" name="kategori" required x-model="kategori" class="{{ $selectClass }}">
+                        <select id="kategori" name="id_kategori" required x-model="kategoriId" class="{{ $selectClass }}">
                             <option value="">Pilih kategori</option>
-                            @foreach ($daftarKategori as $k)
-                                <option>{{ $k }}</option>
-                            @endforeach
+                            <template x-for="opsi in daftarKategori" :key="opsi.id_kategori">
+                                <option :value="opsi.id_kategori" x-text="opsi.nama_kategori"></option>
+                            </template>
                         </select>
                         {!! $chevron !!}
+                        <p x-show="pesanKategori" x-text="pesanKategori" role="status"></p>
                     </div>
                 </div>
                 <div class="flex flex-col gap-2">
                     <label for="jenis" class="{{ $labelClass }}">Jenis kegiatan</label>
                     <div class="relative">
-                        <select id="jenis" name="jenis_kegiatan" required class="{{ $selectClass }}">
-                            <option value="">Pilih jenis kegiatan</option>
-                            @foreach ($daftarJenis as $j)
-                                <option>{{ $j }}</option>
-                            @endforeach
-                        </select>
-                        {!! $chevron !!}
+                        <input id="jenis" name="jenis_kegiatan" readonly :value="pilihan?.jenis || ''" class="{{ $inputClass }}">
                     </div>
                 </div>
 
@@ -179,8 +178,8 @@
                                 <td class="px-2.5 py-2.5">
                                     <span x-text="a.nama"></span>
                                     {{-- data yang dikirim ke backend --}}
-                                    <input type="hidden" :name="`anggota[${i}][nama]`" :value="a.nama">
-                                    <input type="hidden" :name="`anggota[${i}][status]`" :value="a.status">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][nama]`" :value="a.nama">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][status]`" :value="a.status">
                                 </td>
                                 <td class="px-2.5 py-2.5" x-text="a.status"></td>
                                 <td class="px-2.5 py-1.5">
@@ -273,7 +272,7 @@
 
         {{-- TOMBOL --}}
         <div class="flex flex-wrap items-center justify-end gap-3 pt-4">
-            <a href="{{ route('kegiatan.index') }}"
+            <a href="{{ route('dosen.kegiatan.index') }}"
                class="flex h-11 items-center rounded-md bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</a>
             <button type="submit"
                     class="h-11 cursor-pointer rounded-md bg-brand px-6 text-base text-white hover:bg-blue-700">Simpan</button>
@@ -290,7 +289,32 @@
 
             // Isian tambahan menurut kategori (daftar isian ada di _medan-kategori.php)
             medanKategori,
-            kategori: awal.kategori,
+            daftarKategori: [],
+            kategoriId: '',
+            get pilihan() { return this.daftarKategori.find(k => String(k.id_kategori) === String(this.kategoriId)); },
+            get kategori() { return this.pilihan?.modul || ''; },
+            async muatKategori() {
+                try {
+                    let page = 1;
+                    const opsi = [];
+                    while (true) {
+                        const response = await fetch('/api/v1/kategori-kegiatan?jenis=Kegiatan+Dosen&per_page=100&page=' + page, {headers: {Accept: 'application/json'}});
+                        const hasil = await response.json();
+                        if (!response.ok) throw new Error(hasil.message || 'Kategori gagal dimuat.');
+                        for (const k of hasil.data) {
+                            const modul = ['Penelitian', 'Pengabdian'].find(nama => k.nama_kategori.toLowerCase().startsWith(nama.toLowerCase()));
+                            if (modul) opsi.push({...k, modul});
+                        }
+                        if (page >= hasil.meta.last_page) break;
+                        page++;
+                    }
+                    this.daftarKategori = opsi;
+                    if (!opsi.length) this.pesanKategori = 'Kategori penelitian dan pengabdian belum tersedia.';
+                } catch (error) {
+                    this.pesanKategori = 'Gagal memuat master kategori. Muat ulang halaman untuk mencoba lagi.';
+                }
+            },
+            pesanKategori: '',
             nilai: { ...awal.nilai },
             // Kartu Anggota: selalu ada, kecuali kategori Lomba yang bentuknya belum / bukan Tim
             get perluAnggota() { return this.kategori !== 'Lomba' || this.nilai.bentuk === 'Tim'; },
@@ -309,7 +333,8 @@
             // Kalau nama yang diketik ada di daftar, status otomatis terisi (masih bisa diubah)
             init() {
                 // Ganti kategori = isian tambahan kategori lain dikosongkan
-                this.$watch('kategori', () => { this.nilai = {}; });
+                this.muatKategori();
+                this.$watch('kategoriId', () => { this.nilai = {}; });
                 this.$watch('cari', v => {
                     const nama = Object.keys(kandidat).find(n => n.toLowerCase() === v.trim().toLowerCase());
                     if (nama) this.status = kandidat[nama];
@@ -346,8 +371,7 @@
                 this.dokumen.push({ id: this.nextId++, nama: '', jenis: '', keterangan: '', tautan: '' });
             },
             hapusDokumen(i) { this.dokumen.splice(i, 1); },
-// Simpan (simulasi)
-            tersimpan: false,
+
             sedangMenyimpan: false,
             async simpan() {
                 if (this.sedangMenyimpan) return;
@@ -356,7 +380,11 @@
                 const formElement = this.$el;
                 const formData = new FormData(formElement);
 
-                // Tentukan endpoint tujuan (khusus Penelitian nembak ke API penelitian)
+                // ID kategori berasal dari master Kelompok 1.
+                if (['Penelitian', 'Pengabdian'].includes(this.kategori)) {
+                    formData.delete('detail[sebelumnya]');
+                    if (this.nilai.sebelumnya) formData.set('id_kegiatan_sebelumnya', this.nilai.sebelumnya);
+                }
                 const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
 
                 this.sedangMenyimpan = true;
@@ -379,7 +407,8 @@
                         throw new Error(result.message || 'Terjadi kesalahan validasi saat menyimpan.');
                     }
 
-                    this.tersimpan = true;
+                    window.location.assign(@js(url('/pengajuan/dosen')) + '/' + result.data.id_kegiatan);
+
                     this.$dispatch('tampil-alert', {
                         tipe: 'sukses',
                         judul: 'Data berhasil disimpan',

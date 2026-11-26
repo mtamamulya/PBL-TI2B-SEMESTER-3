@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
+use App\BackendKel3\Pengajuan\AlurPengajuan;
+use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
@@ -15,6 +17,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Schema;
 
@@ -539,7 +542,7 @@ class PengajuanController extends Controller
     public function show(int $id)
     {
         $kegiatan = Kegiatan::untukUser(Auth::user())
-            ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen'])
+            ->with(['kategori', 'user.mahasiswa', 'timeline', 'dokumen.jenisDokumen'])
             ->findOrFail($id);
 
         $student = $this->studentProfile($kegiatan->user);
@@ -663,10 +666,48 @@ class PengajuanController extends Controller
 
             return [
                 'name' => $name,
-                'meta' => $doc->tipe_dokumen ?? $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
+                'meta' => $doc->jenisDokumen?->nama_jenis_dokumen ?? $doc->tipe_dokumen ?? $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
                 'url' => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
             ];
-        })->concat($detailUploadedFiles)->values()->all();
+})->reject(fn (array $file) => strcasecmp((string) $file['meta'], 'Surat hasil') === 0)
+            ->concat($detailUploadedFiles)
+            ->values()
+            ->all();
+
+        try {
+            $dokumenApi = $this->apiGet('kegiatan/'.$id.'/dokumen')['data'] ?? [];
+            if (is_array($dokumenApi) && ! empty($dokumenApi)) {
+                $files = collect($dokumenApi)
+                    ->reject(fn (array $doc) => strcasecmp((string) ($doc['jenis_dokumen'] ?? ''), 'Surat hasil') === 0)
+                    ->map(fn (array $doc) => [
+                        'name' => $doc['nama_file'] ?? 'Dokumen pendukung',
+                        'meta' => $doc['jenis_dokumen'] ?? $doc['tipe_dokumen'] ?? 'Dokumen',
+                        'url' => $doc['url'] ?? $doc['link_dokumen'] ?? null,
+                        'preview_url' => $doc['link_preview'] ?? $doc['url'] ?? $doc['link_dokumen'] ?? null,
+                    ])
+                    ->concat($detailUploadedFiles)
+                    ->values()
+                    ->all();
+            }
+        } catch (\Throwable) {
+            // Fallback to the already-loaded database relation.
+        }
+
+        $resultDocuments = [];
+        try {
+            $hasilApi = $this->apiGet('kegiatan/'.$id.'/dokumen-hasil')['data'] ?? [];
+            if (is_array($hasilApi) && isset($hasilApi[0])) {
+                $hasil = $hasilApi[0];
+                $resultDocuments[] = [
+                    'name' => $hasil['nama_file'] ?? 'Dokumen hasil',
+                    'meta' => $hasil['jenis_dokumen'] ?? $hasil['tipe_dokumen'] ?? 'Dokumen hasil',
+                    'url' => $hasil['url'] ?? $hasil['link_dokumen'] ?? null,
+                    'preview_url' => $hasil['link_preview'] ?? $hasil['url'] ?? $hasil['link_dokumen'] ?? null,
+                ];
+            }
+        } catch (\Throwable) {
+            // A 403 before completion means the result is not available yet.
+        }
 
         $item = $kegiatan->toArray();
 
@@ -687,7 +728,7 @@ class PengajuanController extends Controller
             })
             ->all();
 
-        $teamMembers = [];
+$teamMembers = [];
         if (Schema::hasTable('anggota_kegiatan')) {
             $teamMembers = DB::table('anggota_kegiatan')
                 ->leftJoin('mahasiswa', 'anggota_kegiatan.id_user', '=', 'mahasiswa.id_user')
@@ -709,10 +750,9 @@ class PengajuanController extends Controller
                 ->all();
         }
 
-        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item', 'detailFields', 'teamMembers'));
-
-        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'item', 'detailFields'));
+        return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'resultDocuments', 'item', 'detailFields', 'teamMembers'));
     }
+    
 
     public function destroy(int $id)
     {
@@ -885,14 +925,47 @@ class PengajuanController extends Controller
 
     public function storeDosen(Request $request)
     {
-        return $this->saveSubmission($request, 'pengajuan.dosen.show');
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($user->status && $user->role?->nama_role === 'dosen', 403);
+        $request->validate(['lampiran' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048']]);
+        $validated = $this->validateDynamicSubmission($request);
+        $file = $request->file('lampiran');
+        $paths = $validated['uploaded_paths'];
+        try {
+            $path = $file->store('lampiran-pengajuan', 'public');
+            throw_unless($path, new \RuntimeException('Lampiran gagal disimpan.'));
+            $paths[] = $path;
+            $kegiatan = DB::transaction(function () use ($validated, $file, $path, $user) {
+                $kegiatan = Kegiatan::create([
+                    'id_kategori' => $validated['id_kategori'], 'id_user' => $user->getKey(),
+                    'nama_kegiatan' => $validated['title'],
+                ]);
+                $this->syncDetailKegiatan($kegiatan->getKey(), $validated['detail']);
+                $jenis = JenisDokumen::firstOrCreate(['nama_jenis_dokumen' => 'Dokumen Pendukung']);
+                $kegiatan->dokumen()->create([
+                    'id_jenis_dokumen' => $jenis->getKey(), 'nama_file' => $file->getClientOriginalName(),
+                    'tipe_dokumen' => $file->getClientMimeType(), 'link_dokumen' => $path, 'is_lampiran' => $validated['kategori_api']['lampiran_peserta'] ?? false,
+                ]);
+                app(AlurPengajuan::class)->ajukanBaru($kegiatan->getKey(), $user->getKey());
+
+                return $kegiatan;
+            });
+        } catch (\Throwable $error) {
+            Storage::disk('public')->delete($paths);
+            throw $error;
+        }
+
+        return redirect()->route('pengajuan.dosen.show', $kegiatan->getKey())->with('success', 'Pengajuan berhasil dikirim.');
     }
 
     private function validateDynamicSubmission(Request $request, bool $isUpdate = false): array
     {
         $idKategori = (int) $request->input('id_kategori');
-        $kategoriApi = $this->detailKategoriApi($idKategori);
         $isDosenRoute = $request->routeIs('pengajuan.dosen.*');
+        $kategoriApi = $isDosenRoute && $idKategori > 0
+            ? ($this->apiGet('/kategori-kegiatan/'.$idKategori)['data'] ?? [])
+            : $this->detailKategoriApi($idKategori);
 
         $rules = [
             'id_kategori' => ['required', 'integer', function ($attr, $value, $fail) use ($request, $kategoriApi, $isDosenRoute) {
@@ -1009,6 +1082,11 @@ class PengajuanController extends Controller
         $validated = $request->validate($rules, $messages);
 
         $detail = $validated['detail'] ?? [];
+$validated['uploaded_paths'] = [];
+        if ($isDosenRoute) {
+            $detail = array_intersect_key($detail, array_flip(array_column($kategoriApi['isian'] ?? [], 'id_isian_kategori')));
+        }
+
         $uploadedDetailFiles = $request->file('detail_files', []);
         if (is_array($uploadedDetailFiles)) {
             foreach ($uploadedDetailFiles as $idIsian => $uploadedFile) {
@@ -1016,7 +1094,9 @@ class PengajuanController extends Controller
                     $paths = [];
                     foreach ($uploadedFile as $fileItem) {
                         if ($fileItem instanceof \Illuminate\Http\UploadedFile && $fileItem->isValid()) {
-                            $paths[] = $fileItem->store('lampiran-isian', 'public');
+                            $stored = $fileItem->store('lampiran-isian', 'public');
+                            $paths[] = $stored;
+                            $validated['uploaded_paths'][] = $stored;
                         }
                     }
                     if ($paths !== []) {
@@ -1024,6 +1104,7 @@ class PengajuanController extends Controller
                     }
                 } elseif ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
                     $detail[$idIsian] = $uploadedFile->store('lampiran-isian', 'public');
+                    $validated['uploaded_paths'][] = $detail[$idIsian];
                 }
             }
         }
@@ -1410,13 +1491,19 @@ class PengajuanController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasTable('anggota_kegiatan')) {
             $peserta = \Illuminate\Support\Facades\DB::table('anggota_kegiatan')
                 ->leftJoin('mahasiswa', 'anggota_kegiatan.id_user', '=', 'mahasiswa.id_user')
+                ->leftJoin('dosen', 'anggota_kegiatan.id_user', '=', 'dosen.id_user')
                 ->leftJoin('users', 'anggota_kegiatan.id_user', '=', 'users.id_user')
                 ->where('anggota_kegiatan.id_kegiatan', $id)
                 ->orderBy('anggota_kegiatan.id_anggota_kegiatan')
-                ->select('mahasiswa.nama as nama_mhs', 'users.name as nama_user', 'anggota_kegiatan.peran')
+                ->select(
+                    'mahasiswa.nama as nama_mhs',
+                    'dosen.nama as nama_dosen',
+                    'users.email as nama_user',
+                    'anggota_kegiatan.peran'
+                )
                 ->get()
-                ->map(fn ($a) => [$a->nama_mhs ?? $a->nama_user ?? '-', ucfirst((string) ($a->peran ?? 'Anggota'))])
-                ->all();
+                ->map(fn ($a) => [$a->nama_mhs ?? $a->nama_dosen ?? $a->nama_user ?? '-', ucfirst((string) ($a->peran ?? 'Anggota'))])
+                ->all();   
         }
 
         $lampiranDokumen = $kegiatan->dokumen

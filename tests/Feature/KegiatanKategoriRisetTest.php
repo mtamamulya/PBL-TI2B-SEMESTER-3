@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -16,14 +18,16 @@ class KegiatanKategoriRisetTest extends TestCase
     {
         parent::setUp();
         $this->withoutVite();
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
     }
 
     public function test_form_offers_penelitian_and_pengabdian_categories(): void
     {
         foreach (['dosen.kegiatan.create'] as $route) {
             $this->get(route($route))->assertOk()
-                ->assertSee('<option>Penelitian</option>', false)
-                ->assertSee('<option>Pengabdian</option>', false);
+                ->assertSee('/api/v1/kategori-kegiatan?', false)
+                ->assertSee('name="id_kategori"', false);
         }
     }
 

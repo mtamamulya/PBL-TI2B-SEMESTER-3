@@ -18,6 +18,10 @@ class PastikanDosenAktif
         }
 
         if (strtolower($user->role?->nama_role ?? '') !== 'dosen') {
+            if ($request->isMethod('GET') && ! $request->is('api/*') && ! $request->expectsJson()) {
+                return redirect()->route('dashboard');
+            }
+
             return ApiResponse::gagal('Akses ini khusus dosen.', 403);
         }
 

@@ -1,4 +1,4 @@
-@extends('layouts.pengajuan-app')
+@extends(($formDosen ?? false) ? 'layouts.app' : 'layouts.pengajuan-app')
 @section('title', request()->routeIs('kegiatan.create') ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru'))
 @section('content')
 @php
@@ -23,6 +23,10 @@
     $formAction = $item
         ? route('pengajuan.update', $item['id'])
         : ($isActivityHistory ? route('kegiatan.store') : route('pengajuan.store'));
+    if ($formDosen ?? false) {
+        $cancelUrl = route('pengajuan.dosen');
+        $formAction = route('pengajuan.dosen.store');
+    }
 @endphp
 
 <div class="flex flex-col gap-6 px-4 pb-10 pt-7 sm:px-6 lg:px-12"
@@ -98,7 +102,7 @@
 
     <div class="flex flex-col gap-[18px]">
         <div class="flex flex-wrap gap-2.5 text-[13px]">
-            <a href="{{ $isActivityHistory ? route('kegiatan.index') : route('pengajuan.index') }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
+            <a href="{{ ($formDosen ?? false) ? $cancelUrl : ($isActivityHistory ? route('kegiatan.index') : route('pengajuan.index')) }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
             <span class="text-[#9CA3AF]">/</span>
             <span class="text-[#6B7280]">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Baru') }}</span>
             <span class="text-[#9CA3AF]">/</span>
@@ -278,7 +282,7 @@
                                 </template>
 
                                 {{-- Angka --}}
-                                <template x-if="field.jenis_input === 'angka'">
+                                <template x-if="['angka', 'rupiah'].includes(field.jenis_input)">
                                     <input type="number"
                                            :name="'detail[' + field.id_isian_kategori + ']'"
                                            :value="savedDetails[field.id_isian_kategori] ?? ''"
@@ -348,7 +352,8 @@
                                                 <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-3 text-base"></i>
                                             </div>
                                         </template>
-                                        <template x-if="!Array.isArray(field.pilihan) && field.jenis_input === 'berkas'">
+
+                                       <template x-if="!Array.isArray(field.pilihan) && field.jenis_input === 'berkas'">
                                             <div class="flex flex-1 flex-col gap-1">
                                                 <input type="file"
                                                        :name="'detail_files[' + field.id_isian_kategori + '][]'"
@@ -361,7 +366,8 @@
                                             </div>
                                         </template>
                                         <template x-if="!Array.isArray(field.pilihan) && field.jenis_input !== 'berkas'">
-                                            <input :type="field.jenis_input === 'angka' ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
+                                            <input :type="['angka', 'rupiah'].includes(field.jenis_input) ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
+
                                                    :name="'detail[' + field.id_isian_kategori + '][]'"
                                                    x-model="multiValues[field.id_isian_kategori][idx]"
                                                    :required="field.wajib && idx === 0"
