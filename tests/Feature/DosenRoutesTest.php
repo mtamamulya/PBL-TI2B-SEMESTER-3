@@ -19,6 +19,62 @@ class DosenRoutesTest extends TestCase
         $this->withoutVite();
     }
 
+    public function test_tautan_lama_dan_tombol_form_tetap_di_area_dosen(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
+
+        foreach ([
+            '/dashboard' => '/dosen/dashboard',
+            '/kegiatan' => '/dosen/kegiatan',
+            '/kegiatan/create' => '/dosen/kegiatan/create',
+            '/kegiatan/42' => '/dosen/kegiatan/42',
+            '/kegiatan/42/edit' => '/dosen/kegiatan/42/edit',
+            '/pengajuan' => '/pengajuan/dosen',
+            '/pengajuan/baru' => '/pengajuan/dosen/baru',
+            '/pengajuan/dashboard' => '/dosen/dashboard',
+            '/pengajuan/42' => '/pengajuan/dosen/42',
+            '/pengajuan/42/edit' => '/pengajuan/dosen/42',
+            '/pengajuan/berita' => '/berita',
+            '/pengajuan/berita/baru' => '/berita/create',
+            '/pengajuan/berita/42' => '/berita/42',
+            '/pengajuan/berita/42/edit' => '/berita/42/edit',
+        ] as $lama => $tujuan) {
+            $this->get($lama)->assertRedirect($tujuan);
+        }
+
+        $this->get('/dosen/kegiatan/create')->assertOk()
+            ->assertSee('href="'.route('dosen.kegiatan.index').'"', false)
+            ->assertDontSee('href="'.route('kegiatan.index').'"', false)
+            ->assertDontSee('Tampilan mahasiswa');
+        $this->from('/mahasiswa/dashboard')->get('/pengajuan/dosen/42')->assertOk()
+            ->assertDontSee('href="'.route('mahasiswa.dashboard').'"', false);
+    }
+
+    public function test_simpan_kegiatan_dosen_tetap_tersimpan_setelah_refresh(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $owner = User::factory()->create(['id_role' => 3, 'status' => true]);
+        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Dosen'], 'id_jenis_kegiatan');
+        $category = DB::table('kategori')->insertGetId(['nama_kategori' => 'Seminar', 'id_jenis_kegiatan' => $jenis], 'id_kategori');
+        $field = DB::table('isian_kategori')->insertGetId(['id_kategori' => $category, 'input' => 'lokasi'], 'id_isian_kategori');
+        $id = DB::table('kegiatan')->insertGetId(['id_user' => $owner->getKey(), 'id_kategori' => $category, 'nama_kegiatan' => 'Seminar lama'], 'id_kegiatan');
+        $edit = route('dosen.kegiatan.edit', $id);
+        $update = route('dosen.kegiatan.update', $id);
+        $show = route('dosen.kegiatan.show', $id);
+
+        $this->actingAs($owner)->get($edit)->assertOk()->assertSee('Seminar lama')->assertSee($update);
+        $this->put($update, ['nama_kegiatan' => 'Seminar baru', 'detail' => [$field => 'Gedung A']])->assertRedirect($show);
+        $this->get($show)->assertOk()->assertSee('Seminar baru');
+        $this->get($show)->assertOk()->assertSee('Seminar baru')->assertDontSee('Seminar lama');
+        $this->get($edit)->assertOk()->assertSee('Gedung A');
+        $this->get(route('dosen.kegiatan.index'))->assertOk()->assertSee('Seminar baru');
+        $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'isian' => 'Gedung A']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]))
+            ->put($update, ['nama_kegiatan' => 'Timpa'])->assertForbidden();
+        $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'nama_kegiatan' => 'Seminar baru']);
+    }
+
     public function test_dosen_dashboard_has_its_own_route_and_view(): void
     {
         $this->get(route('dosen.dashboard'))
@@ -39,7 +95,6 @@ class DosenRoutesTest extends TestCase
         $routes = [
             ['dosen.kegiatan.index'],
             ['dosen.kegiatan.create'],
-            ['dosen.kegiatan.edit', ['id' => 1]],
             ['penelitian.index'],
             ['penelitian.create'],
             ['penelitian.show', ['id' => 1]],
