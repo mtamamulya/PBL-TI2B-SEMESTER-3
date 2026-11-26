@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -16,6 +18,8 @@ class KegiatanKategoriRisetTest extends TestCase
     {
         parent::setUp();
         $this->withoutVite();
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
     }
 
     public function test_form_offers_penelitian_and_pengabdian_categories(): void

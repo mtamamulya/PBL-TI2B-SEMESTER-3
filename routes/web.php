@@ -19,54 +19,73 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 
 $redirectByRole = static function (string $dosen, string $mahasiswa) {
     return static function (Request $request, ?string $id = null) use ($dosen, $mahasiswa) {
-        $route = (int) $request->user()?->id_role === 3 ? $dosen : $mahasiswa;
+        if (! $request->user()) {
+            return redirect()->guest(route('login'));
+        }
+
+        $role = strtolower($request->user()->role?->nama_role ?? '');
+        if (in_array($role, ['admin', 'kaprodi'], true)) {
+            return redirect()->route($role.'.dashboard');
+        }
+        abort_unless(in_array($role, ['dosen', 'mahasiswa'], true), 403);
+        $route = $role === 'dosen' ? $dosen : $mahasiswa;
 
         return redirect()->route($route, $id === null ? [] : ['id' => $id]);
     };
 };
 
 Route::get('/dashboard', $redirectByRole('dosen.dashboard', 'mahasiswa.dashboard'))->name('dashboard');
-Route::get('/dosen/dashboard', [DosenDashboardController::class, 'index'])->name('dosen.dashboard');
-
-Route::get('/dosen/kegiatan', [KegiatanController::class, 'index'])->name('dosen.kegiatan.index');
-Route::view('/dosen/kegiatan/create', 'dosen.kegiatan.create')->name('dosen.kegiatan.create');
-Route::get('/dosen/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('dosen.kegiatan.show');
 Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
+    Route::get('/dosen/dashboard', [DosenDashboardController::class, 'index'])->name('dosen.dashboard');
+
+    Route::get('/dosen/kegiatan', [KegiatanController::class, 'index'])->name('dosen.kegiatan.index');
+    Route::view('/dosen/kegiatan/create', 'dosen.kegiatan.create')->name('dosen.kegiatan.create');
+    Route::get('/dosen/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('dosen.kegiatan.show');
     Route::get('/dosen/kegiatan/{id}/edit', [KegiatanController::class, 'edit'])->whereNumber('id')->name('dosen.kegiatan.edit');
     Route::put('/dosen/kegiatan/{id}', [KegiatanController::class, 'update'])->whereNumber('id')->name('dosen.kegiatan.update');
-});
 
-Route::view('/prestasi', 'dosen.prestasi.index')->name('prestasi.index');
-Route::view('/prestasi/create', 'dosen.prestasi.create')->name('prestasi.create');
-Route::view('/prestasi/{id}', 'dosen.prestasi.show')->whereNumber('id')->name('prestasi.show');
-Route::view('/prestasi/{id}/edit', 'dosen.prestasi.edit')->whereNumber('id')->name('prestasi.edit');
-Route::view('/verifikasi/{id}', 'pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('verifikasi.show');
+    Route::view('/prestasi', 'dosen.prestasi.index')->name('prestasi.index');
+    Route::view('/prestasi/create', 'dosen.prestasi.create')->name('prestasi.create');
+    Route::view('/prestasi/{id}', 'dosen.prestasi.show')->whereNumber('id')->name('prestasi.show');
+    Route::view('/prestasi/{id}/edit', 'dosen.prestasi.edit')->whereNumber('id')->name('prestasi.edit');
+    Route::view('/verifikasi/{id}', 'pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('verifikasi.show');
 
-Route::view('/profil', 'dosen.profil.show')->name('profil');
-Route::get('/notifikasi', [NotifikasiController::class, 'web'])->name('notifikasi');
-Route::redirect('/dosen/notifikasi', '/notifikasi');
-Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
+    Route::view('/profil', 'dosen.profil.show')->name('profil');
+    Route::get('/notifikasi', [NotifikasiController::class, 'web'])->name('notifikasi');
+    Route::redirect('/dosen/notifikasi', '/notifikasi');
     Route::post('/notifikasi/baca-semua', [NotifikasiController::class, 'tandaiSemuaDibaca'])->name('notifikasi.baca-semua');
     Route::post('/notifikasi/{idTimeline}/baca', [NotifikasiController::class, 'tandaiDibaca'])->whereNumber('idTimeline')->name('notifikasi.baca');
+
+    Route::view('/penelitian', 'dosen.penelitian.index')->name('penelitian.index');
+    Route::view('/penelitian/create', 'dosen.penelitian.create')->name('penelitian.create');
+    Route::view('/penelitian/{id}', 'dosen.penelitian.show')->whereNumber('id')->name('penelitian.show');
+    Route::view('/penelitian/{id}/edit', 'dosen.penelitian.edit')->whereNumber('id')->name('penelitian.edit');
+
+    Route::get('/pengabdian', [DosenPengabdianController::class, 'index'])->name('pengabdian.index');
+    Route::get('/pengabdian/create', [DosenPengabdianController::class, 'create'])->name('pengabdian.create');
+    Route::post('/pengabdian', [DosenPengabdianController::class, 'store'])->name('pengabdian.store');
+    Route::get('/pengabdian/{id}', [DosenPengabdianController::class, 'show'])->whereNumber('id')->name('pengabdian.show');
+    Route::get('/pengabdian/{id}/edit', [DosenPengabdianController::class, 'edit'])->whereNumber('id')->name('pengabdian.edit');
+    Route::put('/pengabdian/{id}', [DosenPengabdianController::class, 'update'])->whereNumber('id')->name('pengabdian.update');
+
+    // KODE BARU (Menggunakan Route::view karena data diambil via API):
+    Route::view('/pengajaran', 'dosen.pengajaran.index')->name('pengajaran.index');
+    Route::view('/pengajaran/create', 'dosen.pengajaran.create')->name('pengajaran.create');
+    Route::view('/pengajaran/{id}', 'dosen.pengajaran.show')->whereNumber('id')->name('pengajaran.show');
+    Route::view('/pengajaran/{id}/edit', 'dosen.pengajaran.edit')->whereNumber('id')->name('pengajaran.edit');
+
+    Route::get('/pengajuan/dosen/baru', [PengajuanController::class, 'createDosen'])->name('pengajuan.dosen.create');
+    Route::post('/pengajuan/dosen', [PengajuanController::class, 'storeDosen'])->name('pengajuan.dosen.store');
+    Route::view('/pengajuan/dosen', 'dosen.pengajuan.dosen')->name('pengajuan.dosen');
+    Route::view('/pengajuan/dosen/{id}', 'dosen.pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('pengajuan.dosen.show');
+    Route::view('/pengajuan/mahasiswa', 'pengajuan.mahasiswa')->name('pengajuan.mahasiswa');
+    Route::view('/pengajuan/mahasiswa/{id}', 'dosen.pengajuan.show', ['asal' => 'mahasiswa'])->whereNumber('id')->name('pengajuan.mahasiswa.show');
+
+    Route::view('/berita', 'dosen.berita.index')->name('berita.index');
+    Route::view('/berita/create', 'dosen.berita.create')->name('berita.create');
+    Route::view('/berita/{id}', 'dosen.berita.show')->whereNumber('id')->name('berita.show');
+    Route::view('/berita/{id}/edit', 'dosen.berita.edit')->whereNumber('id')->name('berita.edit');
 });
-
-Route::view('/penelitian', 'dosen.penelitian.index')->name('penelitian.index');
-Route::view('/penelitian/create', 'dosen.penelitian.create')->name('penelitian.create');
-Route::view('/penelitian/{id}', 'dosen.penelitian.show')->whereNumber('id')->name('penelitian.show');
-Route::view('/penelitian/{id}/edit', 'dosen.penelitian.edit')->whereNumber('id')->name('penelitian.edit');
-
-Route::get('/pengabdian', [DosenPengabdianController::class, 'index'])->name('pengabdian.index');
-Route::get('/pengabdian/create', [DosenPengabdianController::class, 'create'])->name('pengabdian.create');
-Route::post('/pengabdian', [DosenPengabdianController::class, 'store'])->name('pengabdian.store');
-Route::get('/pengabdian/{id}', [DosenPengabdianController::class, 'show'])->whereNumber('id')->name('pengabdian.show');
-Route::get('/pengabdian/{id}/edit', [DosenPengabdianController::class, 'edit'])->whereNumber('id')->name('pengabdian.edit');
-Route::put('/pengabdian/{id}', [DosenPengabdianController::class, 'update'])->whereNumber('id')->name('pengabdian.update');
-
-// KODE BARU (Menggunakan Route::view karena data diambil via API):
-Route::view('/pengajaran', 'dosen.pengajaran.index')->name('pengajaran.index');
-Route::view('/pengajaran/create', 'dosen.pengajaran.create')->name('pengajaran.create');
-Route::view('/pengajaran/{id}', 'dosen.pengajaran.show')->whereNumber('id')->name('pengajaran.show');
-Route::view('/pengajaran/{id}/edit', 'dosen.pengajaran.edit')->whereNumber('id')->name('pengajaran.edit');
 
 Route::get('/kegiatan', $redirectByRole('dosen.kegiatan.index', 'kegiatan.index'));
 Route::get('/kegiatan/create', $redirectByRole('dosen.kegiatan.create', 'kegiatan.create'));
@@ -84,18 +103,6 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
 
     Route::get('/mahasiswa/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('kegiatan.show');
 });
-
-Route::get('/pengajuan/dosen/baru', [PengajuanController::class, 'createDosen'])->name('pengajuan.dosen.create');
-Route::post('/pengajuan/dosen', [PengajuanController::class, 'storeDosen'])->name('pengajuan.dosen.store');
-Route::view('/pengajuan/dosen', 'dosen.pengajuan.dosen')->name('pengajuan.dosen');
-Route::view('/pengajuan/dosen/{id}', 'dosen.pengajuan.show', ['asal' => 'dosen'])->whereNumber('id')->name('pengajuan.dosen.show');
-Route::view('/pengajuan/mahasiswa', 'pengajuan.mahasiswa')->name('pengajuan.mahasiswa');
-Route::view('/pengajuan/mahasiswa/{id}', 'dosen.pengajuan.show', ['asal' => 'mahasiswa'])->whereNumber('id')->name('pengajuan.mahasiswa.show');
-
-Route::view('/berita', 'dosen.berita.index')->name('berita.index');
-Route::view('/berita/create', 'dosen.berita.create')->name('berita.create');
-Route::view('/berita/{id}', 'dosen.berita.show')->whereNumber('id')->name('berita.show');
-Route::view('/berita/{id}/edit', 'dosen.berita.edit')->whereNumber('id')->name('berita.edit');
 
 Route::view('/kegiatan-page', 'kegiatan')->name('kegiatan');
 Route::view('/header', 'header')->name('header');

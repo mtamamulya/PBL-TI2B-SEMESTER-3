@@ -19,6 +19,26 @@ class DosenRoutesTest extends TestCase
         $this->withoutVite();
     }
 
+    private function loginDosen(): void
+    {
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]));
+    }
+
+    public function test_halaman_dosen_memerlukan_login_dan_peran_yang_tepat(): void
+    {
+        foreach (['/dosen/dashboard', '/profil', '/prestasi', '/berita', '/notifikasi', '/penelitian', '/pengabdian', '/pengajaran', '/pengajuan/dosen', '/pengajuan/mahasiswa', '/pengajuan'] as $path) {
+            $this->get($path)->assertRedirect(route('login'));
+        }
+        foreach (['admin', 'kaprodi', 'mahasiswa'] as $role) {
+            $id = DB::table('roles')->insertGetId(['nama_role' => $role], 'id_role');
+            $this->actingAs(User::factory()->create(['id_role' => $id, 'status' => true]));
+            $this->get('/profil')->assertRedirect(route('dashboard'));
+            $this->get('/dashboard')->assertRedirect(route($role.'.dashboard'));
+            $this->post('/pengajuan/dosen')->assertForbidden();
+        }
+    }
+
     public function test_tautan_lama_dan_tombol_form_tetap_di_area_dosen(): void
     {
         DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
@@ -77,6 +97,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_dashboard_has_its_own_route_and_view(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.dashboard'))
             ->assertOk()
             ->assertViewIs('dosen.dashboard')
@@ -92,6 +113,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_navigation_routes_render_their_dosen_views(): void
     {
+        $this->loginDosen();
         $routes = [
             ['dosen.kegiatan.index'],
             ['dosen.kegiatan.create'],
@@ -121,8 +143,8 @@ class DosenRoutesTest extends TestCase
         ];
 
         $this->get(route('pengabdian.create'))->assertNotFound(); // Belum ada kategori pengabdian.
-        $this->get(route('pengabdian.show', ['id' => 1]))->assertRedirect(route('login'));
-        $this->get(route('pengabdian.edit', ['id' => 1]))->assertRedirect(route('login'));
+        $this->get(route('pengabdian.show', ['id' => 1]))->assertNotFound();
+        $this->get(route('pengabdian.edit', ['id' => 1]))->assertNotFound();
 
         foreach ($routes as $route) {
             $routeName = $route[0];
@@ -137,6 +159,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_activity_list_uses_its_own_content_instead_of_student_summary(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.kegiatan.index'))
             ->assertOk()
             ->assertViewIs('dosen.kegiatan.index')
@@ -174,6 +197,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_berita_list_keeps_detail_and_edit_links_in_dosen_routes(): void
     {
+        $this->loginDosen();
         $this->get(route('berita.index'))
             ->assertOk()
             ->assertSee(url('/berita').'/${b.id}', false)
@@ -209,6 +233,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_views_load_the_scripts_for_their_interactive_lists(): void
     {
+        $this->loginDosen();
         $this->get(route('berita.index'))
             ->assertOk()
             ->assertSee("Alpine.data('beritaDaftar'", false);
@@ -216,6 +241,7 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_pengajuan_pages_render_their_list_data(): void
     {
+        $this->loginDosen();
         $this->get(route('dosen.dashboard'))
             ->assertOk()
             ->assertSee('href="'.route('pengajuan.dosen').'"', false);
