@@ -55,6 +55,62 @@ class ProfilProdiController extends Controller
         return response()->json(['ok' => true, 'data' => $this->lengkapi($hasil['data'] ?? [])]);
     }
 
+    public function unggahLogo(Request $request): JsonResponse
+    {
+        if (ProfilProdi::modeDummy()) {
+            return response()->json(['message' => 'Unggah logo tidak tersedia di mode dummy.'], 422);
+        }
+
+        $data = Validator::make($request->all(), [
+            'jenis' => ['required', 'in:utama,footer'],
+            'file' => ['required', 'file', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
+        ], [
+            'jenis.required' => 'Jenis logo wajib dipilih.',
+            'jenis.in' => 'Jenis logo harus utama atau footer.',
+            'file.required' => 'Berkas logo wajib dipilih.',
+            'file.file' => 'Berkas logo tidak valid.',
+            'file.mimes' => 'Format logo harus PNG, JPG, JPEG, atau WEBP.',
+            'file.max' => 'Ukuran logo maksimal 2 MB.',
+        ])->validate();
+
+        try {
+            $hasil = ApiClient::pengguna()->post(
+                '/prodi/profil/logo',
+                ['jenis' => $data['jenis']],
+                ['file' => $request->file('file')]
+            );
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
+        }
+
+        Cache::forget(ProfilProdiLanding::CACHE_KEY);
+        Cache::forget(ProfilProdiLanding::CACHE_GAGAL);
+
+        return response()->json(['ok' => true, 'data' => $this->lengkapi($hasil['data'] ?? [])]);
+    }
+
+    public function hapusLogo(string $jenis): JsonResponse
+    {
+        if (ProfilProdi::modeDummy()) {
+            return response()->json(['message' => 'Unggah logo tidak tersedia di mode dummy.'], 422);
+        }
+
+        if (! in_array($jenis, ['utama', 'footer'], true)) {
+            abort(404);
+        }
+
+        try {
+            $hasil = ApiClient::pengguna()->delete("/prodi/profil/logo/{$jenis}");
+        } catch (ApiException $e) {
+            return $this->responGagalApi($e);
+        }
+
+        Cache::forget(ProfilProdiLanding::CACHE_KEY);
+        Cache::forget(ProfilProdiLanding::CACHE_GAGAL);
+
+        return response()->json(['ok' => true, 'data' => $this->lengkapi($hasil['data'] ?? [])]);
+    }
+
     /** @return array<string, mixed> data sesuai kontrak (semua kunci selalu ada) */
     private function ambil(Request $request): array
     {
