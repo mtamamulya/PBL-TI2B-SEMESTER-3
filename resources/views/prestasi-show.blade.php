@@ -1,6 +1,6 @@
 @extends('layouts.publik')
 
-@section('title', $record->kegiatan?->nama_kegiatan ?? 'Detail Prestasi')
+@section('title', $record->kegiatan?->nama_kegiatan ?? $record->nama_lomba)
 
 @section('content')
 <div class="min-h-screen bg-white text-black" style="font-family: 'Plus Jakarta Sans', sans-serif;">
@@ -18,7 +18,7 @@
                     {{ $record->capaian ?: ucfirst($record->jenis_prestasi) }}
                 </span>
                 <h1 class="max-w-[1000px] text-[24px] font-bold leading-[34px] tracking-[-0.2px] sm:text-[32px] sm:leading-[42px]">
-                    {{ $record->kegiatan?->nama_kegiatan ?? 'Prestasi' }}
+                    {{ $record->kegiatan?->nama_kegiatan ?? $record->nama_lomba }}
                 </h1>
                 <p class="text-sm text-[#64758A]">
                     {{ ucfirst($record->jenis_prestasi) }}
@@ -37,9 +37,9 @@
                         </svg>
                     </div>
 
-                    @if ($record->catatan)
+                    @if ($record->deskripsi)
                         <div class="flex flex-col gap-4 text-justify text-base leading-7 text-[#27364B]">
-                            <p>{{ $record->catatan }}</p>
+                            <p>{{ $record->deskripsi }}</p>
                         </div>
                     @endif
 
@@ -80,7 +80,7 @@
                                 </div>
                             @endif
                         @endforeach
-                    </section>
+                    </section
 
                     <section>
                         <h2 class="text-2xl font-bold leading-[30px] text-[#071E38]">Prestasi Lainnya</h2>
@@ -88,7 +88,7 @@
                         <div class="flex flex-col gap-3 pt-[14px]">
                             @forelse ($terkait as $item)
                                 <a href="{{ route('publik.prestasi.show', $item->getKey()) }}" class="flex flex-col gap-1 hover:opacity-80">
-                                    <span class="line-clamp-2 text-sm font-bold text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? 'Prestasi' }}</span>
+                                    <span class="line-clamp-2 text-sm font-bold text-[#071E38]">{{ $item->kegiatan?->nama_kegiatan ?? $item->nama_lomba }}</span>
                                     <span class="text-xs text-[#7D8999]">{{ $item->capaian ?: ucfirst($item->jenis_prestasi) }}</span>
                                 </a>
                                 <div class="h-px bg-[#E6E9EE]"></div>

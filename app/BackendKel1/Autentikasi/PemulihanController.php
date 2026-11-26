@@ -30,7 +30,10 @@ class PemulihanController extends Controller
 
     private const OTP_JEDA_KIRIM_DETIK = 60;
 
+    // =========================================================================
     // ALUR 1: LUPA SANDI (PUBLIK / BELUM LOGIN)
+    // =========================================================================
+
     public function kirimOtp(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -52,11 +55,10 @@ class PemulihanController extends Controller
         $user = User::query()->where('email', $email)->where('status', true)->first();
 
         if ($user) {
-            $sisaJeda = $this->sisaJedaKirim($user, self::TUJUAN_LUPA_SANDI);
-            if ($sisaJeda > 0) {
-                $pesan = "Tunggu {$sisaJeda} detik sebelum meminta kode baru.";
-
-                return ApiResponse::gagal($pesan, 422, ['otp' => [$pesan]]);
+            // Masih dalam jeda: tidak mengirim ulang, tetapi jawabannya SAMA dengan permintaan biasa
+            // agar penyerang tidak bisa membedakan email terdaftar dari yang tidak. (Web punya hitungan jeda sendiri.)
+            if ($this->sisaJedaKirim($user, self::TUJUAN_LUPA_SANDI) > 0) {
+                return ApiResponse::ok(null, 'Jika email terdaftar, kode OTP telah dikirim. Periksa kotak masuk atau folder spam.');
             }
 
             try {
@@ -126,7 +128,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(null, 'Kata sandi berhasil diperbarui.');
     }
 
+    // =========================================================================
     // ALUR 2A: GANTI SANDI PROFIL (VERIFIKASI SANDI LAMA)
+    // =========================================================================
 
     public function gantiSandiProfil(Request $request): JsonResponse
     {
@@ -158,7 +162,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(['token' => $tokenBaru], 'Kata sandi berhasil diubah.');
     }
 
+    // =========================================================================
     // ALUR 2B: GANTI SANDI PROFIL (DENGAN OTP EMAIL)
+    // =========================================================================
 
     public function kirimOtpProfil(Request $request): JsonResponse
     {
@@ -236,7 +242,9 @@ class PemulihanController extends Controller
         return ApiResponse::ok(['token' => $tokenBaru], 'Kata sandi berhasil diubah.');
     }
 
+    // =========================================================================
     // HELPER INTERNAL OTP & TOKEN
+    // =========================================================================
 
     private function prosesVerifikasiOtp(User $user, string $kodeInput, string $tujuan): JsonResponse
     {
@@ -244,6 +252,7 @@ class PemulihanController extends Controller
             ->where('id_user', $user->getKey())
             ->where('tujuan', $tujuan)
             ->whereNull('consumed_at')
+            ->whereNull('verified_at')
             ->latest('id_otp_code')
             ->first();
 
@@ -356,10 +365,10 @@ class PemulihanController extends Controller
 
     private function sisaJedaKirim(User $user, string $tujuan): int
     {
+        // Sengaja TANPA filter consumed_at: kode yang hangus (3x salah / sudah dipakai) tidak boleh menghapus jeda.
         $otp = DB::table('otp_codes')
             ->where('id_user', $user->getKey())
             ->where('tujuan', $tujuan)
-            ->whereNull('consumed_at')
             ->latest('id_otp_code')
             ->first();
 
@@ -408,7 +417,7 @@ class PemulihanController extends Controller
             Mail::to($user->email)->send(new PasswordResetOtp($code, self::OTP_MENIT));
         } catch (TransportExceptionInterface $exception) {
             DB::table('otp_codes')->where('id_otp_code', $otpId)
-                ->update(['consumed_at' => now(), 'updated_at' => now()]);
+                ->update(['consumed_at' => now(), 'last_sent_at' => null, 'updated_at' => now()]);
 
             throw $exception;
         }

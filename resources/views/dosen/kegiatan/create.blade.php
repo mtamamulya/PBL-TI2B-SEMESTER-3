@@ -9,19 +9,27 @@
 
     // Isian tambahan per kategori (edit daftarnya di _medan-kategori.php) dan nilai awal form
     $medanKategori = require resource_path('views/dosen/kegiatan/_medan-kategori.php');
+    foreach (['Penelitian', 'Pengabdian'] as $modul) {
+        $sebelumnya = \App\Models\Kegiatan::untukUser(auth()->user())
+            ->whereHas('kategori', fn ($q) => $q->where('nama_kategori', $modul))
+            ->pluck('nama_kegiatan', 'id_kegiatan');
+        foreach ($medanKategori[$modul]['medan'] as &$field) {
+            if ($field['nama'] === 'sebelumnya') {
+                $field['opsi'] = $sebelumnya->keys()->values();
+                $field['labels'] = $sebelumnya;
+            }
+        }
+        unset($field);
+    }
     $awal = ['kategori' => '', 'nilai' => []];
 
-    // Calon anggota yang bisa dicari: nama => status
-    $kandidat = [
-        'Kuwat Santoso , S.T., M.Kom.' => 'Dosen',
-        'Wiktasari'                    => 'Dosen',
-        'Angga Wahyu Wibowo'           => 'Dosen',
-        'Arif Setyawan'                => 'Dosen',
-        'Mukhlis Pratama Mulya'        => 'Mahasiswa',
-    ];
-
-    // Pengaju = akun yang login. Nanti diganti nama user dari backend.
-    $pengaju = 'Kuwat Santoso , S.T., M.Kom.';
+    $kandidat = [];
+    foreach ((auth()->user()?->dosen ? ['mahasiswa' => 'Mahasiswa', 'dosen' => 'Dosen'] : []) as $tabel => $peran) {
+        foreach (DB::table($tabel)->whereNotNull('id_user')->pluck('nama') as $nama) {
+            $kandidat[$nama] = $peran;
+        }
+    }
+    $pengaju = auth()->user()?->dosen?->nama ?? auth()->user()?->email ?? 'Pengaju';
 
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
@@ -179,8 +187,8 @@
                                 <td class="px-2.5 py-2.5">
                                     <span x-text="a.nama"></span>
                                     {{-- data yang dikirim ke backend --}}
-                                    <input type="hidden" :name="`anggota[${i}][nama]`" :value="a.nama">
-                                    <input type="hidden" :name="`anggota[${i}][status]`" :value="a.status">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][nama]`" :value="a.nama">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][status]`" :value="a.status">
                                 </td>
                                 <td class="px-2.5 py-2.5" x-text="a.status"></td>
                                 <td class="px-2.5 py-1.5">
@@ -357,6 +365,10 @@
                 const formData = new FormData(formElement);
 
                 // Tentukan endpoint tujuan (khusus Penelitian nembak ke API penelitian)
+                if (['Penelitian', 'Pengabdian'].includes(this.kategori)) {
+                    formData.delete('detail[sebelumnya]');
+                    if (this.nilai.sebelumnya) formData.set('id_kegiatan_sebelumnya', this.nilai.sebelumnya);
+                }
                 const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
 
                 this.sedangMenyimpan = true;

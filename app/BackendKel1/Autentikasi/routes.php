@@ -7,13 +7,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('api.login');
 
-// Lupa sandi (publik, tanpa token)
+// Lupa sandi (publik, tanpa token).
+// Pembatas dihitung per email (+ IP), bukan per IP saja: web memanggil API dari server yang sama,
+// jadi pembatas per IP akan memblokir SEMUA pengguna sekaligus. Limiter didefinisikan di AppServiceProvider.
 Route::prefix('lupa-sandi')->group(function () {
-    Route::post('kirim-otp', [PemulihanController::class, 'kirimOtp'])->middleware('throttle:5,1')->name('api.lupa-sandi.kirim-otp');
-    Route::post('verifikasi', [PemulihanController::class, 'verifikasi'])->name('api.lupa-sandi.verifikasi');
-    Route::post('simpan', [PemulihanController::class, 'simpan'])->name('api.lupa-sandi.simpan');
+    Route::post('kirim-otp', [PemulihanController::class, 'kirimOtp'])->middleware('throttle:lupa-sandi-kirim')->name('api.lupa-sandi.kirim-otp');
+    Route::post('verifikasi', [PemulihanController::class, 'verifikasi'])->middleware('throttle:lupa-sandi')->name('api.lupa-sandi.verifikasi');
+    Route::post('simpan', [PemulihanController::class, 'simpan'])->middleware('throttle:lupa-sandi')->name('api.lupa-sandi.simpan');
 });
 
+// Butuh login semua role (admin, kaprodi, dosen, mahasiswa)
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout'])->name('api.logout');
 

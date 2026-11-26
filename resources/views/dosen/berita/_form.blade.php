@@ -21,10 +21,54 @@ $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-f
 $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
 
+<<<<<<< HEAD
 {{-- Pastikan ada meta tag CSRF token --}}
 @if (!request()->hasHeader('X-CSRF-TOKEN'))
     <meta name="csrf-token" content="{{ csrf_token() }}">
 @endif
+=======
+{{-- Styling CKEditor 5 agar menyatu dengan Tailwind & mengembalikan format heading/list --}}
+<style>
+    .ck-editor__top .ck-sticky-panel .ck-toolbar {
+        border-color: #e5e7eb !important;
+        border-radius: 0.5rem 0.5rem 0 0 !important;
+        background-color: #f9fafb !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable {
+        min-height: 180px;
+        border-color: #e5e7eb !important;
+        border-radius: 0 0 0.5rem 0.5rem !important;
+        padding: 0.5rem 0.875rem !important;
+        font-size: 15px;
+        color: #111827;
+        box-shadow: none !important;
+    }
+    .ck.ck-editor__main > .ck-editor__editable.ck-focused {
+        border-color: #1f66e5 !important;
+    }
+    .ck-editor__editable .ck-placeholder::before {
+        color: #9ca3af !important;
+        font-style: normal !important;
+    }
+    /* Mengembalikan style HTML bawaan yang di-reset oleh Tailwind Preflight */
+    .ck-content h2 { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0; }
+    .ck-content h3 { font-size: 1.15rem; font-weight: 600; margin: 0.4rem 0; }
+    .ck-content h4 { font-size: 1rem; font-weight: 600; margin: 0.3rem 0; }
+    .ck-content ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.4rem 0; }
+    .ck-content ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.4rem 0; }
+    .ck-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.875rem; color: #4b5563; margin: 0.5rem 0; }
+    .ck-content a { color: #1f66e5; text-decoration: underline; }
+    /* Sembunyikan badge watermark "Powered by CKEditor" */
+    .ck-powered-by,
+    .ck.ck-powered-by,
+    a.ck-powered-by {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+</style>
+>>>>>>> c9b0c6306b3f1f6ee90db10a816ae26117bb28fd
 
 <form x-data="formBerita(@js($awal))" x-on:submit.prevent="ajukan()"
       method="POST" action="#" enctype="multipart/form-data"

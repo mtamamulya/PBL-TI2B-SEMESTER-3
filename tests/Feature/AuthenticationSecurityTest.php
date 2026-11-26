@@ -148,7 +148,8 @@ class AuthenticationSecurityTest extends TestCase
         $user = $this->user(4);
 
         $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
-        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertUnprocessable();
+        // Masih dalam jeda 60 detik: dijawab sama (tidak membocorkan email terdaftar), tapi tidak mengirim email baru.
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $user->email])->assertOk();
 
         Mail::assertSent(PasswordResetOtp::class, 1);
         $this->assertDatabaseCount('otp_codes', 1);

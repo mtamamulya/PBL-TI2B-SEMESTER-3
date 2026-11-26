@@ -21,13 +21,11 @@ class AlurPengajuan
 
     public const STATUS_SELESAI = 'selesai';
 
-    /**
-     * Mengajukan kegiatan pertama kali.
-     */
     public function ajukanBaru(int $idKegiatan, int $idUser): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser) {
-            $kegiatan = Kegiatan::where('id_kegiatan', $idKegiatan)
+            $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail.dokumen', 'dokumen', 'anggota'])
+                ->where('id_kegiatan', $idKegiatan)
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -51,13 +49,11 @@ class AlurPengajuan
         });
     }
 
-    /**
-     * Mengajukan ulang kegiatan setelah direvisi dan dilengkapi.
-     */
     public function ajukanUlang(int $idKegiatan, int $idUser, ?string $catatan = null): Timeline
     {
         return DB::transaction(function () use ($idKegiatan, $idUser, $catatan) {
-            $kegiatan = Kegiatan::where('id_kegiatan', $idKegiatan)
+            $kegiatan = Kegiatan::with(['kategori.isianKategori', 'detail.dokumen', 'dokumen', 'anggota'])
+                ->where('id_kegiatan', $idKegiatan)
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -93,16 +89,70 @@ class AlurPengajuan
 
     private function validasiKelengkapan(Kegiatan $kegiatan): void
     {
-        if (empty($kegiatan->id_kategori)) {
+        $errors = [];
+
+        if (empty($kegiatan->id_kategori) || ! $kegiatan->kategori) {
             throw ValidationException::withMessages([
                 'id_kategori' => 'Kategori kegiatan wajib diisi sebelum diajukan.',
             ]);
         }
 
+        if (blank($kegiatan->nama_kegiatan)) {
+            $errors['nama_kegiatan'] = 'Nama kegiatan wajib diisi sebelum diajukan.';
+        }
+
+        // 1. Validasi setiap isian wajib berdasarkan aturan di tabel isian_kategori
+        $detailByIsian = $kegiatan->detail->groupBy('id_isian_kategori');
+
+        foreach ($kegiatan->kategori->isianKategori as $isianKategori) {
+            $aturan = strtoupper(trim((string) ($isianKategori->aturan ?? '')));
+            $isWajib = $aturan === 'NOT NULL'
+                || str_contains($aturan, 'REQUIRED')
+                || str_contains($aturan, 'WAJIB');
+
+            if (! $isWajib) {
+                continue;
+            }
+
+            $label = ucwords(str_replace('_', ' ', (string) $isianKategori->input));
+            $key = 'isian.'.$isianKategori->input;
+            $daftarDetail = $detailByIsian->get($isianKategori->id_isian_kategori, collect());
+            $jenisInput = strtolower((string) ($isianKategori->jenis_input ?? ''));
+
+            if ($jenisInput === 'file') {
+                $punyaFile = $daftarDetail->contains(function ($detail) {
+                    return $detail->dokumen()->exists() || filled($detail->isian);
+                });
+
+                if (! $punyaFile) {
+                    $errors[$key] = "Lampiran wajib '{$label}' untuk kategori {$kegiatan->kategori->nama_kategori} belum diunggah.";
+                }
+            } else {
+                $terisi = $daftarDetail->contains(fn ($detail) => filled($detail->isian));
+
+                if (! $terisi) {
+                    $errors[$key] = "Isian wajib '{$label}' untuk kategori {$kegiatan->kategori->nama_kategori} belum diisi.";
+                }
+            }
+        }
+
+        // 2. Validasi lampiran peserta jika kategori mewajibkannya
+        if ($kegiatan->kategori->lampiran_peserta) {
+            $adaPeserta = $kegiatan->anggota()->exists()
+                || $kegiatan->dokumen()->where('is_lampiran', true)->exists();
+
+            if (! $adaPeserta) {
+                $errors['lampiran_peserta'] = "Kategori {$kegiatan->kategori->nama_kategori} mewajibkan data atau lampiran peserta.";
+            }
+        }
+
+        // 3. Pastikan minimal terdapat satu dokumen pendukung pada kegiatan
         if (! $kegiatan->dokumen()->exists()) {
-            throw ValidationException::withMessages([
-                'dokumen' => 'Lampiran dokumen wajib dilengkapi sebelum diajukan.',
-            ]);
+            $errors['dokumen'] = 'Lampiran dokumen wajib dilengkapi sebelum diajukan.';
+        }
+
+        if (! empty($errors)) {
+            throw ValidationException::withMessages($errors);
         }
     }
 }

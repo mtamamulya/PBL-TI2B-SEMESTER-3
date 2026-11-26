@@ -2,13 +2,28 @@
 
 namespace App\BackendKel3\Profil;
 
+use App\BackendKel1\Autentikasi\PemulihanController;
 use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ProfilController extends Controller
 {
+    public function simpanSandi(Request $request, PemulihanController $pemulihan): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $pemulihan) {
+            $response = $pemulihan->simpanSandiProfilOtp($request);
+            if ($response->isSuccessful() && $request->hasSession() && $request->session()->has('api_token')) {
+                $request->session()->put('api_token', $response->getData()->data->token);
+            }
+
+            return $response;
+        });
+    }
+
     /**
      * GET /api/v1/dosen/profil
      * Mengambil profil dosen yang sedang login beserta pangkat terakhir.
@@ -32,7 +47,7 @@ class ProfilController extends Controller
             'nama' => $dosen->nama,
             'nip' => $dosen->nip,
             'email' => $user->email,
-            'foto_profil' => $user->foto_profil,
+            'foto_profil' => $this->formatFotoUrl($user->foto_profil),
             'pangkat_terakhir' => $pangkatTerakhir ? [
                 'pangkat' => $pangkatTerakhir->pangkat,
                 'golongan' => $pangkatTerakhir->golongan,
@@ -46,18 +61,33 @@ class ProfilController extends Controller
 
     /**
      * PATCH /api/v1/dosen/profil
-     * Mengubah field profil yang diizinkan (hanya nama) milik dosen yang login.
+     * Mengubah foto profil user dan/atau nama dosen yang sedang login.
      */
     public function update(UpdateProfilRequest $request): JsonResponse
     {
         $user = $request->user();
         $dosen = $user?->dosen;
 
-        if (! $dosen) {
+        if (! $dosen || ! $user) {
             return ApiResponse::gagal('Data profil dosen tidak ditemukan untuk akun ini.', 404);
         }
 
-        $dosen->update($request->validated());
+        if ($request->filled('nama')) {
+            $dosen->update([
+                'nama' => $request->input('nama'),
+            ]);
+            $dosen->refresh();
+        }
+
+        if ($request->hasFile('foto_profil')) {
+            $this->hapusFotoLama($user->foto_profil);
+
+            $path = $request->file('foto_profil')->store('foto-profil', 'public');
+            $user->update([
+                'foto_profil' => ltrim($path, '/'),
+            ]);
+            $user->refresh();
+        }
 
         $pangkatTerakhir = $dosen->historiPangkatGolongan()
             ->orderByDesc('tanggal_sk')
@@ -69,7 +99,7 @@ class ProfilController extends Controller
             'nama' => $dosen->nama,
             'nip' => $dosen->nip,
             'email' => $user->email,
-            'foto_profil' => $user->foto_profil,
+            'foto_profil' => $this->formatFotoUrl($user->foto_profil),
             'pangkat_terakhir' => $pangkatTerakhir ? [
                 'pangkat' => $pangkatTerakhir->pangkat,
                 'golongan' => $pangkatTerakhir->golongan,
@@ -78,7 +108,7 @@ class ProfilController extends Controller
             ] : null,
         ];
 
-        return ApiResponse::ok($data, 'Profil dosen berhasil diperbarui.');
+        return ApiResponse::ok($data, 'Profil berhasil diperbarui.');
     }
 
     /**
@@ -108,5 +138,41 @@ class ProfilController extends Controller
             ->all();
 
         return ApiResponse::ok($riwayat, 'Riwayat pangkat dan golongan berhasil diambil.');
+    }
+
+    private function formatFotoUrl(?string $fotoProfil): ?string
+    {
+        if (! $fotoProfil) {
+            return null;
+        }
+
+        if (str_starts_with($fotoProfil, 'http://') || str_starts_with($fotoProfil, 'https://')) {
+            return $fotoProfil;
+        }
+
+        $normalized = ltrim($fotoProfil, '/');
+        if (str_starts_with($normalized, 'storage/')) {
+            return '/'.$normalized;
+        }
+
+        return '/storage/'.$normalized;
+    }
+
+    private function hapusFotoLama(?string $fotoProfil): void
+    {
+        if (! $fotoProfil) {
+            return;
+        }
+
+        if (str_starts_with($fotoProfil, 'http://') || str_starts_with($fotoProfil, 'https://')) {
+            return;
+        }
+
+        $normalized = ltrim($fotoProfil, '/');
+        $relativePath = str_starts_with($normalized, 'storage/')
+            ? substr($normalized, strlen('storage/'))
+            : $normalized;
+
+        Storage::disk('public')->delete($relativePath);
     }
 }

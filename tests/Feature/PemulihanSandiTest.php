@@ -223,8 +223,9 @@ class PemulihanSandiTest extends TestCase
             ->assertStatus(500)
             ->assertJsonPath('success', false);
 
-        // OTP yang gagal terkirim tidak boleh tetap bisa dipakai.
+        // OTP yang gagal terkirim tidak boleh tetap bisa dipakai, dan tidak boleh meninggalkan jeda.
         $this->assertNotNull($this->otp()->consumed_at);
+        $this->assertNull($this->otp()->last_sent_at, 'Pengiriman gagal tidak boleh memblokir percobaan berikutnya.');
     }
 
     public function test_otp_of_another_purpose_is_never_touched(): void
@@ -250,15 +251,47 @@ class PemulihanSandiTest extends TestCase
 
     // ---------- kirim ulang (API) ----------
 
-    public function test_resend_is_blocked_during_the_cooldown(): void
+    public function test_resend_during_the_cooldown_sends_nothing_but_answers_like_a_normal_request(): void
+    {
+        $kode = $this->mintaOtp();
+
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        Mail::assertSentCount(1);
+        $this->assertTrue(Hash::check($kode, $this->otp()->code_hash), 'Kode lama tidak boleh berganti saat jeda.');
+    }
+
+    public function test_cooldown_response_does_not_reveal_whether_the_email_is_registered(): void
     {
         $this->mintaOtp();
 
-        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('otp');
+        $terdaftar = $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email]);
+        $tidakAda = $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => 'tidak.ada@trk.ac.id']);
 
+        $this->assertSame($tidakAda->status(), $terdaftar->status());
+        $this->assertSame($tidakAda->json(), $terdaftar->json());
+    }
+
+    public function test_cooldown_still_applies_after_the_code_was_locked_by_wrong_attempts(): void
+    {
+        $kode = $this->mintaOtp();
+        $salah = $kode === '000000' ? '111111' : '000000';
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => $this->email, 'otp' => $salah]);
+        }
+        $this->assertNotNull($this->otp()->consumed_at);
+
+        // Kode sudah hangus, tapi baru saja dikirim: tidak boleh langsung dikirim kode baru.
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])->assertOk();
         Mail::assertSentCount(1);
+
+        // Setelah 61 detik baru boleh.
+        Carbon::setTestNow(now()->addSeconds(61));
+        $this->postJson('/api/v1/lupa-sandi/kirim-otp', ['email' => $this->email])->assertOk();
+        Mail::assertSentCount(2);
     }
 
     public function test_resend_works_after_the_cooldown_and_replaces_the_code(): void
@@ -326,6 +359,36 @@ class PemulihanSandiTest extends TestCase
             ->assertJsonValidationErrors('otp');
 
         $this->assertNull($this->otp()->verified_at);
+    }
+
+    public function test_an_already_verified_code_cannot_be_verified_again(): void
+    {
+        $kode = $this->mintaOtp();
+        $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => $this->email, 'otp' => $kode])->assertOk();
+        $berlakuSampai = $this->otp()->expires_at;
+
+        Carbon::setTestNow(now()->addMinute());
+        $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => $this->email, 'otp' => $kode])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('otp');
+
+        $this->assertSame($berlakuSampai, $this->otp()->expires_at, 'Jendela waktu tidak boleh diperpanjang lagi.');
+    }
+
+    public function test_verification_is_rate_limited_per_email_not_for_everyone(): void
+    {
+        $this->mintaOtp();
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => $this->email, 'otp' => '000000']);
+        }
+
+        $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => $this->email, 'otp' => '000000'])
+            ->assertStatus(429);
+
+        // Email lain (pengguna lain di server yang sama) tidak ikut terblokir.
+        $this->postJson('/api/v1/lupa-sandi/verifikasi', ['email' => 'orang.lain@trk.ac.id', 'otp' => '000000'])
+            ->assertUnprocessable();
     }
 
     public function test_otp_must_be_six_digits(): void
@@ -489,7 +552,8 @@ class PemulihanSandiTest extends TestCase
 
         $this->post(route('password.email'), ['email' => $this->email])
             ->assertRedirect(route('password.request'))
-            ->assertSessionHas('pemulihan.step', 2);
+            ->assertSessionHas('pemulihan.step', 2)
+            ->assertSessionHas('pemulihan.otp_berlaku_sampai');
 
         $this->post(route('password.otp'), ['otp' => '123456'])
             ->assertRedirect(route('password.request'))
@@ -529,5 +593,69 @@ class PemulihanSandiTest extends TestCase
         ])
             ->post(route('password.simpan'), ['password' => 'SandiBaru123', 'password_confirmation' => 'SandiBaru123'])
             ->assertNotFound();
+    }
+
+    public function test_step_two_page_sends_you_back_to_step_one_when_the_otp_has_expired(): void
+    {
+        $this->withSession([
+            'pemulihan' => [
+                'step' => 2,
+                'email' => $this->email,
+                'terakhir_kirim' => now()->subMinutes(6)->timestamp,
+                'otp_berlaku_sampai' => now()->subMinute()->timestamp,
+            ],
+        ])
+            ->get(route('password.request'))
+            ->assertRedirect(route('password.request'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertNull(session('pemulihan'));
+    }
+
+    public function test_submitting_an_expired_otp_does_not_call_the_api(): void
+    {
+        Http::fake();
+
+        $this->withSession([
+            'pemulihan' => [
+                'step' => 2,
+                'email' => $this->email,
+                'terakhir_kirim' => now()->subMinutes(6)->timestamp,
+                'otp_berlaku_sampai' => now()->subMinute()->timestamp,
+            ],
+        ])
+            ->post(route('password.otp'), ['otp' => '123456'])
+            ->assertRedirect(route('password.request'))
+            ->assertSessionHasErrors('email');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_an_old_step_two_session_without_an_expiry_time_starts_over(): void
+    {
+        $this->withSession([
+            'pemulihan' => ['step' => 2, 'email' => $this->email],
+        ])
+            ->get(route('password.request'))
+            ->assertRedirect(route('password.request'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertNull(session('pemulihan'));
+    }
+
+    public function test_opening_the_page_with_mulai_always_starts_at_step_one(): void
+    {
+        $this->withoutVite();
+
+        $this->withSession([
+            'pemulihan' => [
+                'step' => 2,
+                'email' => $this->email,
+                'otp_berlaku_sampai' => now()->addMinutes(3)->timestamp,
+            ],
+        ])
+            ->get(route('password.request', ['mulai' => 1]))
+            ->assertOk()
+            ->assertViewHas('step', 1);
     }
 }

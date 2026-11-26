@@ -2,33 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 class TahunAkademikController extends Controller
 {
-    private function apiUrl(string $path): string
-    {
-        $base = rtrim((string) config('services.backend_kel1.url', env('BACKEND_KEL1_URL', 'http://127.0.0.1:8001/api/v1')), '/');
-
-        return "{$base}{$path}";
-    }
-
     public function index(Request $request)
     {
-        $response = Http::acceptJson()->get($this->apiUrl('/tahun-akademik'));
-        $list = $response->json('data') ?? [];
+        $hasil = ApiClient::publik()->get('/tahun-akademik');
+        $list = $hasil['data'] ?? [];
 
         $aktif = collect($list)->first(function ($item) {
             return in_array(strtolower((string) ($item['status'] ?? '')), ['1', 'true', 'aktif'], true);
         });
 
+        $periodeBerikutnya = $this->hitungPeriodeBerikutnya($list, $aktif);
         $isAdmin = request()->routeIs('admin.*');
 
         return view($isAdmin ? 'admin.tahun-akademik' : 'kaprodi.tahun-akademik', [
             'tahunAkademikList' => $list,
             'tahunAkademikAktif' => $aktif,
+            'defaultSemester' => $periodeBerikutnya['semester'],
+            'defaultTahunAjaran' => $periodeBerikutnya['tahun_ajaran'],
         ]);
     }
 
@@ -41,27 +38,74 @@ class TahunAkademikController extends Controller
             'tahun_ajaran' => ['required', 'regex:/^\d{4}\/\d{4}$/'],
         ]);
 
-        $token = (string) ($request->session()->get('api_token') ?? $request->session()->get('token') ?? '');
+        try {
+            $hasil = ApiClient::pengguna()->post('/tahun-akademik', $validated);
+        } catch (ApiException $e) {
+            if ($e->status === 422) {
+                return back()
+                    ->withInput()
+                    ->withErrors($e->errors ?: ['tahun_ajaran' => [$e->getMessage()]]);
+            }
 
-        $response = Http::acceptJson()
-            ->withToken($token)
-            ->post($this->apiUrl('/tahun-akademik'), $validated);
-
-        if ($response->status() === 422) {
             return back()
                 ->withInput()
-                ->withErrors($response->json('errors') ?? ['tahun_ajaran' => [$response->json('message', 'Data tidak valid.')]]);
-        }
-
-        if (! $response->successful()) {
-            return back()
-                ->withInput()
-                ->withErrors(['tahun_ajaran' => [$response->json('message', 'Gagal menyimpan tahun akademik ke API.')]]);
+                ->withErrors(['tahun_ajaran' => [$e->getMessage()]]);
         }
 
         return redirect()
             ->route('admin.kurikulum.tahun-akademik')
-            ->with('status', $response->json('message') ?? 'Tahun akademik baru berhasil ditambahkan dan diaktifkan.');
+            ->with('status', $hasil['message'] ?? 'Tahun akademik baru berhasil ditambahkan dan diaktifkan.');
+    }
+
+    private function hitungPeriodeBerikutnya(array $list, ?array $aktif): array
+    {
+        $kandidat = collect($list);
+        if ($aktif) {
+            $kandidat = $kandidat->prepend($aktif);
+        }
+
+        $terbaru = null;
+        $skorTertinggi = -1;
+
+        foreach ($kandidat as $item) {
+            $label = (string) ($item['tahun_akademik'] ?? '');
+            if (preg_match('/^(Ganjil|Genap)\s+(\d{4})\/(\d{4})$/i', trim($label), $m)) {
+                $sem = ucfirst(strtolower($m[1]));
+                $tahunAwal = (int) $m[2];
+                $tahunAkhir = (int) $m[3];
+                $skor = ($tahunAwal * 2) + ($sem === 'Genap' ? 1 : 0);
+
+                if ($skor > $skorTertinggi) {
+                    $skorTertinggi = $skor;
+                    $terbaru = [
+                        'semester' => $sem,
+                        'tahun_awal' => $tahunAwal,
+                        'tahun_akhir' => $tahunAkhir,
+                    ];
+                }
+            }
+        }
+
+        if (! $terbaru) {
+            $tahun = (int) date('Y');
+
+            return [
+                'semester' => 'Ganjil',
+                'tahun_ajaran' => "{$tahun}/".($tahun + 1),
+            ];
+        }
+
+        if ($terbaru['semester'] === 'Ganjil') {
+            return [
+                'semester' => 'Genap',
+                'tahun_ajaran' => "{$terbaru['tahun_awal']}/{$terbaru['tahun_akhir']}",
+            ];
+        }
+
+        return [
+            'semester' => 'Ganjil',
+            'tahun_ajaran' => ($terbaru['tahun_awal'] + 1).'/'.($terbaru['tahun_akhir'] + 1),
+        ];
     }
 
     private function isAdmin(Request $request): bool
