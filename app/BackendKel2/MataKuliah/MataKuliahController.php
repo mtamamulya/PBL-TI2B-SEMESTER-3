@@ -18,11 +18,10 @@ class MataKuliahController extends Controller
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
                     'angkatan' => $request->input('angkatan', '2024'),
+                    'kode_prodi' => $request->input('kode_prodi'),
                     'semester' => $request->input('semester'),
-                    'tingkat' => $request->input('tingkat'),
-                    'tahun_akademik' => $request->input('tahun_akademik'),
                     'q' => $request->input('q'),
-                    'per_page' => $request->input('per_page', 100),
+                    'per_page' => min((int) $request->input('per_page', 100), 100),
                     'page' => $request->input('page', 1),
                 ]);
 
@@ -63,9 +62,9 @@ class MataKuliahController extends Controller
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
                     'angkatan' => $angkatan,
+                    'kode_prodi' => $request->input('kode_prodi'),
                     'semester' => $semester,
-                    'tahun_akademik' => $tahunAkademik,
-                    'per_page' => $request->input('per_page', 100),
+                    'per_page' => min((int) $request->input('per_page', 100), 100),
                     'page' => $request->input('page', 1),
                 ]);
 
@@ -138,11 +137,10 @@ class MataKuliahController extends Controller
             $response = Http::acceptJson()->timeout(10)
                 ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', [
                     'angkatan' => $angkatan,
+                    'kode_prodi' => $request->input('kode_prodi'),
                     'semester' => $request->input('semester'),
-                    'tingkat' => $request->input('tingkat'),
-                    'tahun_akademik' => $request->input('tahun_akademik'),
                     'q' => $request->input('q'),
-                    'per_page' => $request->input('per_page', 100),
+                    'per_page' => min((int) $request->input('per_page', 100), 100),
                     'page' => $request->input('page', 1),
                 ]);
 

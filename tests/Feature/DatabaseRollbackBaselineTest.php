@@ -23,7 +23,10 @@ class DatabaseRollbackBaselineTest extends TestCase
 
         $this->assertDatabaseCount('roles', 4);
         $this->assertDatabaseCount('users', 4);
-        foreach (['jenis_kegiatan', 'kategori', 'isian_kategori', 'dosen', 'mahasiswa'] as $table) {
+        $this->assertDatabaseCount('jenis_kegiatan', 1);
+        $this->assertDatabaseCount('kategori', 6);
+        $this->assertDatabaseCount('isian_kategori', 24);
+        foreach (['dosen', 'mahasiswa'] as $table) {
             $this->assertDatabaseCount($table, 0);
         }
         $this->assertTrue(Hash::check('changed-password', $user->fresh()->password));

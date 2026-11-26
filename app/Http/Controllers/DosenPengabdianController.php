@@ -138,9 +138,11 @@ class DosenPengabdianController extends Controller
     private function idKategori(): int
     {
         $id = DB::table('kategori')
-            ->where('nama_kategori', 'like', 'Pengabdian%')
-            ->orderBy('id_kategori')
-            ->value('id_kategori');
+            ->join('jenis_kegiatan', 'jenis_kegiatan.id_jenis_kegiatan', '=', 'kategori.id_jenis_kegiatan')
+            ->where('jenis_kegiatan.nama_jenis_kegiatan', 'Kegiatan Dosen')
+            ->where('kategori.nama_kategori', 'like', 'Pengabdian%')
+            ->orderBy('kategori.id_kategori')
+            ->value('kategori.id_kategori');
 
         abort_unless($id, 404, 'Kategori Pengabdian belum ada di master kategori.');
 

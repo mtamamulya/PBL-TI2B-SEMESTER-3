@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Prestasi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -73,7 +74,8 @@ class MahasiswaPrestasiDriveLinkTest extends TestCase
 
     public function test_prestasi_form_only_lists_eligible_activities(): void
     {
-        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Mahasiswa'], 'id_jenis_kegiatan');
+        $jenis = DB::table('jenis_kegiatan')->where('nama_jenis_kegiatan', 'Kegiatan Mahasiswa')->value('id_jenis_kegiatan')
+            ?? DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Mahasiswa'], 'id_jenis_kegiatan');
         $kategori = DB::table('kategori')->insertGetId(['id_jenis_kegiatan' => $jenis, 'nama_kategori' => 'Lomba'], 'id_kategori');
         foreach (['diterima', 'diajukan'] as $status) {
             $id = DB::table('kegiatan')->insertGetId(['id_user' => auth()->id(), 'id_kategori' => $kategori, 'nama_kegiatan' => 'Lomba '.$status], 'id_kegiatan');
@@ -90,7 +92,44 @@ class MahasiswaPrestasiDriveLinkTest extends TestCase
 
     public function test_prestasi_edit_form_keeps_existing_documents_and_new_types(): void
     {
-        $this->get(route('mahasiswa.prestasi.edit', 1))
+        $prestasi = Prestasi::create([
+            'id_user' => auth()->id(),
+            'created_by' => auth()->id(),
+            'capaian' => 'Juara 1',
+            'jenis_prestasi' => 'akademik',
+            'nama_lomba' => 'Lomba Inovasi Internet of Things',
+            'penyelenggara' => 'Forum Inovasi Teknologi',
+            'lokasi' => 'Semarang',
+            'tingkat_kejuaraan' => 'nasional',
+            'tanggal_mulai' => '2026-09-22',
+            'tanggal_selesai' => '2026-09-24',
+            'bentuk_partisipasi' => 'individu',
+        ]);
+        $idJenisDokumen = DB::table('jenis_dokumen')->insertGetId([
+            'nama_jenis_dokumen' => 'Sertifikat',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('bukti_prestasi')->insert([
+            [
+                'id_prestasi' => $prestasi->getKey(),
+                'id_jenis_dokumen' => $idJenisDokumen,
+                'link' => 'https://drive.google.com/file/d/sertifikat/view',
+                'nama_file' => 'sertifikat-iot.pdf',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id_prestasi' => $prestasi->getKey(),
+                'id_jenis_dokumen' => $idJenisDokumen,
+                'link' => 'https://drive.google.com/file/d/foto/view',
+                'nama_file' => 'foto-iot.jpg',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('mahasiswa.prestasi.edit', $prestasi->getKey()))
             ->assertOk()
             ->assertSee('Dokumentasi kegiatan')
             ->assertSee('sertifikat-iot.pdf')

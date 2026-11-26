@@ -4,72 +4,10 @@
 
 @section('content')
 @php
-    // ===== Data contoh. Ganti dengan data dari controller saat database sudah ada. =====
-    // Urutan: nama, kategori, bentuk, capaian, tingkat, jenis, penyelenggara, tanggal, kegiatan terkait (opsional)
-    $rows = [
-        ['Lomba Inovasi Internet of Things', 'Teknologi', 'Tim', 'Juara 2', 'Nasional', 'Akademik', 'Forum Inovasi Teknologi', '2026-09-24', 'Lomba inovasi IoT 2026'],
-        ['Kompetisi Desain Poster Digital', 'Desain', 'Individu', 'Juara 1', 'Kabupaten/Kota', 'Nonakademik', 'BEM Politeknik', '2026-08-18'],
-        ['Hackathon Smart City Nusantara', 'Teknologi', 'Tim', 'Juara 1', 'Nasional', 'Akademik', 'Kementerian Kominfo', '2026-07-12', 'Hackathon Smart City 2026'],
-        ['Capture The Flag Keamanan Siber', 'Keamanan siber', 'Tim', 'Juara 3', 'Provinsi', 'Akademik', 'Komunitas Siber Jateng', '2026-06-05'],
-        ['Kejuaraan Bulu Tangkis Antar Kampus', 'Olahraga', 'Individu', 'Juara 2', 'Kabupaten/Kota', 'Nonakademik', 'KONI Kota Semarang', '2026-05-20'],
-        ['Kontes Robot Indonesia Regional', 'Robotika', 'Tim', 'Juara 1', 'Provinsi', 'Akademik', 'Puslapdik Kemdikbud', '2026-04-14', 'Persiapan KRI 2026'],
-        ['Lomba Fotografi Budaya Jawa', 'Seni', 'Individu', 'Harapan 1', 'Provinsi', 'Nonakademik', 'Dinas Kebudayaan Jateng', '2026-03-08'],
-        ['Kompetisi Pemrograman Mobile', 'Pemrograman', 'Individu', 'Juara 3', 'Nasional', 'Akademik', 'Himpunan Mahasiswa Informatika', '2026-02-22'],
-        ['International Embedded Systems Contest', 'Sistem embedded', 'Tim', 'Finalis', 'Internasional', 'Akademik', 'IEEE Student Branch', '2026-01-30'],
-        ['Festival Film Pendek Mahasiswa', 'Film', 'Tim', 'Juara 2', 'Provinsi', 'Nonakademik', 'Dewan Kesenian Jawa Tengah', '2025-11-16'],
-        ['Lomba UI/UX Design Challenge', 'Desain', 'Individu', 'Juara 1', 'Nasional', 'Akademik', 'Ikatan Desainer Digital', '2025-10-04'],
-        ['Kompetisi Debat Bahasa Inggris', 'Debat', 'Tim', 'Juara 3', 'Kabupaten/Kota', 'Nonakademik', 'English Club Politeknik', '2025-09-13'],
-        ['Gemastik Divisi Pengembangan Aplikasi', 'Pemrograman', 'Tim', 'Finalis', 'Nasional', 'Akademik', 'Puspresnas', '2025-08-27', 'Gemastik 2025'],
-        ['Lomba Karya Tulis Ilmiah', 'Penulisan ilmiah', 'Individu', 'Juara 2', 'Provinsi', 'Akademik', 'Universitas Diponegoro', '2025-07-19'],
-        ['Turnamen Esports Mobile Legends', 'Esports', 'Tim', 'Juara 1', 'Kabupaten/Kota', 'Nonakademik', 'Dinas Pemuda dan Olahraga', '2025-06-07'],
-        ['Asian IoT Innovation Challenge', 'Internet of Things', 'Tim', 'Harapan 2', 'Internasional', 'Akademik', 'Asia Tech Forum', '2025-05-25'],
-        ['Lomba Cipta Lagu Mahasiswa', 'Musik', 'Individu', 'Juara 2', 'Nasional', 'Nonakademik', 'Radio Kampus Indonesia', '2025-04-12'],
-        ['Kompetisi Jaringan Komputer', 'Jaringan', 'Tim', 'Juara 1', 'Provinsi', 'Akademik', 'Cisco Networking Academy', '2025-03-15'],
-        ['Pekan Olahraga Mahasiswa Futsal', 'Olahraga', 'Tim', 'Juara 3', 'Provinsi', 'Nonakademik', 'Badan Olahraga Mahasiswa', '2025-02-09'],
-        ['Business Plan Competition', 'Kewirausahaan', 'Tim', 'Juara 2', 'Nasional', 'Akademik', 'Kemenparekraf', '2024-11-23'],
-        ['Lomba Ilustrasi Digital', 'Seni', 'Individu', 'Juara 1', 'Kabupaten/Kota', 'Nonakademik', 'Komunitas Ilustrator Semarang', '2024-10-06'],
-        ['Kompetisi Data Science', 'Data science', 'Tim', 'Finalis', 'Internasional', 'Akademik', 'Kaggle Student Community', '2024-08-17'],
-        ['Olimpiade Matematika Terapan', 'Matematika', 'Individu', 'Harapan 1', 'Provinsi', 'Akademik', 'Forum Matematika Jateng', '2024-05-18'],
-        ['Lomba Desain Logo Kampus', 'Desain', 'Individu', 'Juara 3', 'Kabupaten/Kota', 'Nonakademik', 'Humas Politeknik', '2023-11-11'],
-        ['Kontes Programming Kompetitif', 'Algoritma', 'Individu', 'Juara 2', 'Nasional', 'Akademik', 'ICPC Indonesia', '2023-09-02'],
-        ['Lomba Cerdas Cermat Teknologi', 'Teknologi', 'Tim', 'Juara 1', 'Kabupaten/Kota', 'Akademik', 'Dinas Pendidikan', '2023-03-26'],
-    ];
-
-    $bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-    $namaMhs = $nama ?? config('mahasiswa.nama');
-
-    // Prestasi tim yang dibuat orang lain, di mana mahasiswa ini hanya DITAG sebagai anggota.
-    // Untuk prestasi ini hanya tombol "lihat" yang tersedia (tanpa edit dan hapus).
-    // Data asli: bandingkan pembuat prestasi dengan auth()->id(), atau cek mahasiswa sebagai anggota.
-    $ditagIds = [3, 9, 13, 16];
-
-    $prestasi = collect($rows)->map(function ($r, $i) use ($bulan, $ditagIds, $namaMhs) {
-        $tgl   = \Illuminate\Support\Carbon::parse($r[7]);
-        $ditag = in_array($i + 1, $ditagIds, true);
-
-        return [
-            'id' => $i + 1,
-            'nama' => $r[0],
-            'kategori' => $r[1],
-            'bentuk' => $r[2],
-            'capaian' => $r[3],
-            'tingkat' => $r[4],
-            'jenis' => $r[5],
-            'penyelenggara' => $r[6],
-            'tanggal' => $tgl->format('d') . ' ' . $bulan[$tgl->month - 1] . ' ' . $tgl->year,
-            'tahun' => $tgl->year,
-            'kegiatan' => $r[8] ?? 'Tidak terkait',
-            'bukti' => $r[9] ?? [],
-            'ditag' => $ditag,
-            'pembuat' => $ditag ? 'Ivan Sigit Santoso' : $namaMhs,
-            'bisaUbah' => ! $ditag, // hanya pembuat yang boleh edit dan hapus
-        ];
-    })->all();
-
-    $total = count($prestasi);
-    $akademik = collect($prestasi)->where('jenis', 'Akademik')->count();
-    $nonakademik = collect($prestasi)->where('jenis', 'Nonakademik')->count();
+    $prestasi = $prestasi ?? [];
+    $total = $total ?? count($prestasi);
+    $akademik = $akademik ?? 0;
+    $nonakademik = $nonakademik ?? 0;
 
     // URL aksi memakai route mahasiswa.prestasi.* yang terdaftar di routes/web.php.
     $urlEdit  = Route::has('mahasiswa.prestasi.edit')  ? route('mahasiswa.prestasi.edit', '__ID__')  : null;
@@ -348,13 +286,9 @@
         </div>
 
         <div class="flex flex-col gap-3 text-xs text-[#6B7280] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span x-text="terfilter.length
-                    ? `${dari}–${sampai} dari ${terfilter.length} prestasi ditampilkan`
-                    : '0 prestasi ditampilkan'"></span>
-                <button type="button" x-show="dihapus.length > 0" x-cloak x-on:click="pulihkan()"
-                        class="font-semibold text-[#0062FF] hover:underline">Pulihkan data contoh</button>
-            </div>
+            <span x-text="terfilter.length
+                ? `${dari}–${sampai} dari ${terfilter.length} prestasi ditampilkan`
+                : '0 prestasi ditampilkan'"></span>
 
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                 <button type="button" class="{{ $pageBtn }}" x-on:click="halaman--" x-bind:disabled="halaman <= 1">Sebelumnya</button>
@@ -364,19 +298,11 @@
         </div>
     </section>
 
-    {{-- Form tersembunyi untuk menghapus (dipakai saat route hapus sudah dibuat) --}}
+    {{-- Form tersembunyi untuk menghapus prestasi milik akun ini --}}
     <form x-ref="formHapus" method="POST" action="#" class="hidden">
         @csrf
         @method('DELETE')
     </form>
-
-    {{-- Notifikasi setelah menghapus, dengan tombol Urungkan --}}
-    <div x-show="toast" x-cloak x-transition
-         class="fixed bottom-6 right-6 z-50 flex max-w-sm items-center gap-3 rounded-xl bg-[#111827] px-4 py-3 text-sm text-white shadow-lg"
-         role="status" aria-live="polite">
-        <span class="min-w-0 flex-1 truncate" x-text="toast"></span>
-        <button type="button" x-show="terakhir" x-on:click="urungkan()" class="shrink-0 font-semibold text-[#8FB8FF] hover:underline">Urungkan</button>
-    </div>
 
     {{-- ================= MODAL: KONFIRMASI HAPUS ================= --}}
     <template x-if="hapusPrestasi">
@@ -492,22 +418,12 @@
 <script>
     // Dideklarasikan global supaya bisa dipakai x-data (Alpine dimuat setelah script ini).
     const DATA_PRESTASI = @js($prestasi);
-    const URL_EDIT = @js($urlEdit);   // null jika route belum dibuat
-    const URL_HAPUS = @js($urlHapus); // null jika route belum dibuat
-    const KUNCI_HAPUS = 'prestasi-mhs-dihapus';
-
-    // localStorage bisa tidak tersedia (mode privat, dll.), jadi dibungkus try/catch.
-    function bacaDihapus() {
-        try { return JSON.parse(localStorage.getItem(KUNCI_HAPUS) || '[]'); } catch (e) { return []; }
-    }
-    function simpanDihapus(ids) {
-        try { localStorage.setItem(KUNCI_HAPUS, JSON.stringify(ids)); } catch (e) {}
-    }
+    const URL_EDIT = @js($urlEdit);
+    const URL_HAPUS = @js($urlHapus);
 
     function prestasiList() {
         return {
             semua: [],
-            dihapus: [],       // id prestasi yang sudah dihapus (mode contoh)
             q: '',
             tingkat: '',
             jenis: '',
@@ -518,13 +434,9 @@
             // Modal dan notifikasi
             buktiPrestasi: null,
             hapusPrestasi: null,
-            toast: '',
-            terakhir: null,    // prestasi yang baru dihapus (untuk Urungkan)
-            timerToast: null,
 
             init() {
-                this.dihapus = bacaDihapus();
-                this.semua = DATA_PRESTASI.filter(p => !this.dihapus.includes(p.id));
+                this.semua = DATA_PRESTASI;
 
                 // Setiap filter berubah, kembali ke halaman 1.
                 ['q', 'tingkat', 'jenis', 'tahun'].forEach(k => this.$watch(k, () => this.halaman = 1));
@@ -575,13 +487,6 @@
                 document.body.classList.toggle('overflow-hidden', aktif);
             },
 
-            tampilToast(pesan, bisaUrungkan = false) {
-                this.toast = pesan;
-                if (!bisaUrungkan) this.terakhir = null;
-                clearTimeout(this.timerToast);
-                this.timerToast = setTimeout(() => { this.toast = ''; this.terakhir = null; }, 6000);
-            },
-
             // ----- Aksi: edit -----
             urlEdit(p) {
                 return URL_EDIT ? URL_EDIT.replace('__ID__', p.id) : '#';
@@ -603,43 +508,9 @@
                 const p = this.hapusPrestasi;
                 if (!p || !p.bisaUbah) return;
 
-                // Route hapus sudah ada: kirim form DELETE ke server.
-                if (URL_HAPUS) {
-                    const form = this.$refs.formHapus;
-                    form.action = URL_HAPUS.replace('__ID__', p.id);
-                    form.submit();
-                    return;
-                }
-
-                // Mode contoh (route belum ada): hanya baris yang diklik yang dihapus,
-                // dan keputusan ini diingat di browser supaya tidak muncul lagi saat halaman dimuat ulang.
-                this.dihapus = [...this.dihapus, p.id];
-                simpanDihapus(this.dihapus);
-                this.semua = this.semua.filter(x => x.id !== p.id);
-
-                this.terakhir = p;
-                this.batalHapus();
-                if (this.halaman > this.totalHalaman) this.halaman = this.totalHalaman;
-                this.tampilToast('Prestasi "' + p.nama + '" dihapus.', true);
-            },
-
-            urungkan() {
-                const p = this.terakhir;
-                if (!p) return;
-
-                this.dihapus = this.dihapus.filter(id => id !== p.id);
-                simpanDihapus(this.dihapus);
-                this.semua = [...this.semua, p].sort((a, b) => a.id - b.id);
-                this.terakhir = null;
-                this.tampilToast('Penghapusan dibatalkan.');
-            },
-
-            pulihkan() {
-                this.dihapus = [];
-                simpanDihapus([]);
-                this.semua = [...DATA_PRESTASI];
-                this.terakhir = null;
-                this.tampilToast('Data contoh dipulihkan.');
+                const form = this.$refs.formHapus;
+                form.action = URL_HAPUS.replace('__ID__', p.id);
+                form.submit();
             },
 
             // ----- Aksi: lihat detail dan bukti -----

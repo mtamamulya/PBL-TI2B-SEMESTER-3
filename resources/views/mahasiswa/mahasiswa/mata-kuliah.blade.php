@@ -85,6 +85,12 @@
         </div>
     </nav>
 
+    @if (! empty($pesanApi))
+        <div role="alert" class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+            {{ $pesanApi }}
+        </div>
+    @endif
+
     {{-- Ringkasan paket (hanya tab Semester berjalan) --}}
     @if ($tab === 'berjalan')
         <section class="{{ $cardCls }} flex flex-col gap-5">
