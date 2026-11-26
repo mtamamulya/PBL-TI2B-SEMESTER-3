@@ -8,18 +8,20 @@ use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
+use App\Repositories\SuratPersetujuanStore;
 use App\Support\ApiClient;
 use App\Support\ApiException;
 use App\Support\PanggilApiWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Schema;
 
 class PengajuanController extends Controller
 {
@@ -669,7 +671,7 @@ class PengajuanController extends Controller
                 'meta' => $doc->jenisDokumen?->nama_jenis_dokumen ?? $doc->tipe_dokumen ?? $doc->jenis_dokumen ?? $doc->type ?? strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE'),
                 'url' => $path ? (str_starts_with($path, 'http') ? $path : asset('storage/'.$path)) : null,
             ];
-})->reject(fn (array $file) => strcasecmp((string) $file['meta'], 'Surat hasil') === 0)
+        })->reject(fn (array $file) => strcasecmp((string) $file['meta'], 'Surat hasil') === 0)
             ->concat($detailUploadedFiles)
             ->values()
             ->all();
@@ -728,7 +730,7 @@ class PengajuanController extends Controller
             })
             ->all();
 
-$teamMembers = [];
+        $teamMembers = [];
         if (Schema::hasTable('anggota_kegiatan')) {
             $teamMembers = DB::table('anggota_kegiatan')
                 ->leftJoin('mahasiswa', 'anggota_kegiatan.id_user', '=', 'mahasiswa.id_user')
@@ -752,7 +754,6 @@ $teamMembers = [];
 
         return view('mahasiswa.pengajuan.show', compact('row', 'steps', 'student', 'files', 'resultDocuments', 'item', 'detailFields', 'teamMembers'));
     }
-    
 
     public function destroy(int $id)
     {
@@ -1004,7 +1005,7 @@ $teamMembers = [];
                 function (string $attribute, mixed $value, \Closure $fail) {
                     $files = is_array($value) ? $value : [$value];
                     foreach ($files as $file) {
-                        if (! $file instanceof \Illuminate\Http\UploadedFile || ! $file->isValid()) {
+                        if (! $file instanceof UploadedFile || ! $file->isValid()) {
                             $fail("The {$attribute} field must be a file.");
 
                             return;
@@ -1082,7 +1083,7 @@ $teamMembers = [];
         $validated = $request->validate($rules, $messages);
 
         $detail = $validated['detail'] ?? [];
-$validated['uploaded_paths'] = [];
+        $validated['uploaded_paths'] = [];
         if ($isDosenRoute) {
             $detail = array_intersect_key($detail, array_flip(array_column($kategoriApi['isian'] ?? [], 'id_isian_kategori')));
         }
@@ -1093,7 +1094,7 @@ $validated['uploaded_paths'] = [];
                 if (is_array($uploadedFile)) {
                     $paths = [];
                     foreach ($uploadedFile as $fileItem) {
-                        if ($fileItem instanceof \Illuminate\Http\UploadedFile && $fileItem->isValid()) {
+                        if ($fileItem instanceof UploadedFile && $fileItem->isValid()) {
                             $stored = $fileItem->store('lampiran-isian', 'public');
                             $paths[] = $stored;
                             $validated['uploaded_paths'][] = $stored;
@@ -1102,7 +1103,7 @@ $validated['uploaded_paths'] = [];
                     if ($paths !== []) {
                         $detail[$idIsian] = $paths;
                     }
-                } elseif ($uploadedFile instanceof \Illuminate\Http\UploadedFile && $uploadedFile->isValid()) {
+                } elseif ($uploadedFile instanceof UploadedFile && $uploadedFile->isValid()) {
                     $detail[$idIsian] = $uploadedFile->store('lampiran-isian', 'public');
                     $validated['uploaded_paths'][] = $detail[$idIsian];
                 }
@@ -1157,10 +1158,10 @@ $validated['uploaded_paths'] = [];
             $tipeDokumen = $doc['type'] ?? 'Dokumentasi';
             $idJenisDokumen = null;
 
-            if (\Illuminate\Support\Facades\Schema::hasTable('jenis_dokumen') && \Illuminate\Support\Facades\Schema::hasColumn('dokumen', 'id_jenis_dokumen')) {
-                $kolomNama = \Illuminate\Support\Facades\Schema::hasColumn('jenis_dokumen', 'nama_jenis_dokumen')
+            if (Schema::hasTable('jenis_dokumen') && Schema::hasColumn('dokumen', 'id_jenis_dokumen')) {
+                $kolomNama = Schema::hasColumn('jenis_dokumen', 'nama_jenis_dokumen')
                     ? 'nama_jenis_dokumen'
-                    : (\Illuminate\Support\Facades\Schema::hasColumn('jenis_dokumen', 'nama_jenis') ? 'nama_jenis' : 'nama');
+                    : (Schema::hasColumn('jenis_dokumen', 'nama_jenis') ? 'nama_jenis' : 'nama');
 
                 $jenis = DB::table('jenis_dokumen')->where($kolomNama, $tipeDokumen)->first();
 
@@ -1168,7 +1169,7 @@ $validated['uploaded_paths'] = [];
                     $idJenisDokumen = $jenis->id_jenis_dokumen ?? $jenis->id;
                 } else {
                     $insertJenis = [$kolomNama => $tipeDokumen];
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('jenis_dokumen', 'created_at')) {
+                    if (Schema::hasColumn('jenis_dokumen', 'created_at')) {
                         $insertJenis['created_at'] = now();
                         $insertJenis['updated_at'] = now();
                     }
@@ -1266,25 +1267,25 @@ $validated['uploaded_paths'] = [];
             }
 
             $payload = [
-             'id_kategori' => $kategoriApi['id_kategori'],
-             'id_user' => $idUser,
-             'nama_kegiatan' => $validated['title'],
-             'documents' => $validated['documents'] ?? [],
-         ];
+                'id_kategori' => $kategoriApi['id_kategori'],
+                'id_user' => $idUser,
+                'nama_kegiatan' => $validated['title'],
+                'documents' => $validated['documents'] ?? [],
+            ];
 
-         try {
-             $result = ApiClient::pengguna()->post('/pengajuan-mahasiswa', $payload);
-             $newId = $result['data']['id_kegiatan'] ?? null;
+            try {
+                $result = ApiClient::pengguna()->post('/pengajuan-mahasiswa', $payload);
+                $newId = $result['data']['id_kegiatan'] ?? null;
 
-             if ($newId) {
-                 $this->syncDetailKegiatan((int) $newId, $validated['detail']);
-                 $this->syncDokumenKegiatan((int) $newId, $validated['documents'] ?? []);
-                 $this->syncAnggotaKegiatan((int) $newId, $validated['participation'], $validated['member_ids']);
+                if ($newId) {
+                    $this->syncDetailKegiatan((int) $newId, $validated['detail']);
+                    $this->syncDokumenKegiatan((int) $newId, $validated['documents'] ?? []);
+                    $this->syncAnggotaKegiatan((int) $newId, $validated['participation'], $validated['member_ids']);
 
-                 return redirect()->route($showRoute, $newId)
-                     ->with('success', 'Pengajuan berhasil dikirim melalui API.');
-             }
-            
+                    return redirect()->route($showRoute, $newId)
+                        ->with('success', 'Pengajuan berhasil dikirim melalui API.');
+                }
+
             } catch (ApiException $e) {
                 if ($e->getStatusCode() === 401) {
                     throw $e;
@@ -1435,9 +1436,9 @@ $validated['uploaded_paths'] = [];
         );
 
         $student = $this->studentProfile($kegiatan->user);
-        $snap = app(\App\Repositories\SuratPersetujuanStore::class)->find((string) $id);
+        $snap = app(SuratPersetujuanStore::class)->find((string) $id);
 
-        $detailRows = \Illuminate\Support\Facades\DB::table('detail_kegiatan')
+        $detailRows = DB::table('detail_kegiatan')
             ->join('isian_kategori', 'detail_kegiatan.id_isian_kategori', '=', 'isian_kategori.id_isian_kategori')
             ->where('detail_kegiatan.id_kegiatan', $id)
             ->select('isian_kategori.input', 'detail_kegiatan.isian')
@@ -1452,8 +1453,8 @@ $validated['uploaded_paths'] = [];
 
         $rawMulai = $kegiatan->tanggal_mulai ?? ($isianMap['tanggal mulai'] ?? null);
         $rawSelesai = $kegiatan->tanggal_selesai ?? ($isianMap['tanggal selesai'] ?? null);
-        $mulai = $rawMulai ? \Carbon\Carbon::parse($rawMulai)->locale('id')->translatedFormat('j F Y') : '-';
-        $selesai = $rawSelesai ? \Carbon\Carbon::parse($rawSelesai)->locale('id')->translatedFormat('j F Y') : null;
+        $mulai = $rawMulai ? Carbon::parse($rawMulai)->locale('id')->translatedFormat('j F Y') : '-';
+        $selesai = $rawSelesai ? Carbon::parse($rawSelesai)->locale('id')->translatedFormat('j F Y') : null;
         $tanggal = ($selesai && $selesai !== $mulai) ? "{$mulai} s.d. {$selesai}" : $mulai;
 
         $lokasi = $isianMap['lokasi']
@@ -1464,8 +1465,8 @@ $validated['uploaded_paths'] = [];
 
         $nomorSurat = $kegiatan->nomor_sk ?? null;
         $tanggalSurat = ! empty($kegiatan->tanggal_sk)
-            ? \Carbon\Carbon::parse($kegiatan->tanggal_sk)->locale('id')->translatedFormat('j F Y')
-            : \Carbon\Carbon::now()->locale('id')->translatedFormat('j F Y');
+            ? Carbon::parse($kegiatan->tanggal_sk)->locale('id')->translatedFormat('j F Y')
+            : Carbon::now()->locale('id')->translatedFormat('j F Y');
 
         $template = $kegiatan->kategori?->template_surat
             ?: "Dengan hormat,\n\nBerdasarkan pengajuan kegiatan mahasiswa Program Studi Teknologi Rekayasa Komputer, dengan ini Ketua Program Studi menerangkan dan menyetujui pelaksanaan kegiatan berikut:\n\nNama : [NAMA_PENGAJU]\nNIM / Identitas : [IDENTITAS]\nNama Kegiatan : [NAMA_KEGIATAN]\nTanggal : [TANGGAL]\nLokasi : [LOKASI]\n\nDemikian surat ini diterbitkan agar dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
@@ -1483,13 +1484,13 @@ $validated['uploaded_paths'] = [];
         $isiSurat = nl2br(e(str_replace(array_keys($pemetaan), array_values($pemetaan), $template)));
 
         $ttdPath = $snap['tanda_tangan_path'] ?? null;
-        $ttdUrl = ($ttdPath && \Illuminate\Support\Facades\Storage::disk('local')->exists($ttdPath))
+        $ttdUrl = ($ttdPath && Storage::disk('local')->exists($ttdPath))
             ? route('pengajuan.surat.ttd', $id)
             : null;
 
         $peserta = [];
-        if (\Illuminate\Support\Facades\Schema::hasTable('anggota_kegiatan')) {
-            $peserta = \Illuminate\Support\Facades\DB::table('anggota_kegiatan')
+        if (Schema::hasTable('anggota_kegiatan')) {
+            $peserta = DB::table('anggota_kegiatan')
                 ->leftJoin('mahasiswa', 'anggota_kegiatan.id_user', '=', 'mahasiswa.id_user')
                 ->leftJoin('dosen', 'anggota_kegiatan.id_user', '=', 'dosen.id_user')
                 ->leftJoin('users', 'anggota_kegiatan.id_user', '=', 'users.id_user')
@@ -1503,7 +1504,7 @@ $validated['uploaded_paths'] = [];
                 )
                 ->get()
                 ->map(fn ($a) => [$a->nama_mhs ?? $a->nama_dosen ?? $a->nama_user ?? '-', ucfirst((string) ($a->peran ?? 'Anggota'))])
-                ->all();   
+                ->all();
         }
 
         $lampiranDokumen = $kegiatan->dokumen
@@ -1532,12 +1533,12 @@ $validated['uploaded_paths'] = [];
     {
         Kegiatan::untukUser(Auth::user())->findOrFail($id);
 
-        $snap = app(\App\Repositories\SuratPersetujuanStore::class)->find((string) $id);
+        $snap = app(SuratPersetujuanStore::class)->find((string) $id);
         $path = $snap['tanda_tangan_path'] ?? null;
 
-        abort_unless($path && \Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
 
-        return \Illuminate\Support\Facades\Storage::disk('local')->response($path, null, [
+        return Storage::disk('local')->response($path, null, [
             'Cache-Control' => 'private, no-cache',
             'X-Content-Type-Options' => 'nosniff',
         ]);
