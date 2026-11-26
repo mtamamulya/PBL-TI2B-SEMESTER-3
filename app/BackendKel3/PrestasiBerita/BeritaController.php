@@ -84,20 +84,20 @@ class BeritaController extends Controller
     public function opsi(Request $request)
     {
         $user = $request->user();
-    
+
         $kegiatan = Kegiatan::untukPrestasi($user)
             ->with('kategori')
             ->orderBy('nama_kegiatan')
             ->get()
             ->map(fn (Kegiatan $k) => [
                 'id' => $k->id_kegiatan,
-                'nama' => $k->nama_kegiatan . ' · ' . ($k->kategori?->nama_kategori ?? 'Umum'),
+                'nama' => $k->nama_kegiatan.' · '.($k->kategori?->nama_kategori ?? 'Umum'),
             ]);
-    
+
         // Return SEMUA kategori (master kategori Kel 1)
-        $kategori = \App\Models\Kategori::orderBy('nama_kategori')
+        $kategori = Kategori::orderBy('nama_kategori')
             ->get(['id_kategori', 'nama_kategori']);
-    
+
         return response()->json([
             'success' => true,
             'message' => 'Opsi form berita berhasil diambil.',
@@ -143,9 +143,9 @@ class BeritaController extends Controller
             }
 
             // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && !empty($validated['kategori'])) {
+            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
                 // UBAH: Hapus ->where('kebutuhan', 'berita')
-                $kategori = \App\Models\Kategori::where('nama_kategori', $validated['kategori'])->first();
+                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
 
                 if ($kategori) {
                     $dataSimpan['id_kategori'] = $kategori->id_kategori;
@@ -188,7 +188,7 @@ class BeritaController extends Controller
                 ->with(['kegiatan.kategori', 'kategori'])
                 ->findOrFail($id);
 
-            $kategori = \App\Models\Kategori::where('kebutuhan', 'berita')
+            $kategori = Kategori::where('kebutuhan', 'berita')
                 ->orderBy('nama_kategori')
                 ->get(['id_kategori', 'nama_kategori']);
 
@@ -261,10 +261,10 @@ class BeritaController extends Controller
             }
 
             // Handle kategori mandiri
-            if ($validated['sumber'] === 'mandiri' && !empty($validated['kategori'])) {
+            if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
                 // UBAH: Hapus ->where('kebutuhan', 'berita')
-                $kategori = \App\Models\Kategori::where('nama_kategori', $validated['kategori'])->first();
-                
+                $kategori = Kategori::where('nama_kategori', $validated['kategori'])->first();
+
                 if ($kategori) {
                     $dataUpdate['id_kategori'] = $kategori->id_kategori;
                 }
