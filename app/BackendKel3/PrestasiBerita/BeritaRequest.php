@@ -33,9 +33,11 @@ class BeritaRequest extends FormRequest
         $required = $isUpdate ? 'sometimes' : 'required';
 
         return [
-            'id_kegiatan' => ['nullable', 'integer', 'exists:kegiatan,id_kegiatan'],
+            'id_kegiatan' => ['nullable', 'prohibits:id_prestasi', 'integer', 'exists:kegiatan,id_kegiatan'],
+            'id_prestasi' => ['nullable', 'prohibits:id_kegiatan', 'integer', 'exists:prestasi,id_prestasi'],
+            'id_kategori' => ['nullable', 'integer', 'exists:kategori,id_kategori'],
             'judul_berita' => ["{$required}", 'string', 'max:255'],
-            'isi_berita' => ["{$required}", 'string'],
+            'isi_berita' => $this->input('status') === 'draft' ? ['nullable', 'string'] : ["{$required}", 'string'],
             'sampul' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'status' => ['nullable', Rule::in(['draft', 'diajukan'])],
 

@@ -16,6 +16,7 @@ class Berita extends Model
 
     protected $fillable = [
         'id_kegiatan',
+        'id_prestasi',
         'id_user',
         'id_kategori',
         'judul_berita',
