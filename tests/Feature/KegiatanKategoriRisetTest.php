@@ -22,8 +22,8 @@ class KegiatanKategoriRisetTest extends TestCase
     {
         foreach (['dosen.kegiatan.create'] as $route) {
             $this->get(route($route))->assertOk()
-                ->assertSee('<option>Penelitian</option>', false)
-                ->assertSee('<option>Pengabdian</option>', false);
+                ->assertSee('/api/v1/kategori-kegiatan?', false)
+                ->assertSee('name="id_kategori"', false);
         }
     }
 

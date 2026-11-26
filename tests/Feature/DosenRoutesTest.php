@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class DosenRoutesTest extends TestCase
@@ -125,20 +127,29 @@ class DosenRoutesTest extends TestCase
 
     public function test_dosen_pengajuan_form_uses_dosen_store_route(): void
     {
-        $this->get(route('pengajuan.dosen.create'))
-            ->assertOk()
-            ->assertSee('action="'.route('pengajuan.dosen.store').'"', false);
+        $roles = [];
+        foreach (['admin', 'kaprodi', 'dosen'] as $name) {
+            $role = DB::table('roles')->insertGetId(['nama_role' => $name], 'id_role');
+            $roles[$name] = User::factory()->create(['id_role' => $role, 'status' => true]);
+        }
+        $jenis = DB::table('jenis_kegiatan')->insertGetId(['nama_jenis_kegiatan' => 'Kegiatan Dosen'], 'id_jenis_kegiatan');
+        $kategori = DB::table('kategori')->insertGetId(['nama_kategori' => 'Seminar', 'id_jenis_kegiatan' => $jenis], 'id_kategori');
+        Storage::fake('public');
+        $this->actingAs($roles['dosen'])->get(route('pengajuan.dosen.create'))->assertOk()
+            ->assertSee('Seminar')->assertSee('action="'.route('pengajuan.dosen.store').'"', false);
+        $response = $this->post(route('pengajuan.dosen.store'), [
+            'id_kategori' => $kategori, 'title' => 'Seminar Integrasi',
+            'lampiran' => UploadedFile::fake()->create('proposal.pdf', 12, 'application/pdf'),
+        ]);
+        $id = DB::table('kegiatan')->where('nama_kegiatan', 'Seminar Integrasi')->value('id_kegiatan');
+        $this->assertNotNull($id);
+        $response->assertRedirect(route('pengajuan.dosen.show', $id));
+        $this->actingAs($roles['admin'])->get('/admin/pengajuan')->assertOk()->assertSee('Seminar Integrasi');
+        $this->actingAs($roles['admin'], 'sanctum')->postJson("/api/v1/admin/pengajuan/$id/keputusan", [
+            'aksi' => 'setujui', 'nomor_sk' => 'SK/123',
+        ])->assertOk()->assertJsonPath('data.status', 'direview');
+        $this->actingAs($roles['kaprodi'], 'web')->get('/kaprodi/pengajuan')->assertOk()->assertSee('Seminar Integrasi');
 
-        $this->post(route('pengajuan.dosen.store'), [
-            'category' => 'Lomba',
-            'title' => 'Lomba Dosen',
-            'participation' => 'Individu',
-            'level' => 'Nasional',
-            'organizer' => 'Politeknik Negeri Semarang',
-            'location' => 'Semarang',
-            'start_date' => '2026-10-30',
-            'end_date' => '2026-10-31',
-        ])->assertRedirect(route('pengajuan.dosen.show', 101));
     }
 
     public function test_dosen_views_load_the_scripts_for_their_interactive_lists(): void
