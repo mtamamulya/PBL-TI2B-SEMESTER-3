@@ -57,6 +57,12 @@ final class ColumnStore implements StatusStore
         return $query->whereIn($query->getModel()->qualifyColumn($this->statusColumn), $codes);
     }
 
+    /** Kolom status selalu terisi, jadi semua data dianggap berstatus. */
+    public function whereTracked(Builder $query, bool $tracked): Builder
+    {
+        return $tracked ? $query : $query->whereRaw('1 = 0');
+    }
+
     public function countByStatus(Builder $base): array
     {
         $kolom = $base->getModel()->qualifyColumn($this->statusColumn);

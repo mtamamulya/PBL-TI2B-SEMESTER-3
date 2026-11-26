@@ -10,6 +10,9 @@ namespace App\BackendKel2\Workflow;
  *                  |-> ditolak (status akhir)
  *
  * Label mengikuti UI saat ini: direvisi = "Perlu revisi", diterima = "Disetujui".
+ *
+ * Kegiatan yang dicatat langsung lewat "Tambah Kegiatan" tidak melewati persetujuan dan tidak punya
+ * baris timeline sama sekali. Di sini disebut "Tercatat". Mesin tidak dipanggil untuk data seperti itu.
  */
 final class KegiatanWorkflow
 {
@@ -39,6 +42,10 @@ final class KegiatanWorkflow
             // Aturan awal, perlu disetujui tim: edit dan hapus hanya sebelum ditinjau atau saat perlu revisi.
             editable: ['diajukan', 'direvisi'],
             deletable: ['diajukan', 'direvisi'],
+            // Kegiatan tercatat tidak butuh persetujuan, jadi pemilik bebas mengubah dan menghapusnya.
+            untrackedLabel: 'Tercatat',
+            untrackedEditable: true,
+            untrackedDeletable: true,
         );
     }
 }

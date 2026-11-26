@@ -50,6 +50,17 @@ final class TimelineStore implements StatusStore
         });
     }
 
+    public function whereTracked(Builder $query, bool $tracked): Builder
+    {
+        $kunci = $query->getModel()->getQualifiedKeyName();
+
+        $adaTimeline = fn ($q) => $q->selectRaw('1')
+            ->from('timeline as t')
+            ->whereColumn('t.id_kegiatan', $kunci);
+
+        return $tracked ? $query->whereExists($adaTimeline) : $query->whereNotExists($adaTimeline);
+    }
+
     public function countByStatus(Builder $base): array
     {
         $ids = (clone $base)->select($base->getModel()->getQualifiedKeyName());

@@ -25,6 +25,9 @@ interface StatusStore
 
     public function whereStatus(Builder $query, array $codes): Builder;
 
+    /** Data yang punya riwayat status (tracked = true) atau yang tidak punya sama sekali (false). */
+    public function whereTracked(Builder $query, bool $tracked): Builder;
+
     /** @return array<string,int> kode status => jumlah */
     public function countByStatus(Builder $base): array;
 
