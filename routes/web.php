@@ -11,18 +11,30 @@ use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\MahasiswaController;
 use App\Http\Controllers\PengajuanController;
 use App\Http\Middleware\MahasiswaOnly;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Landing Page TRK
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
-Route::redirect('/dashboard', '/mahasiswa/dashboard')->name('dashboard');
+$redirectByRole = static function (string $dosen, string $mahasiswa) {
+    return static function (Request $request, ?string $id = null) use ($dosen, $mahasiswa) {
+        $route = (int) $request->user()?->id_role === 3 ? $dosen : $mahasiswa;
+
+        return redirect()->route($route, $id === null ? [] : ['id' => $id]);
+    };
+};
+
+Route::get('/dashboard', $redirectByRole('dosen.dashboard', 'mahasiswa.dashboard'))->name('dashboard');
 Route::get('/dosen/dashboard', [DosenDashboardController::class, 'index'])->name('dosen.dashboard');
 
 Route::get('/dosen/kegiatan', [KegiatanController::class, 'index'])->name('dosen.kegiatan.index');
 Route::view('/dosen/kegiatan/create', 'dosen.kegiatan.create')->name('dosen.kegiatan.create');
 Route::get('/dosen/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('dosen.kegiatan.show');
-Route::view('/dosen/kegiatan/{id}/edit', 'dosen.kegiatan.edit')->whereNumber('id')->name('dosen.kegiatan.edit');
+Route::middleware(['auth', PastikanDosenAktif::class])->group(function () {
+    Route::get('/dosen/kegiatan/{id}/edit', [KegiatanController::class, 'edit'])->whereNumber('id')->name('dosen.kegiatan.edit');
+    Route::put('/dosen/kegiatan/{id}', [KegiatanController::class, 'update'])->whereNumber('id')->name('dosen.kegiatan.update');
+});
 
 Route::view('/prestasi', 'dosen.prestasi.index')->name('prestasi.index');
 Route::view('/prestasi/create', 'dosen.prestasi.create')->name('prestasi.create');
@@ -56,8 +68,8 @@ Route::view('/pengajaran/create', 'dosen.pengajaran.create')->name('pengajaran.c
 Route::view('/pengajaran/{id}', 'dosen.pengajaran.show')->whereNumber('id')->name('pengajaran.show');
 Route::view('/pengajaran/{id}/edit', 'dosen.pengajaran.edit')->whereNumber('id')->name('pengajaran.edit');
 
-Route::redirect('/kegiatan', '/mahasiswa/kegiatan');
-Route::redirect('/kegiatan/create', '/mahasiswa/kegiatan/create');
+Route::get('/kegiatan', $redirectByRole('dosen.kegiatan.index', 'kegiatan.index'));
+Route::get('/kegiatan/create', $redirectByRole('dosen.kegiatan.create', 'kegiatan.create'));
 Route::middleware(MahasiswaOnly::class)->group(function () {
     Route::get('/mahasiswa/kegiatan', [KegiatanController::class, 'index'])->name('kegiatan.index');
     Route::get('/mahasiswa/kegiatan/create', [PengajuanController::class, 'createActivity'])->name('kegiatan.create');
@@ -145,17 +157,17 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
 
 require __DIR__.'/pengajuan.php';
 
-Route::redirect('/pengajuan', '/mahasiswa/pengajuan');
-Route::redirect('/pengajuan/baru', '/mahasiswa/pengajuan/baru');
-Route::redirect('/pengajuan/dashboard', '/mahasiswa/pengajuan/dashboard');
-Route::redirect('/pengajuan/berita', '/mahasiswa/pengajuan/berita');
-Route::redirect('/pengajuan/berita/baru', '/mahasiswa/pengajuan/berita/baru');
-Route::get('/pengajuan/berita/{id}/edit', fn ($id) => redirect()->route('pengajuan.berita.edit', $id))->whereNumber('id');
-Route::get('/pengajuan/berita/{id}', fn ($id) => redirect()->route('pengajuan.berita.show', $id))->whereNumber('id');
-Route::get('/pengajuan/{id}/edit', fn ($id) => redirect()->route('pengajuan.edit', $id))->whereNumber('id');
-Route::get('/pengajuan/{id}', fn ($id) => redirect()->route('pengajuan.show', $id))->whereNumber('id');
-Route::get('/kegiatan/{id}/edit', fn ($id) => redirect()->route('kegiatan.edit', $id))->whereNumber('id');
-Route::get('/kegiatan/{id}', fn ($id) => redirect()->route('kegiatan.show', $id))->whereNumber('id');
+Route::get('/pengajuan', $redirectByRole('pengajuan.dosen', 'pengajuan.index'));
+Route::get('/pengajuan/baru', $redirectByRole('pengajuan.dosen.create', 'pengajuan.create'));
+Route::get('/pengajuan/dashboard', $redirectByRole('dosen.dashboard', 'pengajuan.dashboard'));
+Route::get('/pengajuan/berita', $redirectByRole('berita.index', 'pengajuan.berita.index'));
+Route::get('/pengajuan/berita/baru', $redirectByRole('berita.create', 'pengajuan.berita.create'));
+Route::get('/pengajuan/berita/{id}/edit', $redirectByRole('berita.edit', 'pengajuan.berita.edit'))->whereNumber('id');
+Route::get('/pengajuan/berita/{id}', $redirectByRole('berita.show', 'pengajuan.berita.show'))->whereNumber('id');
+Route::get('/pengajuan/{id}/edit', $redirectByRole('pengajuan.dosen.show', 'pengajuan.edit'))->whereNumber('id');
+Route::get('/pengajuan/{id}', $redirectByRole('pengajuan.dosen.show', 'pengajuan.show'))->whereNumber('id');
+Route::get('/kegiatan/{id}/edit', $redirectByRole('dosen.kegiatan.edit', 'kegiatan.edit'))->whereNumber('id');
+Route::get('/kegiatan/{id}', $redirectByRole('dosen.kegiatan.show', 'kegiatan.show'))->whereNumber('id');
 
 require __DIR__.'/admin-kaprodi.php';
 require __DIR__.'/api-docs.php';

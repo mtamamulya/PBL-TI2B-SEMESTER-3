@@ -19,7 +19,7 @@
             <h1 class="text-3xl font-bold tracking-tight">Detail Pengajuan</h1>
             <p class="text-2xl text-gray-400">Dashboard / Pengajuan / {{ $dosen ? 'Dosen' : 'Mahasiswa' }} / Detail</p>
         </div>
-        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route($dosen ? 'pengajuan.dosen' : 'pengajuan.mahasiswa') }}"
+        <a href="{{ $dosen ? route('pengajuan.dosen') : (url()->previous() !== url()->current() ? url()->previous() : route('pengajuan.mahasiswa')) }}"
            class="mt-2 flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
             Kembali
