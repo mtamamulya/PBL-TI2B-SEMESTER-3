@@ -51,17 +51,20 @@
         </button>
 
         <div class="ml-auto flex items-center gap-4">
-            {{-- Lonceng: membuka halaman Notifikasi. Angka merah = jumlah belum dibaca (data tiruan: 3).
-                 Nanti backend mengganti angka 3 di x-data. Angkanya ikut berubah saat notifikasi dibaca. --}}
+            @php
+                $jumlahBelumDibaca = isset($notifikasi) && request()->routeIs('notifikasi')
+                    ? collect($notifikasi)->where('unread', true)->count()
+                    : \App\Models\Timeline::jumlahBelumDibaca(auth()->user());
+            @endphp
             <a href="{{ route('notifikasi') }}"
-               x-data="{ n: 3 }" x-on:notif-count.window="n = $event.detail"
+               x-data="{ n: {{ $jumlahBelumDibaca }} }" x-on:notif-count.window="n = $event.detail"
                :aria-label="`Notifikasi, ${n} belum dibaca`"
                @if (request()->routeIs('notifikasi')) aria-current="page" @endif
                class="relative flex size-10 items-center justify-center rounded-lg {{ request()->routeIs('notifikasi') ? 'bg-blue-100 text-brand' : 'hover:bg-gray-100' }}">
                 <svg class="size-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM10 20.5a2 2 0 0 0 4 0"/>
                 </svg>
-                <span x-show="n > 0" x-text="n" aria-hidden="true"
+                <span x-cloak x-show="n > 0" x-text="n" aria-hidden="true"
                       class="absolute top-0.5 right-0 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold text-white"></span>
             </a>
             {{-- Akun: klik untuk membuka menu kecil (Profil Saya dan Keluar). Tutup dengan klik di luar menu atau tombol Esc. --}}

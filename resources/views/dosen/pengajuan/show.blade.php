@@ -72,9 +72,8 @@
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
                     <div class="flex flex-col gap-2 px-4 pb-3">
-                        <label for="catatan-revisi" class="text-[15px]">Catatan revisi dari reviewer</label>
-                        <textarea id="catatan-revisi" rows="3" readonly x-model="catatanRevisiTerakhir"
-                                  class="min-h-20 w-full resize-none rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900"></textarea>
+                        <p class="text-[15px] font-medium">Catatan revisi dari reviewer</p>
+                        <p class="whitespace-pre-wrap break-words rounded-md bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900" x-text="catatanRevisiTerakhir"></p>
                     </div>
                 </section>
             </template>
