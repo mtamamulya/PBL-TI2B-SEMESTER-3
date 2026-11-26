@@ -417,7 +417,7 @@ class PengajuanController extends Controller
                 });
 
             if ($targetRole === 'mahasiswa') {
-                    return $this->completeStudentCategories($categories, $onlySurat);
+                return $this->completeStudentCategories($categories, $onlySurat);
             }
 
             $filteredCategories = $this->filterCategoriesByRole($categories, $targetRole, $onlySurat);
