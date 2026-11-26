@@ -20,6 +20,7 @@
         'Diajukan' => 'Pengajuan masih dapat diedit sebelum mulai ditinjau oleh tim administrasi.',
     ][$status] ?? null;
     $resultNote = [
+        'Disetujui' => 'Surat persetujuan telah diterbitkan dan siap diunduh.',
         'Selesai' => 'Pengajuan telah selesai diproses.',
         'Ditolak' => 'Dokumen hasil tidak diterbitkan karena pengajuan ditolak.',
         'Perlu revisi' => 'Dokumen hasil belum tersedia karena pengajuan perlu diperbaiki.',
@@ -167,7 +168,6 @@
                         <div class="text-[15px] font-semibold">{{ $advisor }}</div>
                     </div>
                 @endif
-            </div>
 
             @if (! empty($detailFields))
                     <div class="grid grid-cols-1 gap-3 border-t border-[#E5E7EB] pt-3 sm:grid-cols-2">
@@ -182,6 +182,31 @@
                                 @endif
                             </div>
                         @endforeach
+                    </div>
+                @endif
+            </div>
+
+                @if (!empty($teamMembers))
+                    <div class="rounded-2xl border border-[#E5E7EB] bg-white p-5 sm:p-6">
+                        <div class="mb-4 flex items-center justify-between">
+                            <h2 class="text-base font-bold text-[#111827]">Anggota Tim</h2>
+                            <span class="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-semibold text-[#2277FF]">
+                                {{ count($teamMembers) }} Peserta
+                            </span>
+                        </div>
+                        <div class="flex flex-col gap-2.5">
+                            @foreach ($teamMembers as $member)
+                                <div class="flex items-center justify-between gap-3 rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] px-4 py-3">
+                                    <div class="flex flex-col">
+                                        <span class="text-[13px] font-semibold text-[#111827]">{{ $member['nama'] }}</span>
+                                        <span class="text-xs text-[#6B7280]">NIM {{ $member['nim'] }}</span>
+                                    </div>
+                                    <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold {{ strtolower($member['peran']) === 'ketua' ? 'bg-[#DBEAFE] text-[#1D4ED8]' : 'bg-[#F3F4F6] text-[#374151]' }}">
+                                        {{ $member['peran'] }}
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
                 @endif
 
@@ -203,16 +228,18 @@
 
             <div class="{{ $card }} flex flex-col gap-4">
                 <h2 class="text-xl font-bold">Dokumen hasil</h2>
-                @if ($status === 'Selesai')
-                    <div class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4">
+                @if (in_array($status, ['Disetujui', 'Selesai'], true))
+                    <a href="{{ route('pengajuan.surat', $row['id']) }}" target="_blank" rel="noopener noreferrer"
+                       class="flex items-center gap-3 rounded-xl bg-[#F9FAFB] p-4 transition hover:bg-[#F3F4F6]">
                         <i class="ti ti-file-text text-xl text-[#2563EB]"></i>
                         <div class="min-w-0 flex-1">
-                            <div class="truncate text-sm font-semibold">Dokumen_hasil_pengajuan.pdf</div>
-                            <div class="text-[13px] text-[#6B7280]">PDF</div>
+                            <div class="truncate text-sm font-semibold">Surat_Persetujuan_{{ $row['id'] }}.pdf</div>
+                            <div class="text-[13px] text-[#6B7280]">Surat Resmi • Klik untuk pratinjau</div>
                         </div>
-                        <i class="ti ti-paperclip text-lg text-[#6B7280]"></i>
-                    </div>
-                    <a href="#" class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white">
+                        <i class="ti ti-external-link text-lg text-[#6B7280]"></i>
+                    </a>
+                    <a href="{{ route('pengajuan.surat', ['id' => $row['id'], 'print' => 1]) }}" target="_blank" rel="noopener noreferrer"
+                       class="flex h-11 w-fit items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white hover:bg-blue-700">
                         <i class="ti ti-download text-base"></i>Unduh dokumen pengajuan
                     </a>
                 @else

@@ -65,6 +65,12 @@ Route::middleware(MahasiswaOnly::class)->group(function () {
     ])->whereNumber('id')->name('kegiatan.edit');
 
     Route::get('/mahasiswa/kegiatan/{id}', [KegiatanController::class, 'show'])->whereNumber('id')->name('kegiatan.show');
+    Route::get('/mahasiswa/pengajuan/{id}/surat', [PengajuanController::class, 'surat'])
+        ->whereNumber('id')
+        ->name('pengajuan.surat');
+    Route::get('/mahasiswa/pengajuan/{id}/surat/ttd', [PengajuanController::class, 'ttdSurat'])
+        ->whereNumber('id')
+        ->name('pengajuan.surat.ttd');
 });
 
 Route::get('/pengajuan/dosen/baru', [PengajuanController::class, 'createDosen'])->name('pengajuan.dosen.create');
