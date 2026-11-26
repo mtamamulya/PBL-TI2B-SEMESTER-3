@@ -55,13 +55,13 @@
                     <div class="flex flex-wrap items-center gap-3">
                         <span class="rounded-md border px-2 py-0.5 text-xs" :class="badgeClass(berita.status)" x-text="berita.status"></span>
                         <span class="text-[13px] text-gray-600">
-                            <span x-text="berita.kategori"></span> &middot; 
-                            <span x-text="berita.status === 'Draft' ? 'Dibuat' : 'Diajukan'"></span> 
+                            <span x-text="berita.kategori"></span> &middot;
+                            <span x-text="berita.status === 'Draft' ? 'Dibuat' : 'Diajukan'"></span>
                             <span x-text="berita.tanggal"></span>
                         </span>
                     </div>
                     <h2 class="text-2xl leading-snug font-bold" x-text="berita.judul"></h2>
-                    
+
                     {{-- Foto Sampul --}}
                     <template x-if="berita.sampul">
                         <img :src="berita.sampul" alt="Foto sampul" class="h-56 w-full object-cover rounded-lg">
@@ -74,7 +74,7 @@
                     </template>
 
                     {{-- Isi Berita --}}
-                    <div class="konten-berita text-[15px] leading-relaxed text-gray-700" x-html="berita.isi"></div>
+                    <div class="konten-berita text-[15px] leading-relaxed text-gray-700" x-text="berita.isi"></div>
                 </article>
 
                 {{-- KANAN --}}
@@ -171,7 +171,7 @@ document.addEventListener('alpine:init', () => {
             this.loading = true;
             try {
                 const { data } = await apiBerita(`/${id}`);
-                this.berita = data;
+                this.berita = beritaUntukTampilan(data);
                 this.setupAlur();
             } catch (e) {
                 this.error = e.message;

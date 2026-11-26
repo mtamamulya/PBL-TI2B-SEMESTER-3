@@ -107,7 +107,7 @@
             <h1 class="text-3xl font-bold tracking-tight">Detail Pengajuan</h1>
             <p class="text-2xl text-gray-400">Dashboard / Pengajuan / {{ $dosen ? 'Dosen' : 'Mahasiswa' }} / Detail</p>
         </div>
-        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route($dosen ? 'pengajuan.dosen' : 'pengajuan.mahasiswa') }}"
+        <a href="{{ $dosen ? route('pengajuan.dosen') : (url()->previous() !== url()->current() ? url()->previous() : route('pengajuan.mahasiswa')) }}"
            class="mt-2 flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
             Kembali
@@ -225,9 +225,8 @@
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
                     <div class="flex flex-col gap-2 px-4 pb-3">
-                        <label for="catatan-revisi" class="text-[15px]">Catatan revisi</label>
-                        <textarea id="catatan-revisi" rows="4" readonly
-                                  class="min-h-24 w-full resize-none rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900">{{ $catatan }}</textarea>
+                        <p class="text-[15px] font-medium">Catatan revisi</p>
+                        <p class="whitespace-pre-wrap break-words rounded-md bg-gray-50 px-3 py-2.5 text-[15px] text-gray-900">{{ $catatan }}</p>
                         @unless ($dosen)
                             <p class="text-[15px] text-gray-400">Menunggu mahasiswa memperbaiki dan mengajukan kembali.</p>
                         @endunless

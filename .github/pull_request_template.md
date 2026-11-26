@@ -16,10 +16,10 @@ Closes #
 
 ## Checklist sebelum minta review
 
-- [ ] `php artisan migrate:fresh --seed` jalan tanpa error
+- [ ] Migration diuji di database tes terisolasi.
 - [ ] `php artisan test` hijau
 - [ ] Tidak ada file `.env`, `vendor/`, atau `node_modules/` yang ikut ter-commit
-- [ ] Kalau mengubah migration: sudah dikabarkan di grup, karena teman lain perlu `migrate:fresh`
+- [ ] Perubahan migration sudah dikabarkan di grup beserta cara menerapkan migration baru ke database bersama.
 - [ ] Kalau mengubah endpoint di `routes/api.php` yang dipakai Kelompok 1: sudah update `docs/API-CONTRACT.md` dan kabari mereka
 
 ## Cara mengetes

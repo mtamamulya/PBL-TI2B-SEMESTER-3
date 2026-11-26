@@ -1,4 +1,8 @@
 @php
+    $headerUser = auth()->user();
+    $headerMahasiswa = $headerUser?->mahasiswa;
+    $headerNama = $headerMahasiswa?->nama ?? $headerUser?->email ?? 'Mahasiswa';
+    $headerNim = $headerMahasiswa?->nim ?? '—';
     $pengajuanOpen = request()->routeIs('pengajuan.*');
     $mahasiswaLandingActive = request()->routeIs('mahasiswa.index');
     $mahasiswaSubmenuOpen = request()->routeIs('mahasiswa.mata-kuliah*', 'mahasiswa.prestasi*');
@@ -12,9 +16,9 @@
 
         <div x-data="{ openProfile: false }" class="relative ml-auto">
             <button x-on:click="openProfile = !openProfile" @click.outside="openProfile = false" type="button" class="flex items-center gap-3 rounded-lg p-1 transition hover:bg-[#F3F4F6]">
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-base font-semibold text-[#1f66e5]" aria-hidden="true">{{ strtoupper(\Illuminate\Support\Str::substr(config('mahasiswa.nama'), 0, 1)) }}</span>
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-base font-semibold text-[#1f66e5]" aria-hidden="true">{{ strtoupper(\Illuminate\Support\Str::substr($headerNama, 0, 1)) }}</span>
                 <div class="flex flex-col text-left">
-                    <span class="text-xs font-bold leading-tight text-[#111827] sm:text-sm">{{ config('mahasiswa.nama') }}</span>
+                    <span class="text-xs font-bold leading-tight text-[#111827] sm:text-sm">{{ $headerNama }}</span>
                     <span class="text-xs text-[#6B7280]">Mahasiswa</span>
                 </div>
                 <svg class="size-4 text-[#6B7280] transition-transform duration-200" x-bind:class="openProfile ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,8 +35,8 @@
                  x-transition:leave-end="transform opacity-0 scale-95"
                  class="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.08)]">
                 <div class="flex flex-col gap-0.5 border-b border-[#E5E7EB] pb-4">
-                    <span class="text-lg font-bold text-[#111827]">{{ config('mahasiswa.nama') }}</span>
-                    <span class="text-sm text-[#6B7280]">Mahasiswa • NIM {{ config('mahasiswa.nim') }}</span>
+                    <span class="text-lg font-bold text-[#111827]">{{ $headerNama }}</span>
+                    <span class="text-sm text-[#6B7280]">Mahasiswa • NIM {{ $headerNim }}</span>
                 </div>
 
                 <div class="flex flex-col gap-2 pt-4">

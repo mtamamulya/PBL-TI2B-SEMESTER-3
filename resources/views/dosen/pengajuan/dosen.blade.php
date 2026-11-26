@@ -10,6 +10,7 @@
 
     <section class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm"
              x-data="pengajuanDosen()">
+        <a href="{{ route('pengajuan.dosen.create') }}" class="self-start rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white">Ajukan kegiatan</a>
         <div role="tablist" aria-label="Status pengajuan"
              class="flex gap-x-2 overflow-x-auto border-b border-gray-200 pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <template x-for="t in tab" :key="t">

@@ -6,84 +6,53 @@ use App\Http\Controllers\Controller;
 use App\Models\Berita;
 use App\Models\Kategori;
 use App\Models\Kegiatan;
+use App\Models\Prestasi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class BeritaController extends Controller
 {
-    private const STATUS_LABELS = [
-        'draft' => 'Draft',
-        'diajukan' => 'Diajukan',
-        'revisi' => 'Direvisi',
-        'publish' => 'Dipublikasikan',
-        'ditolak' => 'Ditolak',
-    ];
-
     public function index(Request $request)
     {
-        try {
-            $query = Berita::where('id_user', $request->user()->id_user)
-                ->with(['kegiatan.kategori', 'kategori']);
-
-            // Filter status (sebelum pagination)
-            if ($request->filled('status') && $request->status !== 'Semua') {
-                $query->where('status', $request->status);
-            }
-
-            // Pencarian judul atau kategori
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('judul_berita', 'like', "%{$search}%")
-                        ->orWhereHas('kategori', function ($q) use ($search) {
-                            $q->where('nama_kategori', 'like', "%{$search}%");
-                        });
+        $user = $request->user();
+        $data = Berita::where('id_user', $user->id_user)
+            ->with(['kegiatan.kategori', 'kategori'])
+            ->when($request->filled('status'), function ($q) use ($request) {
+                $status = $request->input('status');
+                $q->whereIn('status', match ($status) {
+                    'direvisi' => ['revisi', 'direvisi'],
+                    'dipublikasikan' => ['publish'],
+                    default => [$status],
                 });
-            }
+            })
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%'.$request->input('search').'%';
+                $q->where(fn ($rows) => $rows->where('judul_berita', 'like', $term)
+                    ->orWhereHas('kategori', fn ($category) => $category->where('nama_kategori', 'like', $term))
+                    ->orWhereHas('kegiatan.kategori', fn ($category) => $category->where('nama_kategori', 'like', $term)));
+            })
+            ->orderByDesc('created_at')->orderByDesc('id_berita')
+            ->paginate(max(1, min(100, $request->integer('per_page', 10))));
 
-            $beritas = $query->orderBy('created_at', 'desc')->paginate(10);
-
-            $data = $beritas->map(function (Berita $b) {
-                $kategoriNama = $b->kategori?->nama_kategori
-                    ?? $b->kegiatan?->kategori?->nama_kategori
-                    ?? 'Mandiri';
-
-                return [
-                    'id' => $b->id_berita,
-                    'judul' => $b->judul_berita,
-                    'kategori' => $kategoriNama,
-                    'tanggal' => $b->created_at->format('d F Y'),
-                    'status' => self::STATUS_LABELS[$b->status] ?? $b->status,
-                    'status_code' => $b->status,
-                ];
-            });
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Daftar berita berhasil diambil.',
-                'data' => $data,
-                'meta' => [
-                    'current_page' => $beritas->currentPage(),
-                    'last_page' => $beritas->lastPage(),
-                    'per_page' => $beritas->perPage(),
-                    'total' => $beritas->total(),
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Berita index error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal mengambil daftar berita.',
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Daftar berita berhasil diambil.',
+            'data' => $data->items(),
+            'meta' => [
+                'current_page' => $data->currentPage(),
+                'last_page' => $data->lastPage(),
+                'per_page' => $data->perPage(),
+                'total' => $data->total(),
+            ],
+        ]);
     }
 
     public function opsi(Request $request)
     {
         $user = $request->user();
+<<<<<<< HEAD
 
         $kegiatan = Kegiatan::untukPrestasi($user)
             ->with('kategori')
@@ -106,21 +75,32 @@ class BeritaController extends Controller
                 'kategori' => $kategori,
             ],
         ]);
+=======
+        $kegiatan = Kegiatan::untukUser($user)
+            ->orderBy('nama_kegiatan')
+            ->get()
+            ->map(fn ($k) => [
+                'id' => $k->id_kegiatan,
+                'nama' => $k->nama_kegiatan,
+            ]);
+
+        return response()->json(['success' => true, 'message' => 'Opsi form berita berhasil diambil.', 'data' => [
+            'kegiatan' => $kegiatan,
+            'prestasi' => Prestasi::where('id_user', $user->getKey())->orderBy('nama_lomba')->get(['id_prestasi', 'nama_lomba']),
+            'kategori' => Kategori::orderBy('nama_kategori')->get(['id_kategori', 'nama_kategori']),
+            'status' => ['draft', 'diajukan'],
+        ]]);
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
     }
 
     public function store(BeritaRequest $request)
     {
-        try {
-            $user = $request->user();
-            $validated = $request->validated();
+        $user = $request->user();
+        $validated = $request->validated();
 
-            Log::info('Berita store request:', [
-                'user_id' => $user->id_user,
-                'sumber' => $validated['sumber'],
-                'judul' => $validated['judul'],
-                'status' => $validated['status'],
-            ]);
+        $this->periksaSumber($request, $validated);
 
+<<<<<<< HEAD
             DB::beginTransaction();
 
             $dataSimpan = [
@@ -178,16 +158,40 @@ class BeritaController extends Controller
                 'success' => false,
                 'message' => 'Gagal menyimpan berita: '.$e->getMessage(),
             ], 500);
+=======
+        $pathSampul = null;
+        if ($request->hasFile('sampul')) {
+            $pathSampul = $request->file('sampul')->store('berita/sampul', 'public');
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
         }
+
+        $berita = Berita::create([
+            'id_user' => $user->id_user,
+            'id_kegiatan' => $validated['id_kegiatan'] ?? null,
+            'id_prestasi' => $validated['id_prestasi'] ?? null,
+            'id_kategori' => $validated['id_kategori'] ?? null,
+            'judul_berita' => $validated['judul_berita'],
+            'isi_berita' => $validated['isi_berita'] ?? '',
+            'sampul' => $pathSampul ? Storage::url($pathSampul) : null,
+            'status' => $validated['status'] ?? 'draft',
+            'tanggal_publish' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Berita berhasil disimpan.',
+            'data' => $berita,
+        ], 201);
     }
 
     public function show(Request $request, int $id)
     {
-        try {
-            $berita = Berita::where('id_user', $request->user()->id_user)
-                ->with(['kegiatan.kategori', 'kategori'])
-                ->findOrFail($id);
+        $user = $request->user();
+        $berita = Berita::where('id_user', $user->id_user)
+            ->with(['kegiatan.kategori', 'kategori'])
+            ->findOrFail($id);
 
+<<<<<<< HEAD
             $kategori = Kategori::where('kebutuhan', 'berita')
                 ->orderBy('nama_kategori')
                 ->get(['id_kategori', 'nama_kategori']);
@@ -221,45 +225,44 @@ class BeritaController extends Controller
                 'message' => 'Gagal mengambil detail berita.',
             ], 500);
         }
+=======
+        return response()->json(['success' => true, 'message' => 'Detail berita berhasil diambil.', 'data' => $berita]);
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
     }
 
     public function update(BeritaRequest $request, int $id)
     {
-        try {
-            $berita = Berita::where('id_user', $request->user()->id_user)->findOrFail($id);
+        $berita = DB::transaction(function () use ($request, $id) {
+            $user = $request->user();
+            $berita = Berita::where('id_user', $user->id_user)->lockForUpdate()->findOrFail($id);
+            abort_unless(in_array($berita->status, ['draft', 'direvisi', 'revisi'], true), 403, 'Berita ini tidak dapat diubah.');
+            $validated = $request->validated();
+            $this->periksaSumber($request, $validated);
 
-            // Hanya draft dan revisi yang boleh diedit
-            if (! in_array($berita->status, ['draft', 'revisi'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Berita dengan status ini tidak dapat diedit.',
-                ], 403);
+            if (array_key_exists('id_prestasi', $validated) && $validated['id_prestasi']) {
+                $validated['id_kegiatan'] = null;
+            } elseif (! empty($validated['id_kegiatan'])) {
+                $validated['id_prestasi'] = null;
+            }
+            if (array_key_exists('isi_berita', $validated)) {
+                $validated['isi_berita'] ??= '';
+            }
+            if (($validated['status'] ?? null) === 'diajukan' && blank(strip_tags($validated['isi_berita'] ?? $berita->isi_berita))) {
+                throw ValidationException::withMessages(['isi_berita' => 'Isi berita sebelum mengajukan.']);
             }
 
-            $validated = $request->validated();
-
-            DB::beginTransaction();
-
-            $dataUpdate = [
-                'judul_berita' => $validated['judul'],
-                'isi_berita' => $validated['isi'],
-                'status' => $validated['status'],
-            ];
-
-            // Handle sumber kegiatan
-            if ($validated['sumber'] === 'kegiatan' && ! empty($validated['kegiatan_sebelumnya'])) {
-                $kegiatan = Kegiatan::untukPrestasi($request->user())
-                    ->where('nama_kegiatan', 'like', '%'.$validated['kegiatan_sebelumnya'].'%')
-                    ->first();
-
-                if ($kegiatan) {
-                    $dataUpdate['id_kegiatan'] = $kegiatan->id_kegiatan;
-                    $dataUpdate['id_kategori'] = $kegiatan->id_kategori;
+            if ($request->hasFile('sampul')) {
+                $oldPath = $berita->sampul;
+                $validated['sampul'] = Storage::url($request->file('sampul')->store('berita/sampul', 'public'));
+                if ($oldPath) {
+                    DB::afterCommit(fn () => Storage::disk('public')->delete(str_replace('/storage/', '', $oldPath)));
                 }
             } else {
-                $dataUpdate['id_kegiatan'] = null;
+                unset($validated['sampul']);
             }
+            $berita->update($validated);
 
+<<<<<<< HEAD
             // Handle kategori mandiri
             if ($validated['sumber'] === 'mandiri' && ! empty($validated['kategori'])) {
                 // UBAH: Hapus ->where('kebutuhan', 'berita')
@@ -269,63 +272,41 @@ class BeritaController extends Controller
                     $dataUpdate['id_kategori'] = $kategori->id_kategori;
                 }
             }
+=======
+            return $berita;
+        });
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
 
-            // Handle upload foto baru
-            if ($request->hasFile('foto')) {
-                if ($berita->sampul) {
-                    Storage::disk('public')->delete($berita->sampul);
-                }
-                $dataUpdate['sampul'] = $request->file('foto')->store('berita/sampul', 'public');
-            }
+        return response()->json([
+            'success' => true,
+            'message' => 'Berita berhasil diperbarui.',
+            'data' => $berita->fresh(),
+        ]);
+    }
 
-            $berita->update($dataUpdate);
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Berita berhasil diperbarui.',
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Berita update error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui berita: '.$e->getMessage(),
-            ], 500);
+    private function periksaSumber(Request $request, array $validated): void
+    {
+        if (! empty($validated['id_prestasi'])) {
+            Prestasi::where('id_user', $request->user()->getKey())->findOrFail($validated['id_prestasi']);
+        }
+        if (! empty($validated['id_kegiatan'])) {
+            Kegiatan::untukUser($request->user())->findOrFail($validated['id_kegiatan']);
         }
     }
 
     public function destroy(Request $request, int $id)
     {
-        try {
-            $berita = Berita::where('id_user', $request->user()->id_user)->findOrFail($id);
+        $user = $request->user();
+        $berita = Berita::where('id_user', $user->id_user)->findOrFail($id);
 
-            if (! in_array($berita->status, ['draft', 'revisi'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Berita dengan status ini tidak dapat dihapus.',
-                ], 403);
-            }
-
-            if ($berita->sampul) {
-                Storage::disk('public')->delete($berita->sampul);
-            }
-
-            $berita->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Berita berhasil dihapus.',
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Berita destroy error: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menghapus berita.',
-            ], 500);
+        abort_unless(in_array($berita->status, ['draft', 'direvisi', 'revisi'], true), 403, 'Berita ini tidak dapat dihapus.');
+        if ($berita->sampul) {
+            $oldPath = str_replace('/storage/', '', $berita->sampul);
+            Storage::disk('public')->delete($oldPath);
         }
+
+        $berita->delete();
+
+        return response()->json(['success' => true, 'message' => 'Berita berhasil dihapus.']);
     }
 }

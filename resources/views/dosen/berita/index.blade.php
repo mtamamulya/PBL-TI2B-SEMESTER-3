@@ -117,7 +117,14 @@ document.addEventListener('alpine:init', () => {
         cari: '',
         tab: ['Semua', 'Draft', 'Diajukan', 'Direvisi', 'Dipublikasikan', 'Ditolak'],
         aktif: 'Semua',
+<<<<<<< HEAD
         // warna badge status
+=======
+        halaman: 1,
+        loading: false,
+        totalHalaman: 1,
+        total: 0,
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
         warna: {
             Draft:          'border-gray-300 bg-gray-100 text-gray-700',
             Diajukan:       'border-blue-200 bg-blue-100 text-blue-700',
@@ -133,9 +140,20 @@ document.addEventListener('alpine:init', () => {
         async muatData() {
             try {
                 const params = new URLSearchParams();
+<<<<<<< HEAD
                 params.append('per_page', 100); // Ambil semua berita milik dosen untuk sort client-side
                 const { data } = await apiBerita(`?${params.toString()}`);
                 this.daftar = data;
+=======
+                if (this.aktif !== 'Semua') params.append('status', this.aktif.toLowerCase());
+                if (this.cari) params.append('search', this.cari);
+                params.append('page', this.halaman);
+
+                const { data, meta } = await apiBerita(`?${params.toString()}`);
+                this.daftar = data.map(beritaUntukTampilan);
+                this.totalHalaman = meta.last_page;
+                this.total = meta.total;
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
             } catch (e) {
                 console.error('Gagal memuat data:', e);
             }
@@ -148,9 +166,16 @@ document.addEventListener('alpine:init', () => {
                 (q === '' || b.judul.toLowerCase().includes(q) || b.kategori.toLowerCase().includes(q)));
         },
 
+<<<<<<< HEAD
         // Angka di tab dihitung dari data, jadi selalu cocok dengan isi tabel.
         jumlah(t) { return t === 'Semua' ? this.daftar.length : this.daftar.filter(b => b.status === t).length; },
     }, { perHalaman: 5, kunci: { tanggal: (b) => tanggalKeAngka(b.tanggal) } }));
+=======
+        jumlah(t) {
+            return this.total;
+        }
+    }));
+>>>>>>> 3c94cf178bd27d7d854ce99570d8b90f0dfbe1f2
 });
 </script>
 @endpush

@@ -121,9 +121,18 @@ class PengajuanFormTest extends TestCase
         return $idKegiatan;
     }
 
+    private function loginDosen(): void
+    {
+        $role = DB::table('roles')->insertGetId(['nama_role' => 'dosen'], 'id_role');
+        $this->actingAs(User::factory()->create(['id_role' => $role, 'status' => true]));
+    }
+
     public function test_new_forms_do_not_prefill_team_members(): void
     {
         foreach ([route('pengajuan.create'), route('pengajuan.dosen.create')] as $url) {
+            if ($url === route('pengajuan.dosen.create')) {
+                $this->loginDosen();
+            }
             $this->get($url)
                 ->assertOk()
                 ->assertDontSee('Ivan Sigit Santoso')
@@ -140,6 +149,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Pengabdian')
             ->assertDontSee('Penelitian Dosen');
 
+        $this->loginDosen();
         $this->get(route('pengajuan.dosen.create'))
             ->assertOk()
             ->assertViewIs('dosen.pengajuan.create')
@@ -416,8 +426,9 @@ class PengajuanFormTest extends TestCase
 
     public function test_existing_dosen_and_mahasiswa_pages_remain_available(): void
     {
-        $this->get(route('pengajuan.dosen'))
-            ->assertOk()
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]))
+            ->get(route('pengajuan.dosen'))->assertOk()
             ->assertViewIs('dosen.pengajuan.dosen')
             ->assertSee('<title>Pengajuan Dosen | DOSEN</title>', false)
             ->assertSee('Cari kegiatan atau nama dosen...')
