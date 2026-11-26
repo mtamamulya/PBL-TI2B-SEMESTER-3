@@ -68,6 +68,10 @@
         <div class="flex flex-col gap-5">
 
             {{-- JIKA STATUS DIREVISI: TAMPILKAN CATATAN ADMIN --}}
+            <template x-if="isDosen && !loading && ['Diterima', 'Selesai'].includes(statusSekarang)">
+                <a href="{{ route('pengajuan.dosen.surat', $pengajuanId) }}" target="_blank" rel="noopener"
+                   class="justify-self-start rounded-lg bg-brand px-4 py-2 text-white">Buka Surat</a>
+            </template>
             <template x-if="statusSekarang === 'Direvisi'">
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
