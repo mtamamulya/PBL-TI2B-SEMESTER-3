@@ -256,7 +256,7 @@ class PengajuanController extends Controller
     private function filterCategoriesByRole(Collection $categories, ?string $targetRole, bool $onlySurat = false): Collection
     {
         return $categories->filter(function (array $kat) use ($targetRole, $onlySurat) {
-            if ($onlySurat && ! $this->isKategoriButuhSurat($kat['kebutuhan'] ?? null)) {
+            if ($onlySurat && $targetRole !== 'dosen' && ! request()->routeIs('pengajuan.dosen.*') && ! $this->isKategoriButuhSurat($kat['kebutuhan'] ?? null)) {
                 return false;
             }
 
@@ -976,7 +976,7 @@ class PengajuanController extends Controller
                     return;
                 }
 
-                if (! $request->routeIs('kegiatan.*') && ! $this->isKategoriButuhSurat($kategoriApi['kebutuhan'] ?? null)) {
+                if (! $request->routeIs('kegiatan.*', 'pengajuan.dosen.*') && ! $this->isKategoriButuhSurat($kategoriApi['kebutuhan'] ?? null)) {
                     $fail('Kategori ini tidak memerlukan surat. Silakan daftarkan langsung melalui menu Kegiatan.');
 
                     return;
