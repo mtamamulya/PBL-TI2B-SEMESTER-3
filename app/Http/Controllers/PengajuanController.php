@@ -33,6 +33,8 @@ class PengajuanController extends Controller
 
     private const EDITABLE = ['Diajukan', 'Direview', 'Perlu revisi', 'Direvisi'];
 
+    private const STUDENT_CATEGORY_ORDER = ['lomba', 'volunteer', 'kkl', 'magang', 'pengabdian', 'penelitian'];
+
     private function canUseExternalApi(): bool
     {
         return ! app()->runningUnitTests() && filled(session('api_token'));
@@ -55,11 +57,22 @@ class PengajuanController extends Controller
     {
         $user = $user ?: Auth::user();
         $mhs = $user?->mahasiswa;
+        $penempatan = $user && $mhs
+            ? DB::table('enrollment_mahasiswa_tingkat_kelas as emtk')
+                ->join('enrollment_tingkat_kelas as etk', 'etk.id_enrollment_tingkat_kelas', '=', 'emtk.id_enrollment_tingkat_kelas')
+                ->join('tahun_akademik as ta', 'ta.id_tahun_akademik', '=', 'etk.id_tahun_akademik')
+                ->join('prodi as p', 'p.id_prodi', '=', 'etk.id_prodi')
+                ->where('emtk.id_mahasiswa', $mhs->getKey())
+                ->orderByDesc('ta.status')
+                ->orderByDesc('ta.id_tahun_akademik')
+                ->value('p.nama_prodi')
+            : null;
 
         return [
-            'name' => $mhs?->nama ?? $mhs?->nama_mahasiswa ?? config('mahasiswa.nama'),
-            'nim' => $mhs?->nim ?? config('mahasiswa.nim'),
-            'prodi' => $mhs?->prodi ?? $mhs?->program_studi ?? config('mahasiswa.prodi'),
+            'name' => $mhs?->nama ?? $user?->email ?? config('mahasiswa.nama'),
+            'nim' => $mhs?->nim ?? ($user ? '—' : config('mahasiswa.nim')),
+            'prodi' => $penempatan ?? ($user ? '—' : config('mahasiswa.prodi')),
+            'angkatan' => $mhs?->tahun_masuk ?? ($user ? '—' : config('mahasiswa.angkatan')),
         ];
     }
 
@@ -208,6 +221,7 @@ class PengajuanController extends Controller
                 'nama' => $profile['name'],
                 'nim' => $profile['nim'],
                 'prodi' => $profile['prodi'],
+                'angkatan' => $profile['angkatan'],
             ]),
             'totalPengajuan' => $submissions->count(),
             'totalKegiatan' => $submissions->count(),
@@ -255,7 +269,7 @@ class PengajuanController extends Controller
 
     private function filterCategoriesByRole(Collection $categories, ?string $targetRole, bool $onlySurat = false): Collection
     {
-        return $categories->filter(function (array $kat) use ($targetRole, $onlySurat) {
+        $filtered = $categories->filter(function (array $kat) use ($targetRole, $onlySurat) {
             if ($onlySurat && $targetRole !== 'dosen' && ! request()->routeIs('pengajuan.dosen.*') && ! $this->isKategoriButuhSurat($kat['kebutuhan'] ?? null)) {
                 return false;
             }
@@ -272,6 +286,65 @@ class PengajuanController extends Controller
                 default => true,
             };
         })->values();
+
+        if ($targetRole !== 'mahasiswa') {
+            return $filtered;
+        }
+
+        return $filtered
+            ->filter(fn (array $category) => $this->kategoriMahasiswaKey($category['nama_kategori'] ?? '') !== null)
+            ->unique(fn (array $category) => $this->kategoriMahasiswaKey($category['nama_kategori'] ?? ''))
+            ->sortBy(fn (array $category) => array_search(
+                $this->kategoriMahasiswaKey($category['nama_kategori'] ?? ''),
+                self::STUDENT_CATEGORY_ORDER,
+                true
+            ))
+            ->values();
+    }
+
+    private function kategoriMahasiswaKey(string $nama): ?string
+    {
+        $nama = mb_strtolower(trim(preg_replace('/\s*\([^)]*\)\s*$/u', '', $nama) ?? $nama));
+        $nama = match ($nama) {
+            'kuliah kerja lapangan' => 'kkl',
+            default => $nama,
+        };
+
+        return in_array($nama, self::STUDENT_CATEGORY_ORDER, true)
+            ? $nama
+            : null;
+    }
+
+    private function completeStudentCategories(Collection $categories, bool $onlySurat = false): Collection
+    {
+        $apiCategories = $this->filterCategoriesByRole($categories, 'mahasiswa', $onlySurat)
+            ->keyBy(fn (array $category) => $this->kategoriMahasiswaKey($category['nama_kategori'] ?? ''));
+        $localCategories = $this->localDynamicCategories('mahasiswa', $onlySurat)
+            ->keyBy(fn (array $category) => $this->kategoriMahasiswaKey($category['nama_kategori'] ?? ''));
+
+        $missingFromApi = collect(self::STUDENT_CATEGORY_ORDER)
+            ->filter(fn (string $key) => ! $apiCategories->has($key))
+            ->values();
+        $missingFromLocal = collect(self::STUDENT_CATEGORY_ORDER)
+            ->filter(fn (string $key) => ! $localCategories->has($key))
+            ->values();
+
+        if ($missingFromApi->isNotEmpty()) {
+            \Log::warning('API kategori mahasiswa belum memuat semua kategori kartu; melengkapi dari data lokal.', [
+                'missing_categories' => $missingFromApi->all(),
+            ]);
+        }
+
+        if ($missingFromLocal->isNotEmpty()) {
+            \Log::warning('Database lokal belum memiliki semua kategori kartu mahasiswa.', [
+                'missing_categories' => $missingFromLocal->all(),
+            ]);
+        }
+
+        return collect(self::STUDENT_CATEGORY_ORDER)
+            ->map(fn (string $key) => $apiCategories->get($key) ?? $localCategories->get($key))
+            ->filter()
+            ->values();
     }
 
     private function localDynamicCategories(?string $targetRole = null, bool $onlySurat = false): Collection
@@ -343,7 +416,21 @@ class PengajuanController extends Controller
                     ];
                 });
 
-            return $this->filterCategoriesByRole($categories, $targetRole, $onlySurat);
+            if ($targetRole === 'mahasiswa') {
+                    return $this->completeStudentCategories($categories, $onlySurat);
+            }
+
+            $filteredCategories = $this->filterCategoriesByRole($categories, $targetRole, $onlySurat);
+
+            if ($filteredCategories->isEmpty()) {
+                \Log::warning('API kategori kegiatan tidak mengembalikan kategori yang dapat digunakan; menggunakan data lokal.', [
+                    'role' => $targetRole,
+                ]);
+
+                return $this->localDynamicCategories($targetRole, $onlySurat);
+            }
+
+            return $filteredCategories;
         } catch (ApiException $e) {
             if ($e->getStatusCode() === 401) {
                 throw $e;
@@ -992,6 +1079,15 @@ class PengajuanController extends Controller
                     }
                     if (! $isDosenRoute && ! str_contains($jenisLower, 'mahasiswa')) {
                         $fail('Kategori ini bukan untuk pengajuan mahasiswa.');
+                    }
+                }
+
+                if (! $isDosenRoute) {
+                    $namaKategori = $kategoriApi['nama_kategori']
+                        ?? DB::table('kategori')->where('id_kategori', $value)->value('nama_kategori')
+                        ?? '';
+                    if ($this->kategoriMahasiswaKey($namaKategori) === null) {
+                        $fail('Pilih salah satu kategori kegiatan mahasiswa yang tersedia.');
                     }
                 }
             }],
