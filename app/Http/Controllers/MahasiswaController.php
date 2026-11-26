@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\BackendKel2\Akademik\PeriodeAkademik;
 use App\BackendKel2\Dashboard\DashboardController as BackendDashboardController;
 use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
+use App\BackendKel2\Prestasi\PrestasiController as BackendPrestasiController;
 use App\Models\Kegiatan;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -291,20 +292,17 @@ class MahasiswaController extends Controller
 
     public function prestasi(Request $request)
     {
-        $semua = collect([
-            [
-                'nama' => 'Lomba Inovasi Internet of Things', 'bidang' => 'Teknologi', 'bentuk' => 'Tim',
-                'capaian' => 'Juara 2', 'tingkat' => 'Nasional', 'jenis' => 'Akademik',
-                'penyelenggara' => 'Forum Inovasi Teknologi', 'tanggal' => '2026-09-24',
-                'kegiatan' => 'Lomba inovasi IoT 2026', 'bukti' => null,
-            ],
-            [
-                'nama' => 'Kompetisi Desain Poster Digital', 'bidang' => 'Desain', 'bentuk' => 'Individu',
-                'capaian' => 'Juara 1', 'tingkat' => 'Internal', 'jenis' => 'Nonakademik',
-                'penyelenggara' => 'BEM Politeknik', 'tanggal' => '2026-08-18',
-                'kegiatan' => null, 'bukti' => null,
-            ],
-        ])->map(fn ($r) => $r + ['tahun' => substr($r['tanggal'], 0, 4)]);
+        $backend = app(BackendPrestasiController::class);
+        $semua = collect();
+
+        try {
+            $res = $backend->index($request)->getData(true);
+            if (($res['status'] ?? '') === 'success') {
+                $semua = collect($res['data'] ?? []);
+            }
+        } catch (\Throwable $e) {
+            // Biarkan kosong jika gagal memuat data
+        }
 
         $filter = [
             'q' => trim((string) $request->query('q')),
@@ -314,23 +312,23 @@ class MahasiswaController extends Controller
         ];
 
         $rows = $semua->filter(function ($r) use ($filter) {
-            $teks = $r['nama'].' '.$r['penyelenggara'].' '.($r['kegiatan'] ?? '');
+            $teks = ($r['nama'] ?? '').' '.($r['penyelenggara'] ?? '').' '.($r['kegiatan'] ?? '');
 
             return ($filter['q'] === '' || mb_stripos($teks, $filter['q']) !== false)
-                && ($filter['tingkat'] === '' || $r['tingkat'] === $filter['tingkat'])
-                && ($filter['jenis'] === '' || $r['jenis'] === $filter['jenis'])
-                && ($filter['tahun'] === '' || $r['tahun'] === $filter['tahun']);
+                && ($filter['tingkat'] === '' || ($r['tingkat'] ?? '') === $filter['tingkat'])
+                && ($filter['jenis'] === '' || ($r['jenis'] ?? '') === $filter['jenis'])
+                && ($filter['tahun'] === '' || ($r['tahun'] ?? '') === $filter['tahun']);
         })->values();
 
         return view('mahasiswa.mahasiswa.prestasi', [
-            'nama' => config('mahasiswa.nama'),
+            'nama' => $request->user()?->mahasiswa?->nama ?? $request->user()?->email ?? config('mahasiswa.nama'),
             'profil' => ['nim' => config('mahasiswa.nim'), 'prodi' => config('mahasiswa.prodi')],
             'rows' => $rows,
             'total' => $semua->count(),
             'filter' => $filter,
-            'tingkatList' => ['Internal', 'Regional', 'Nasional', 'Internasional'],
+            'tingkatList' => ['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
             'jenisList' => ['Akademik', 'Nonakademik'],
-            'tahunList' => $semua->pluck('tahun')->unique()->sortDesc()->values()->all(),
+            'tahunList' => $semua->pluck('tahun')->filter()->unique()->sortDesc()->values()->all(),
             'ringkasan' => [
                 'total' => $semua->count(),
                 'akademik' => $semua->where('jenis', 'Akademik')->count(),
@@ -366,9 +364,7 @@ class MahasiswaController extends Controller
 
     public function prestasiSimpan(Request $request)
     {
-        $data = $this->validasiPrestasi($request);
-
-        return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil disimpan.');
+        return app(BackendPrestasiController::class)->simpan($request);
     }
 
     public function prestasiEdit(string $prestasi)
