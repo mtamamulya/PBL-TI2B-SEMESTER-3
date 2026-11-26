@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\BackendKel2\PengajuanMahasiswa\PengajuanMahasiswaController;
+use App\BackendKel3\Pengajuan\AlurPengajuan;
+use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
@@ -15,6 +17,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class PengajuanController extends Controller
@@ -410,11 +413,19 @@ class PengajuanController extends Controller
 
     public function createDosen()
     {
-        return view('dosen.pengajuan.create', [
-            'item' => null,
-            'advisors' => $this->advisorOptions(),
-            'categoriesData' => $this->dynamicCategories('dosen'),
-        ]);
+        $categories = collect();
+        if (auth()->check()) {
+            abort_unless(auth()->user()->status && auth()->user()->role?->nama_role === 'dosen', 403);
+            $page = 1;
+            do {
+                $hasil = $this->apiGet('/kategori-kegiatan', ['page' => $page, 'per_page' => 100]);
+                foreach ($this->filterCategoriesByRole(collect($hasil['data']), 'dosen') as $row) {
+                    $categories->push($this->apiGet('/kategori-kegiatan/'.$row['id_kategori'])['data']);
+                }
+            } while ($page++ < $hasil['meta']['last_page']);
+        }
+
+        return view('dosen.pengajuan.create', ['item' => null, 'categoriesData' => $categories]);
     }
 
     public function edit(int $id)
@@ -807,14 +818,47 @@ class PengajuanController extends Controller
 
     public function storeDosen(Request $request)
     {
-        return $this->saveSubmission($request, 'pengajuan.dosen.show');
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($user->status && $user->role?->nama_role === 'dosen', 403);
+        $request->validate(['lampiran' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048']]);
+        $validated = $this->validateDynamicSubmission($request);
+        $file = $request->file('lampiran');
+        $paths = $validated['uploaded_paths'];
+        try {
+            $path = $file->store('lampiran-pengajuan', 'public');
+            throw_unless($path, new \RuntimeException('Lampiran gagal disimpan.'));
+            $paths[] = $path;
+            $kegiatan = DB::transaction(function () use ($validated, $file, $path, $user) {
+                $kegiatan = Kegiatan::create([
+                    'id_kategori' => $validated['id_kategori'], 'id_user' => $user->getKey(),
+                    'nama_kegiatan' => $validated['title'],
+                ]);
+                $this->syncDetailKegiatan($kegiatan->getKey(), $validated['detail']);
+                $jenis = JenisDokumen::firstOrCreate(['nama_jenis_dokumen' => 'Dokumen Pendukung']);
+                $kegiatan->dokumen()->create([
+                    'id_jenis_dokumen' => $jenis->getKey(), 'nama_file' => $file->getClientOriginalName(),
+                    'tipe_dokumen' => $file->getClientMimeType(), 'link_dokumen' => $path, 'is_lampiran' => $validated['kategori_api']['lampiran_peserta'] ?? false,
+                ]);
+                app(AlurPengajuan::class)->ajukanBaru($kegiatan->getKey(), $user->getKey());
+
+                return $kegiatan;
+            });
+        } catch (\Throwable $error) {
+            Storage::disk('public')->delete($paths);
+            throw $error;
+        }
+
+        return redirect()->route('pengajuan.dosen.show', $kegiatan->getKey())->with('success', 'Pengajuan berhasil dikirim.');
     }
 
     private function validateDynamicSubmission(Request $request, bool $isUpdate = false): array
     {
         $idKategori = (int) $request->input('id_kategori');
-        $kategoriApi = $this->detailKategoriApi($idKategori);
         $isDosenRoute = $request->routeIs('pengajuan.dosen.*');
+        $kategoriApi = $isDosenRoute && $idKategori > 0
+            ? ($this->apiGet('/kategori-kegiatan/'.$idKategori)['data'] ?? [])
+            : $this->detailKategoriApi($idKategori);
 
         $rules = [
             'id_kategori' => ['required', 'integer', function ($attr, $value, $fail) use ($kategoriApi, $isDosenRoute) {
@@ -882,10 +926,15 @@ class PengajuanController extends Controller
         $validated = $request->validate($rules, $messages);
 
         $detail = $validated['detail'] ?? [];
+        $validated['uploaded_paths'] = [];
+        if ($isDosenRoute) {
+            $detail = array_intersect_key($detail, array_flip(array_column($kategoriApi['isian'] ?? [], 'id_isian_kategori')));
+        }
         if ($request->hasFile('detail_files')) {
             foreach ($request->file('detail_files') as $idIsian => $uploadedFile) {
-                if ($uploadedFile) {
+                if ($uploadedFile && isset($rules["detail_files.{$idIsian}"])) {
                     $detail[$idIsian] = $uploadedFile->store('lampiran-isian', 'public');
+                    $validated['uploaded_paths'][] = $detail[$idIsian];
                 }
             }
         }

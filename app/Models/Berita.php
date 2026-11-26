@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Berita extends Model
 {
-    public const STATUSES = ['draft', 'diajukan', 'revisi', 'ditolak', 'publish'];
+    public const STATUSES = ['draft', 'diajukan', 'direvisi', 'revisi', 'ditolak', 'publish'];
 
     protected $table = 'berita';
 

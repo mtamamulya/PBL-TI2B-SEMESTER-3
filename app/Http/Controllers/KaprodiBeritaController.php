@@ -24,7 +24,7 @@ class KaprodiBeritaController extends Controller
         return match (strtolower($status)) {
             'publish' => 'Publish',
             'diajukan' => 'Pengajuan',
-            'revisi' => 'Revisi',
+            'revisi', 'direvisi' => 'Revisi',
             'ditolak' => 'Ditolak',
             default => 'Draft',
         };
