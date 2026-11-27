@@ -6,8 +6,8 @@ use App\BackendKel1\Kurikulum\KurikulumAngkatan;
 use App\BackendKel2\Akademik\PeriodeAkademik;
 use App\BackendKel2\Dashboard\ContohDashboardMahasiswa;
 use App\BackendKel2\Dashboard\DashboardController as BackendDashboardController;
-use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
-use App\BackendKel2\Prestasi\PrestasiController as BackendPrestasiController;
+use App\Models\AnggotaKegiatan;
+use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
 use App\Models\Mahasiswa;
 use App\Models\Prestasi;
@@ -19,8 +19,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use App\Models\AnggotaKegiatan;
-use App\Models\JenisDokumen;
 
 class MahasiswaController extends Controller
 {
