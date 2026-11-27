@@ -32,6 +32,12 @@ class NotifikasiController extends Controller
      */
     private const HARI_BARU = 30;
 
+    /**
+     * Waktu di database disimpan UTC (config/app.php timezone = UTC). Untuk tampilan notifikasi
+     * dikonversi ke WIB, termasuk penentuan "Hari ini" / "Kemarin", tanpa mengubah zona waktu aplikasi.
+     */
+    private const ZONA_WAKTU = 'Asia/Jakarta';
+
     /** GET /api/v1/dosen/notifikasi */
     public function index(Request $request): JsonResponse
     {
@@ -95,7 +101,7 @@ class NotifikasiController extends Controller
             $kegiatan = $item->kegiatan;
             $judul = $kegiatan?->nama_kegiatan ?: 'Kegiatan #'.$item->id_kegiatan;
             $waktuRaw = $item->tanggal_status ?? $item->created_at;
-            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->locale('id') : null;
+            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->setTimezone(self::ZONA_WAKTU)->locale('id') : null;
 
             // Bukan pembuat kegiatan, berarti dosen ini anggota tim.
             $isAnggotaTim = $kegiatan && (int) $kegiatan->id_user !== (int) $user->getKey();
