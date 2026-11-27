@@ -352,15 +352,20 @@
                         class="-mx-5 flex gap-3.5 overflow-x-auto px-5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 {{ $totalDosen <= 5 ? 'md:justify-center' : '' }}">
                         @forelse ($kartuDosen as $d)
                             <div
-                                class="relative h-[240px] w-[170px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-sm transition-transform hover:-translate-y-1 md:h-[260px] md:w-[185px]">
+                                class="relative h-[240px] w-[170px] shrink-0 overflow-hidden rounded-[12px] bg-[linear-gradient(180deg,#ECEEF2_0%,#D5D9E0_100%)] shadow-sm transition-transform hover:-translate-y-1 md:h-[260px] md:w-[185px]">
                                 @if ($d['foto'])
                                     <img src="{{ $d['foto'] }}" alt="{{ $d['nama'] }}" loading="lazy"
-                                        class="h-full w-full object-cover">
-                                @else
-                                    <img src="{{ asset('images/logo_trk remove.png') }}" alt="{{ $d['nama'] }}" loading="lazy"
+                                        onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');"
                                         class="h-full w-full object-cover">
                                 @endif
-                                <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,254,254,0)_45%,#000_100%)]">
+                                <div aria-hidden="true"
+                                    class="{{ $d['foto'] ? 'hidden' : 'flex' }} h-full w-full items-end justify-center">
+                                    <svg class="h-[86%] w-full text-[#9CA3AF]" viewBox="0 0 120 150" fill="currentColor">
+                                        <circle cx="60" cy="42" r="27" />
+                                        <path d="M10 150C10 112 32 88 60 88C88 88 110 112 110 150Z" />
+                                    </svg>
+                                </div>
+                                <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_58%,rgba(0,0,0,0.85)_100%)]">
                                 </div>
                                 <div
                                     class="absolute inset-x-0 bottom-2.5 px-2.5 text-center font-['Poppins',sans-serif] text-[10px] font-bold leading-tight md:text-[11px]">

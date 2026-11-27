@@ -43,6 +43,7 @@ use App\Http\Controllers\KurikulumController;
 use App\Http\Controllers\LandingDashboardController;
 use App\Http\Controllers\LandingMahasiswaController;
 use App\Http\Controllers\MataKuliahController;
+use App\Http\Controllers\NotifikasiStafController;
 use App\Http\Controllers\PemulihanController;
 use App\Http\Controllers\PrestasiController;
 use App\Http\Controllers\PrestasiLaporanController;
@@ -85,6 +86,9 @@ Route::get('/lupa-sandi/email', fn () => redirect()->route('password.request'));
 // ---------- Admin (dijaga AdminOnly) ----------
 Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     Route::get('/dashboard', [LandingDashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/notifikasi', [NotifikasiStafController::class, 'index'])->name('admin.notifikasi');
+    Route::post('/notifikasi/baca-semua', [NotifikasiStafController::class, 'bacaSemua'])->name('admin.notifikasi.baca-semua');
+    Route::post('/notifikasi/{id}/baca', [NotifikasiStafController::class, 'baca'])->where('id', '[A-Za-z0-9_-]+')->name('admin.notifikasi.baca');
     Route::post('/keluar', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     Route::get('akreditasi', [AdminAkreditasiController::class, 'index'])->name('admin.akreditasi');
@@ -177,6 +181,10 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('admin.prodi.profil');
     Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('admin.prodi.profil.update');
+    Route::post('/prodi/profil/logo', [ProfilProdiController::class, 'unggahLogo'])->name('admin.prodi.profil.logo.store');
+    Route::delete('/prodi/profil/logo/{jenis}', [ProfilProdiController::class, 'hapusLogo'])
+        ->where('jenis', 'utama|footer')
+        ->name('admin.prodi.profil.logo.destroy');
 
     // Berita
     Route::get('berita', [AdminBeritaController::class, 'index'])->name('admin.berita');
@@ -227,6 +235,8 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
         'admin.kegiatan.skim',
         'admin.prodi.profil',
         'admin.prodi.profil.update',
+        'admin.prodi.profil.logo.store',
+        'admin.prodi.profil.logo.destroy',
         'admin.pengajuan',
         'admin.berita',
         'admin.pengajuan.show',
@@ -251,6 +261,9 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
 // ---------- Kaprodi (dijaga KaprodiOnly) ----------
 Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     Route::get('/dashboard', [KaprodiDashboardController::class, 'index'])->name('kaprodi.dashboard');
+    Route::get('/notifikasi', [NotifikasiStafController::class, 'index'])->name('kaprodi.notifikasi');
+    Route::post('/notifikasi/baca-semua', [NotifikasiStafController::class, 'bacaSemua'])->name('kaprodi.notifikasi.baca-semua');
+    Route::post('/notifikasi/{id}/baca', [NotifikasiStafController::class, 'baca'])->where('id', '[A-Za-z0-9_-]+')->name('kaprodi.notifikasi.baca');
     Route::post('/keluar', [AdminAuthController::class, 'logout'])->name('kaprodi.logout');
 
     Route::get('/kurikulum/trk', [KaprodiKurikulumController::class, 'index'])->name('kaprodi.kurikulum.trk');
@@ -313,6 +326,10 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     // Profil Prodi
     Route::get('/prodi/profil', [ProfilProdiController::class, 'index'])->name('kaprodi.prodi.profil');
     Route::put('/prodi/profil', [ProfilProdiController::class, 'update'])->name('kaprodi.prodi.profil.update');
+    Route::post('/prodi/profil/logo', [ProfilProdiController::class, 'unggahLogo'])->name('kaprodi.prodi.profil.logo.store');
+    Route::delete('/prodi/profil/logo/{jenis}', [ProfilProdiController::class, 'hapusLogo'])
+        ->where('jenis', 'utama|footer')
+        ->name('kaprodi.prodi.profil.logo.destroy');
 
     Route::get('/kegiatan/dosen/{id}', [KaprodiKegiatanDosenDetailShowController::class, 'show'])->name('kaprodi.kegiatan.dosen.show');
     Route::delete('/kegiatan/dosen/{id}', [KegiatanHapusController::class, 'dosen'])->name('kaprodi.kegiatan.dosen.destroy');
@@ -352,6 +369,8 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
         'kaprodi.kegiatan.skim',
         'kaprodi.prodi.profil',
         'kaprodi.prodi.profil.update',
+        'kaprodi.prodi.profil.logo.store',
+        'kaprodi.prodi.profil.logo.destroy',
         'kaprodi.berita',
         'kaprodi.pengajuan',
         'kaprodi.pengajuan.show',
