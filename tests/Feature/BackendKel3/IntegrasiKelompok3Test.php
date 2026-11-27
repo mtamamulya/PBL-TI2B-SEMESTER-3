@@ -193,6 +193,37 @@ class IntegrasiKelompok3Test extends TestCase
         $this->get('/dosen/dashboard')->assertOk();
     }
 
+    public function test_penelitian_form_anggota_dan_validasi_dokumen(): void
+    {
+        $this->actingAs($this->owner, 'web');
+        $this->get('/dosen/kegiatan/create')->assertOk()->assertSee('pesanValidasi');
+        $input = [
+            'id_kategori' => $this->category, 'nama_kegiatan' => 'Kegiatan tim',
+            'anggota' => [1 => ['id_user' => $this->other->getKey()]],
+            'dokumen' => [['nama' => 'Proposal', 'jenis' => 'Proposal', 'tautan' => 'tautan tidak valid']],
+        ];
+        $url = '/api/v1/dosen/penelitian';
+        $this->postJson($url, $input)->assertUnprocessable()->assertJsonValidationErrors('dokumen.0.tautan');
+        $input['dokumen'][0]['tautan'] = 'https://example.org/proposal.pdf';
+        $id = $this->postJson($url, $input)->assertCreated()->json('data.id_kegiatan');
+        $this->assertDatabaseHas('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $this->other->getKey()]);
+    }
+
+    public function test_urut_berita_diterapkan_sebelum_paginasi(): void
+    {
+        $this->actingAs($this->owner, 'web');
+        $url = '/api/v1/dosen/berita';
+        foreach (range(1, 11) as $i) {
+            $this->postJson($url, ['judul' => sprintf('Judul %02d', $i), 'status' => 'draft',
+                'id_kategori' => $i === 1 ? $this->category : null])->assertCreated();
+        }
+        $this->getJson($url.'?urut=judul&arah=asc&page=2')->assertOk()
+            ->assertJsonPath('meta.total', 11)->assertJsonPath('data.0.judul_berita', 'Judul 11');
+        $this->getJson($url.'?urut=kategori&arah=desc&search=Judul')->assertOk()
+            ->assertJsonPath('data.0.judul_berita', 'Judul 01');
+        $this->getJson($url.'?urut=status&arah=asc&status=draft')->assertOk()->assertJsonPath('meta.total', 11);
+    }
+
     public function test_form_berita_dosen_menyimpan_dan_mengajukan_ulang_id_yang_sama(): void
     {
         $this->actingAs($this->owner, 'web');
@@ -207,6 +238,11 @@ class IntegrasiKelompok3Test extends TestCase
         $form = ['judul' => 'Draf riset', 'isi' => '', 'status' => 'draft', 'id_prestasi' => $prestasi->getKey()];
         $id = $this->post($base, $form, ['Accept' => 'application/json'])->assertCreated()->json('data.id_berita');
         $url = "$base/$id";
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=');
+        $this->post($url, ['_method' => 'PATCH', 'foto' => UploadedFile::fake()->createWithContent('sampul.png', $png)],
+            ['Accept' => 'application/json'])->assertOk();
+        $sampul = $this->getJson($url)->assertOk()->json('data.sampul');
+        Storage::disk('public')->assertExists(str_replace('/storage/', '', $sampul));
         $this->get("/berita/$id/edit")->assertOk()->assertSee("formBerita($id)", false);
         $form = array_merge($form, ['_method' => 'PATCH', 'isi' => 'Isi berita baru', 'judul' => 'Judul baru']);
         $this->post($url, $form)->assertOk();
@@ -221,7 +257,7 @@ class IntegrasiKelompok3Test extends TestCase
         $this->post($url, $form)->assertOk();
         $this->getJson($url)->assertOk()->assertJsonPath('data.status', 'diajukan')->assertJsonPath('data.isi_berita', $form['isi']);
         $this->assertDatabaseCount('berita', 1);
-        $this->assertDatabaseHas('berita', ['id_berita' => $id, 'id_prestasi' => $prestasi->getKey(), 'tanggal_publish' => null]);
+        $this->assertDatabaseHas('berita', ['id_berita' => $id, 'id_prestasi' => $prestasi->getKey(), 'sampul' => $sampul, 'tanggal_publish' => null]);
     }
 
     public function test_berita_draft_dapat_diubah_dan_diajukan_tanpa_menerbitkan_sendiri(): void
