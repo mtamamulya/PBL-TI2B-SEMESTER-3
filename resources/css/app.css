@@ -52,6 +52,26 @@ body.dosen-shell .frontend-main {
     overflow-y: auto;
 }
 
+html:has(body.mahasiswa-shell),
+body.mahasiswa-shell {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-shell] {
+    height: 100%;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-navigation] {
+    height: 100%;
+}
+
+body.mahasiswa-shell .frontend-main {
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .berita-editor .ql-toolbar.ql-snow {
     border-color: #e5e7eb;
     border-radius: 0.75rem 0.75rem 0 0;

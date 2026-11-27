@@ -137,29 +137,18 @@ class RingkasanDosen
      * Penugasan mengajar = baris enrollment_kelas_mata_kuliah milik dosen pada tahun akademik terpilih.
      * Satu baris = satu kelas pada satu mata kuliah (definisi yang sama dengan daftar Pengajaran Naya).
      */
-    public function kelasDiampu(?Dosen $dosen, ?TahunAkademik $tahun, bool $denganRelasi = false): Collection
+    public function kelasDiampu(?Dosen $dosen, ?TahunAkademik $tahun): Collection
     {
         if (! $dosen) {
             return collect();
         }
 
-        $query = EnrollmentKelasMataKuliah::query()
+        return EnrollmentKelasMataKuliah::query()
             ->where('id_dosen', $dosen->id_dosen)
             ->when($tahun, fn ($q) => $q->whereHas(
                 'enrollmentMataKuliah',
                 fn ($sub) => $sub->where('id_tahun_akademik', $tahun->id_tahun_akademik)
-            ));
-
-        if ($denganRelasi) {
-            $query->with([
-                'enrollmentMataKuliah.mataKuliah',
-                'enrollmentMataKuliah.tahunAkademik',
-                'enrollmentTingkatKelas.tingkat',
-                'enrollmentTingkatKelas.kelas',
-                'enrollmentTingkatKelas.prodi',
-            ]);
-        }
-
-        return $query->get();
+            ))
+            ->get();
     }
 }

@@ -37,16 +37,18 @@ class FrontendLayoutTest extends TestCase
         $this->withoutVite();
     }
 
-    public function test_existing_student_and_lecturer_pages_render_directly_without_login(): void
+    public function test_mahasiswa_melihat_halaman_sendiri_dan_diarahkan_dari_halaman_dosen(): void
     {
         $this->actingAs($this->studentUser());
 
         $this->get('/mahasiswa/dashboard')
             ->assertOk()
             ->assertViewIs('mahasiswa.dashboard.dashboard')
+            ->assertSee('class="frontend-shell mahasiswa-shell h-dvh overflow-hidden', false)
+            ->assertSee('data-frontend-shell', false)
             ->assertSee('fixed inset-y-0 left-0 z-30 hidden w-60', false)
             ->assertSee('lg:ml-60', false)
-            ->assertSee('class="frontend-main min-w-0 px-3 py-4', false)
+            ->assertSee('class="frontend-main flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto', false)
             ->assertSee('bg-[#2277FF]" aria-hidden="true"', false)
             ->assertSee('active:-translate-y-1 active:shadow-lg', false)
             ->assertSee('bottom-4 left-4 top-4 z-0 w-[3px] bg-[#93C5FD]', false)
@@ -57,7 +59,7 @@ class FrontendLayoutTest extends TestCase
         $this->get('/mahasiswa/kegiatan')
             ->assertOk()
             ->assertViewIs('mahasiswa.kegiatan.index')
-            ->assertSee('class="frontend-main min-w-0 px-3 py-4', false)
+            ->assertSee('class="frontend-main flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto', false)
             ->assertDontSee('FKBSE 2025')
             ->assertSee('href="'.route('kegiatan.index').'"', false)
             ->assertSee('aria-current="page"', false)
@@ -73,20 +75,21 @@ class FrontendLayoutTest extends TestCase
         $this->get('/mahasiswa/pengajuan')
             ->assertOk()
             ->assertSee('fixed inset-y-0 left-0 z-30 hidden w-60', false)
-            ->assertSee('lg:ml-60', false);
+            ->assertSee('lg:ml-60', false)
+            ->assertSee('class="frontend-main flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto', false);
         $this->get('/mahasiswa/akademik')->assertRedirect('/mahasiswa/mahasiswa/dashboard');
         foreach (['/dosen/dashboard', '/dosen/kegiatan', '/dosen/kegiatan/create', '/profil', '/notifikasi', '/pengajuan/dosen', '/pengajuan/mahasiswa', '/pengajuan/dosen/1', '/pengajuan/mahasiswa/1', '/verifikasi/1'] as $path) {
-            $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+            $this->get($path)->assertRedirect(route('dashboard'));
         }
         foreach (['penelitian', 'pengabdian', 'prestasi'] as $module) {
             $paths = $module === 'pengabdian' ? [''] : ['', '/create', '/1', '/1/edit'];
             foreach ($paths as $suffix) {
-                $this->get('/'.$module.$suffix)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+                $this->get('/'.$module.$suffix)->assertRedirect(route('dashboard'));
             }
         }
         // Pengajaran sudah memakai database: daftar & form bisa dibuka, detail/edit dicek di PengajaranTest.
         foreach (['/pengajaran', '/pengajaran/create'] as $path) {
-            $this->get($path)->assertOk()->assertSee('class="frontend-shell dosen-shell', false);
+            $this->get($path)->assertRedirect(route('dashboard'));
         }
     }
 

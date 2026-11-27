@@ -43,7 +43,7 @@ class KurikulumAngkatan
     }
 
     /** id_kurikulum yang dipakai angkatan itu, atau null bila tidak ada. */
-    public static function idUntukAngkatan(int $angkatan): ?int
+    public static function idUntukAngkatan(int $angkatan, ?int $idProdi = null, ?string $kodeProdi = null): ?int
     {
         $mulai = self::ekspresiMulai();
         if ($mulai === null) {
@@ -51,6 +51,11 @@ class KurikulumAngkatan
         }
 
         $id = Kurikulum::query()
+            ->when($idProdi !== null, fn (Builder $query) => $query->where('id_prodi', $idProdi))
+            ->when($kodeProdi !== null, fn (Builder $query) => $query->whereHas(
+                'prodi',
+                fn (Builder $prodi) => $prodi->where('kode_prodi', $kodeProdi)
+            ))
             ->whereRaw($mulai.' <= ?', [$angkatan])
             ->orderByRaw($mulai.' desc')
             ->orderByDesc('id_kurikulum')
@@ -65,9 +70,14 @@ class KurikulumAngkatan
      *
      * @param  Builder  $query  query Kurikulum, atau query MataKuliah (kolom id kurikulumnya = $kolomId)
      */
-    public static function saring(Builder $query, int $angkatan, string $kolomId = 'id_kurikulum'): Builder
-    {
-        $id = self::idUntukAngkatan($angkatan);
+    public static function saring(
+        Builder $query,
+        int $angkatan,
+        string $kolomId = 'id_kurikulum',
+        ?int $idProdi = null,
+        ?string $kodeProdi = null,
+    ): Builder {
+        $id = self::idUntukAngkatan($angkatan, $idProdi, $kodeProdi);
 
         return $id === null ? $query->whereRaw('1 = 0') : $query->where($kolomId, $id);
     }

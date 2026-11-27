@@ -67,7 +67,7 @@ class ProfilProdi
     /** Aturan validasi. Semua `sometimes` supaya tiap bagian form boleh disimpan sendiri-sendiri. */
     public static function aturan(): array
     {
-        $url = ['sometimes', 'nullable', 'url', 'max:255'];
+        $url = ['sometimes', 'nullable', 'url:http,https', 'max:255'];
 
         return [
             'kode_prodi' => ['sometimes', 'required', 'string', 'max:20'],

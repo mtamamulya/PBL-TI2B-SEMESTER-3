@@ -12,6 +12,7 @@ class KaprodiMahasiswaController extends Controller
     public function __construct(private MahasiswaStore $store) {}
 
     /** Daftar mahasiswa. */
+    /** Daftar mahasiswa. */
     public function index()
     {
         $students = array_map(fn ($r) => [
@@ -23,7 +24,14 @@ class KaprodiMahasiswaController extends Controller
             'status' => $r['status'],
         ], $this->store->all());
 
-        return view('kaprodi.mahasiswa', ['students' => $students, 'levels' => MahasiswaStore::TINGKAT]);
+        $dariData = collect($students)->pluck('status')->filter()->unique()->values()->all();
+        $statuses = collect($this->store->opsiStatus())->merge($dariData)->unique()->values()->all();
+
+        return view('kaprodi.mahasiswa', [
+            'students' => $students,
+            'levels' => MahasiswaStore::TINGKAT,
+            'statuses' => $statuses,
+        ]);
     }
 
     /** Detail satu mahasiswa. */

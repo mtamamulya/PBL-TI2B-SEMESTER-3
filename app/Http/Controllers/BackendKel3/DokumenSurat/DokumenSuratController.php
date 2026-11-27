@@ -8,6 +8,7 @@ use App\Models\Dokumen;
 use App\Models\JenisDokumen;
 use App\Models\Kegiatan;
 use App\Models\User;
+use App\Repositories\SuratPersetujuanStore;
 use App\Support\ApiResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -272,6 +273,17 @@ class DokumenSuratController extends Controller
 
     private function ambilTtdBase64(Kegiatan $kegiatan, mixed $timelineAkhir): ?string
     {
+        $id = (string) $kegiatan->getKey();
+        $surat = app(SuratPersetujuanStore::class)->find($id);
+        if ($surat !== null) {
+            $path = $surat['tanda_tangan_path'] ?? '';
+            abort_unless(is_string($path) && preg_match('#^surat/tanda-tangan/'.preg_quote($id, '#').'-[a-zA-Z0-9]+\.png$#D', $path), 409, 'Referensi tanda tangan surat tidak valid.');
+            $gambar = Storage::disk('local')->get($path);
+            abort_unless(is_string($gambar) && $gambar !== '', 409, 'Berkas tanda tangan surat belum tersedia.');
+
+            return 'data:image/png;base64,'.base64_encode($gambar);
+        }
+
         $penandatangan = $this->resolvePenandatanganBerwenang($kegiatan, $timelineAkhir);
         $rawPath = $penandatangan?->tanda_tangan_path;
 
