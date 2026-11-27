@@ -224,7 +224,7 @@ class MahasiswaController extends Controller
         $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : (int) config('mahasiswa.semester', 5);
         $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? '2026/2027';
 
-        $mapItem = function (array $item, string $defaultTahunLabel) use ($defaultTahun): array {
+        $mapItem = function (array $item, string $defaultTahunLabel) use ($defaultTahun, $angkatan): array {
             $sks = isset($item['sks'])
                 ? (int) $item['sks']
                 : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
@@ -241,6 +241,19 @@ class MahasiswaController extends Controller
             $tingkat = (int) ($item['tingkat'] ?? ($semesterAngka ? ceil($semesterAngka / 2) : 1));
             $kodeMk = trim((string) ($item['kode_mk'] ?? ''));
             $namaMk = (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-');
+            $tahunAkademik = $item['tahun_akademik'] ?? $item['tahun'] ?? null;
+
+            if (! filled($tahunAkademik)) {
+                $tahunAngkatan = is_numeric($angkatan) ? (int) $angkatan : null;
+                $semesterValid = $semesterAngka !== null && $semesterAngka > 0;
+                $tahunMulai = $tahunAngkatan
+                    ? $tahunAngkatan + ($semesterValid ? intdiv($semesterAngka - 1, 2) : max(0, $tingkat - 1))
+                    : null;
+
+                $tahunAkademik = $tahunMulai
+                    ? $tahunMulai.'/'.($tahunMulai + 1).' '.$periode
+                    : ($defaultTahunLabel ?: $defaultTahun);
+            }
 
             return [
                 'kode_mk' => $kodeMk,
@@ -248,7 +261,7 @@ class MahasiswaController extends Controller
                 'semester_ke' => $semesterAngka,
                 'tingkat' => max(1, min(4, $tingkat)),
                 'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
-                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahunLabel ?: $defaultTahun),
+                'tahun' => (string) $tahunAkademik,
                 'sks' => $sks > 0 ? $sks : null,
             ];
         };
