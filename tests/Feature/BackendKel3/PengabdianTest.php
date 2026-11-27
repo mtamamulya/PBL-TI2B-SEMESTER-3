@@ -35,7 +35,11 @@ class PengabdianTest extends TestCase
     /** Kategori berawalan "Pengabdian" (dikenali controller). Dibuat bila belum ada. */
     private function kategoriPengabdian(): int
     {
-        $id = DB::table('kategori')->where('nama_kategori', 'like', 'Pengabdian%')->value('id_kategori');
+        $id = DB::table('kategori')
+            ->join('jenis_kegiatan', 'jenis_kegiatan.id_jenis_kegiatan', '=', 'kategori.id_jenis_kegiatan')
+            ->where('jenis_kegiatan.nama_jenis_kegiatan', 'Kegiatan Dosen')
+            ->where('kategori.nama_kategori', 'like', 'Pengabdian%')
+            ->value('kategori.id_kategori');
         if ($id) {
             return (int) $id;
         }

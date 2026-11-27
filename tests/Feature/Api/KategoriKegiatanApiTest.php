@@ -21,6 +21,25 @@ class KategoriKegiatanApiTest extends TestCase
 
     private const API = '/api/v1/kategori-kegiatan';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $idJenisMahasiswa = DB::table('jenis_kegiatan')
+            ->where('nama_jenis_kegiatan', 'Kegiatan Mahasiswa')
+            ->value('id_jenis_kegiatan');
+
+        if ($idJenisMahasiswa) {
+            $idKategori = DB::table('kategori')
+                ->where('id_jenis_kegiatan', $idJenisMahasiswa)
+                ->pluck('id_kategori');
+
+            DB::table('isian_kategori')->whereIn('id_kategori', $idKategori)->delete();
+            DB::table('kategori')->whereIn('id_kategori', $idKategori)->delete();
+            DB::table('jenis_kegiatan')->where('id_jenis_kegiatan', $idJenisMahasiswa)->delete();
+        }
+    }
+
     private function pengguna(string $role): User
     {
         $id = DB::table('roles')->where('nama_role', $role)->value('id_role')

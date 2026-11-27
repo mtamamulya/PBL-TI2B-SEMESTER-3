@@ -8,7 +8,7 @@
     $mahasiswaSubmenuOpen = request()->routeIs('mahasiswa.mata-kuliah*', 'mahasiswa.prestasi*');
 @endphp
 <header class="sticky top-0 z-40 shrink-0 bg-white/95 backdrop-blur-sm">
-    <div class="flex h-14 items-center px-3 sm:px-5 lg:h-[72px]">
+    <div class="flex h-14 items-center px-3 sm:px-5 lg:h-[68px]">
         <a href="{{ route('pengajuan.index') }}" class="flex min-w-0 items-center gap-2 lg:hidden">
             <img src="{{ asset('images/logo_trk remove.png') }}" alt="Logo TRK" class="size-8 shrink-0" />
             <span class="text-[10px] font-bold leading-tight text-[#1f66e5]">TEKNOLOGI<br>REKAYASA KOMPUTER</span>
