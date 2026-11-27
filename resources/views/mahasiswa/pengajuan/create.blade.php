@@ -3,24 +3,20 @@
 @section('content')
 @php
     $isActivityHistory = $isActivityHistory ?? false;
-    $categoriesList    = $categoriesList ?? [];
-    $initialCategoryId = old('id_kategori', $initialCategoryId ?? '');
-    $initialTitle      = old('judul', $initialTitle ?? '');
-    $savedDetails      = old('detail', $savedDetails ?? []);
     $d = $item['data'] ?? [];
-    $categoriesList = ($categoriesData ?? collect())->values()->all();
+    $categoriesList = ($categoriesData ?? collect($categoriesList ?? []))->values()->all();
     $mahasiswaOptionsList = ($mahasiswaList ?? collect())->values()->all();
-    $initialCategoryId = (string) old('id_kategori', $d['id_kategori'] ?? ($item['id_kategori'] ?? ''));
-    $initialTitle = old('title', $d['title'] ?? ($item['title'] ?? ''));
+    $initialCategoryId = (string) old('id_kategori', $d['id_kategori'] ?? ($item['id_kategori'] ?? ($initialCategoryId ?? '')));
+    $initialTitle = (string) old('judul', old('title', $d['title'] ?? ($item['title'] ?? ($initialTitle ?? ''))));
     $initialParticipation = old('participation', $d['participation'] ?? 'Individu');
     $initialMemberIds = array_map('intval', (array) old('member_ids', $d['member_ids'] ?? []));
-    $savedDetails = old('detail', $d['detail'] ?? []);
+    $savedDetails = old('detail', $d['detail'] ?? ($savedDetails ?? []));
     $initialDocuments = old('documents', $item['documents'] ?? []);
 
-    $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-white p-4.5';
+    $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-300 bg-white p-4.5';
     $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
-    $input        = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-brand';
-    $textarea     = 'min-h-[104px] w-full rounded-lg border border-gray-200 bg-white p-3.5 text-[15px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-brand';
+    $input        = 'h-[42px] w-full rounded-lg border border-gray-300 bg-white px-3.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-brand';
+    $textarea     = 'min-h-[104px] w-full rounded-lg border border-gray-300 bg-white p-3.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-brand';
     $select       = $input.' appearance-none pr-10';
 
     $cancelUrl = $item
@@ -35,7 +31,7 @@
     }
 @endphp
 
-<div class="flex flex-col gap-5 px-4 pb-10 pt-6 sm:px-6 lg:px-8"
+<div class="flex flex-col gap-6 px-3 py-5 sm:px-5 sm:py-6 lg:px-8 lg:py-7"
      x-data="{
          categories: @js($categoriesList),
          allStudents: @js($mahasiswaOptionsList),
@@ -44,12 +40,11 @@
          participation: @js($initialParticipation),
          selectedMemberIds: @js($initialMemberIds),
          memberSearch: '',
-         selectedCategoryId: @js((string) $initialCategoryId),
-         title: @js((string) $initialTitle),
          savedDetails: @js($savedDetails),
          multiValues: {},
          documents: @js(array_values($initialDocuments)),
          documentTypes: ['Dokumentasi', 'Surat Mitra', 'Surat Mahasiswa', 'Surat Pengabdian'],
+         submitting: false,
          get filteredStudents() {
              const q = this.memberSearch.trim().toLowerCase();
              return this.allStudents
@@ -72,13 +67,12 @@
          removeMember(idUser) {
              this.selectedMemberIds = this.selectedMemberIds.filter(id => Number(id) !== Number(idUser));
          },
-            addDocument() {
-                this.documents.push({ name: '', type: 'Dokumentasi', url: '' });
-            },
-            removeDocument(index) {
-                this.documents.splice(index, 1);
-            },
-         submitting: false,
+         addDocument() {
+             this.documents.push({ name: '', type: 'Dokumentasi', url: '' });
+         },
+         removeDocument(index) {
+             this.documents.splice(index, 1);
+         },
          get activeCategory() {
              return this.categories.find(c => String(c.id_kategori) === String(this.selectedCategoryId)) || null;
          },
@@ -116,26 +110,19 @@
      }"
      x-init="initMultiValues(); $watch('selectedCategoryId', () => initMultiValues())">
 
-    {{-- Judul halaman + breadcrumb + tombol kembali (Style Kelompok 3) --}}
+    {{-- Header Halaman (Style Halaman Kegiatan Mahasiswa) --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5">
             <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Kegiatan Baru') }}</h1>
             <p class="text-2xl text-gray-400">
-                <a href="{{ $isActivityHistory ? route('kegiatan.index') : route('pengajuan.index') }}" class="hover:text-gray-600">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Kegiatan' }}</a>
+                <a href="{{ ($formDosen ?? false) ? $cancelUrl : ($isActivityHistory ? route('kegiatan.index') : route('pengajuan.index')) }}" class="hover:text-gray-600">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
                 / {{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Baru') }} /
-                <span class="text-brand" x-text="activeCategory ? activeCategory.nama_kategori : 'Umum'"></span>
+                <span class="font-medium text-brand" x-text="activeCategory ? activeCategory.nama_kategori : 'Pilih Kategori'"></span>
             </p>
-            <p class="pt-0.5 text-[15px] text-gray-400">{{ $isActivityHistory ? 'Lengkapi data untuk langsung menambahkan kegiatan ke riwayat Anda.' : ($item ? 'Perbarui isian pengajuan Anda, lalu simpan perubahan.' : 'Lengkapi formulir berikut untuk mengajukan kegiatan baru.') }}</p>
-    <div class="flex flex-col gap-[18px]">
-        <div class="flex flex-wrap gap-2.5 text-[13px]">
-            <a href="{{ ($formDosen ?? false) ? $cancelUrl : ($isActivityHistory ? route('kegiatan.index') : route('pengajuan.index')) }}" class="text-[#6B7280]">{{ $isActivityHistory ? 'Riwayat Kegiatan' : 'Pengajuan' }}</a>
-            <span class="text-[#9CA3AF]">/</span>
-            <span class="text-[#6B7280]">{{ $isActivityHistory ? 'Tambah Kegiatan' : ($item ? 'Edit Pengajuan' : 'Pengajuan Baru') }}</span>
-            <span class="text-[#9CA3AF]">/</span>
-            <span class="font-semibold text-[#2277FF]" x-text="activeCategory ? activeCategory.nama_kategori : 'Pilih Kategori'"></span>
+            <p class="pt-0.5 text-sm text-gray-500">{{ $isActivityHistory ? 'Lengkapi data untuk langsung menambahkan kegiatan ke riwayat Anda.' : ($item ? 'Perbarui isian pengajuan Anda, lalu simpan perubahan.' : 'Lengkapi formulir berikut untuk mengajukan kegiatan baru.') }}</p>
         </div>
         <a href="{{ $cancelUrl }}"
-           class="mt-2 flex h-11 items-center gap-2 rounded-md bg-blue-100 px-4 text-base font-medium text-brand hover:bg-blue-200">
+           class="mt-1 flex items-center gap-2 rounded-lg bg-blue-100 px-4 py-2 text-[15px] font-medium text-brand hover:bg-blue-200">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
             Kembali
         </a>
@@ -152,9 +139,10 @@
         </div>
     @endif
 
+    {{-- Kontainer Utama Form (Style Halaman Kegiatan Mahasiswa) --}}
     <form method="POST" action="{{ $formAction }}" enctype="multipart/form-data"
           @submit="submitting = true"
-          class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
+          class="flex flex-col gap-5 rounded-lg bg-white p-4 shadow-sm">
         @csrf
         @if ($item) @method('PUT') @endif
 
@@ -162,11 +150,11 @@
         <section class="{{ $sectionClass }}" aria-labelledby="h-kategori">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">1</span>
-                <h2 id="h-kategori" class="text-[15px] font-semibold text-gray-900">Kategori Kegiatan</h2>
+                <h2 id="h-kategori" class="text-lg font-medium text-gray-900">Kategori Kegiatan</h2>
             </div>
 
-            <div class="flex flex-col gap-1.5">
-                <label class="text-[15px] font-medium leading-5 text-gray-900">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">
                     Kategori Kegiatan <span class="text-red-500">*</span>
                 </label>
                 <div class="relative">
@@ -178,9 +166,9 @@
                                     x-text="cat.nama_kategori + (cat.jenis ? ' (' + cat.jenis + ')' : '')"></option>
                         </template>
                     </select>
-                    <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3.5 text-base text-gray-500"></i>
+                    <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3 text-base text-gray-400"></i>
                 </div>
-                <p class="text-[15px] text-gray-400"
+                <p class="text-xs text-gray-500"
                    x-text="activeCategory ? 'Kategori terpilih: ' + activeCategory.nama_kategori + '.' : 'Pilih kategori untuk menampilkan isian pengajuan.'"></p>
                 @error('id_kategori')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
@@ -190,49 +178,49 @@
         <section x-show="activeCategory !== null" x-cloak class="{{ $sectionClass }}" aria-labelledby="h-detail">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">2</span>
-                <h2 id="h-detail" class="text-[15px] font-semibold text-gray-900">Detail Kegiatan</h2>
+                <h2 id="h-detail" class="text-lg font-medium text-gray-900">Detail Kegiatan</h2>
             </div>
 
             <div class="flex flex-col gap-5">
                 {{-- Judul Kegiatan --}}
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[15px] font-medium leading-5 text-gray-900">
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-medium text-gray-700">
                         Judul Kegiatan <span class="text-red-500">*</span>
                     </label>
                     <input type="text" name="judul" x-model="title" required class="{{ $input }}" placeholder="Masukkan judul kegiatan...">
-                    <p class="text-xs leading-[18px] text-gray-400">Judul harus singkat, jelas, dan mudah dipahami.</p>
+                    <p class="text-xs text-gray-500">Judul harus singkat, jelas, dan mudah dipahami.</p>
                     @error('judul')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
                 {{-- JENIS KEPESERTAAN (INDIVIDU / TIM) --}}
                 <div class="flex flex-col gap-3">
-                    <label class="text-[13px] font-semibold leading-5 text-[#374151]">
-                        Jenis Kepesertaan <span class="text-[#FF3F3F]">*</span>
+                    <label class="text-sm font-medium text-gray-700">
+                        Jenis Kepesertaan <span class="text-red-500">*</span>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition"
-                               :class="participation === 'Individu' ? 'border-[#2277FF] bg-[#EFF6FF]/60' : 'border-[#E5E7EB] bg-white hover:bg-[#F9FAFB]'">
-                            <input type="radio" name="participation" value="Individu" x-model="participation" class="mt-0.5 accent-[#2277FF]">
+                        <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition"
+                               :class="participation === 'Individu' ? 'border-brand bg-blue-50/70' : 'border-gray-300 bg-white hover:bg-gray-50'">
+                            <input type="radio" name="participation" value="Individu" x-model="participation" class="mt-0.5 accent-brand">
                             <div class="flex flex-col">
-                                <span class="text-[13px] font-semibold text-[#111827]">Individu</span>
-                                <span class="text-xs text-[#6B7280]">Kegiatan diikuti secara perorangan.</span>
+                                <span class="text-sm font-medium text-gray-900">Individu</span>
+                                <span class="text-xs text-gray-500">Kegiatan diikuti secara perorangan.</span>
                             </div>
                         </label>
-                        <label class="flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition"
-                               :class="participation === 'Tim' ? 'border-[#2277FF] bg-[#EFF6FF]/60' : 'border-[#E5E7EB] bg-white hover:bg-[#F9FAFB]'">
-                            <input type="radio" name="participation" value="Tim" x-model="participation" class="mt-0.5 accent-[#2277FF]">
+                        <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition"
+                               :class="participation === 'Tim' ? 'border-brand bg-blue-50/70' : 'border-gray-300 bg-white hover:bg-gray-50'">
+                            <input type="radio" name="participation" value="Tim" x-model="participation" class="mt-0.5 accent-brand">
                             <div class="flex flex-col">
-                                <span class="text-[13px] font-semibold text-[#111827]">Tim</span>
-                                <span class="text-xs text-[#6B7280]">Tag teman mahasiswa sebagai anggota tim.</span>
+                                <span class="text-sm font-medium text-gray-900">Tim</span>
+                                <span class="text-xs text-gray-500">Tag teman mahasiswa sebagai anggota tim.</span>
                             </div>
                         </label>
                     </div>
 
                     {{-- PILIH ANGGOTA TIM --}}
-                    <div x-show="participation === 'Tim'" x-cloak class="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                    <div x-show="participation === 'Tim'" x-cloak class="flex flex-col gap-3 rounded-md border border-gray-300 bg-gray-50 p-4">
                         <div class="flex flex-col gap-0.5">
-                            <span class="text-xs font-semibold text-[#374151]">Anggota Tim (Tag Mahasiswa) <span class="text-[#FF3F3F]">*</span></span>
-                            <span class="text-xs text-[#6B7280]">Anda otomatis tercatat sebagai <strong>Ketua</strong>. Cari nama atau NIM teman untuk ditambahkan sebagai <strong>Anggota</strong>.</span>
+                            <span class="text-sm font-medium text-gray-900">Anggota Tim (Tag Mahasiswa) <span class="text-red-500">*</span></span>
+                            <span class="text-xs text-gray-500">Anda otomatis tercatat sebagai <strong>Ketua</strong>. Cari nama atau NIM teman untuk ditambahkan sebagai <strong>Anggota</strong>.</span>
                         </div>
 
                         <div class="relative">
@@ -242,16 +230,16 @@
                                    placeholder="Ketik nama atau NIM teman mahasiswa...">
 
                             <div x-show="memberSearch.trim().length > 0"
-                                 class="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-lg">
+                                 class="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-sm">
                                 <template x-for="st in filteredStudents" :key="st.id_user">
                                     <button type="button"
                                             @click="addMember(st)"
-                                            class="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs hover:bg-[#EFF6FF]">
-                                        <span class="font-semibold text-[#111827]" x-text="st.nama"></span>
-                                        <span class="text-[#6B7280]" x-text="st.nim"></span>
+                                            class="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-sm hover:bg-blue-50">
+                                        <span class="font-medium text-gray-900" x-text="st.nama"></span>
+                                        <span class="text-xs text-gray-500" x-text="st.nim"></span>
                                     </button>
                                 </template>
-                                <div x-show="filteredStudents.length === 0" class="px-3.5 py-2.5 text-xs text-[#6B7280]">
+                                <div x-show="filteredStudents.length === 0" class="px-3.5 py-2.5 text-xs text-gray-500">
                                     Mahasiswa tidak ditemukan atau sudah ditambahkan.
                                 </div>
                             </div>
@@ -260,16 +248,16 @@
                         {{-- DAFTAR ANGGOTA TERPILIH --}}
                         <div class="flex flex-col gap-2" x-show="selectedMembers.length > 0">
                             <template x-for="m in selectedMembers" :key="m.id_user">
-                                <div class="flex items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2.5">
+                                <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5">
                                     <input type="hidden" name="member_ids[]" :value="m.id_user">
                                     <div class="flex flex-col">
-                                        <span class="text-[13px] font-semibold text-[#111827]" x-text="m.nama"></span>
-                                        <span class="text-xs text-[#6B7280]" x-text="'NIM ' + m.nim"></span>
+                                        <span class="text-sm font-medium text-gray-900" x-text="m.nama"></span>
+                                        <span class="text-xs text-gray-500" x-text="'NIM ' + m.nim"></span>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span class="rounded-full bg-[#EFF6FF] px-2.5 py-0.5 text-[11px] font-semibold text-[#2277FF]">Anggota</span>
+                                        <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-brand">Anggota</span>
                                         <button type="button" @click="removeMember(m.id_user)"
-                                                class="flex h-7 w-7 items-center justify-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]">
+                                                class="flex size-8 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100">
                                             <i class="ti ti-trash text-sm"></i>
                                         </button>
                                     </div>
@@ -277,17 +265,17 @@
                             </template>
                         </div>
 
-                        <p x-show="selectedMembers.length === 0" class="text-xs text-[#9CA3AF]">
+                        <p x-show="selectedMembers.length === 0" class="text-xs text-gray-400">
                             Belum ada anggota tim yang ditambahkan.
                         </p>
-                        @error('member_ids')<p class="text-xs text-[#FF3F3F]">{{ $message }}</p>@enderror
+                        @error('member_ids')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
                 </div>
 
                 {{-- Isian Dinamis Non-Berkas dari Kategori Admin --}}
                 <template x-for="field in nonFileFields" :key="field.id_isian_kategori">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-[15px] font-medium leading-5 text-gray-900">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-gray-700">
                             <span x-text="field.input"></span>
                             <span x-show="field.wajib" class="text-red-500">*</span>
                             <span x-show="!field.wajib" class="font-normal text-gray-400">(opsional)</span>
@@ -347,13 +335,13 @@
                                                         x-text="opt.label"></option>
                                             </template>
                                         </select>
-                                        <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3.5 text-base text-gray-500"></i>
+                                        <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3 text-base text-gray-400"></i>
                                     </div>
                                 </template>
                             </div>
                         </template>
 
-                       {{-- MODE 2: LEBIH DARI SATU ISIAN / REPEATABLE (jumlah_isian === 0) --}}
+                        {{-- MODE 2: LEBIH DARI SATU ISIAN / REPEATABLE (jumlah_isian === 0) --}}
                         <template x-if="field.jumlah_isian === 0">
                             <div class="flex flex-col gap-2">
                                 <template x-for="(val, idx) in (multiValues[field.id_isian_kategori] || [''])" :key="idx">
@@ -369,42 +357,43 @@
                                                         <option :value="opt.nilai" x-text="opt.label"></option>
                                                     </template>
                                                 </select>
-                                                <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3.5 text-base text-gray-500"></i>
+                                                <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3 text-base text-gray-400"></i>
                                             </div>
                                         </template>
 
-                                       <template x-if="!Array.isArray(field.pilihan) && field.jenis_input === 'berkas'">
+                                        <template x-if="!Array.isArray(field.pilihan) && field.jenis_input === 'berkas'">
                                             <div class="flex flex-1 flex-col gap-1">
                                                 <input type="file"
                                                        :name="'detail_files[' + field.id_isian_kategori + '][]'"
                                                        accept=".pdf,.jpg,.jpeg,.png"
                                                        :required="field.wajib && idx === 0 && !val"
-                                                       class="block w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] text-[#374151] file:mr-3 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#2277FF]">
+                                                       class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-100 file:px-3.5 file:py-1.5 file:text-xs file:font-medium file:text-brand hover:file:bg-blue-200">
                                                 <template x-if="val">
-                                                    <p class="text-xs text-[#059669]">Berkas tersimpan: <span x-text="val"></span></p>
+                                                    <p class="text-xs text-emerald-700">Berkas tersimpan: <span x-text="val"></span></p>
                                                 </template>
                                             </div>
                                         </template>
+
                                         <template x-if="!Array.isArray(field.pilihan) && field.jenis_input !== 'berkas'">
                                             <input :type="['angka', 'rupiah'].includes(field.jenis_input) ? 'number' : (field.jenis_input === 'tanggal' ? 'date' : 'text')"
-
                                                    :name="'detail[' + field.id_isian_kategori + '][]'"
                                                    x-model="multiValues[field.id_isian_kategori][idx]"
                                                    :required="field.wajib && idx === 0"
                                                    class="{{ $input }} flex-1"
                                                    :placeholder="field.input + ' #' + (idx + 1)">
                                         </template>
+
                                         <button type="button"
                                                 x-show="(multiValues[field.id_isian_kategori] || []).length > 1"
                                                 @click="removeMultiRow(field.id_isian_kategori, idx)"
-                                                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                                                class="flex size-[42px] shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50">
                                             <i class="ti ti-trash text-base"></i>
                                         </button>
                                     </div>
                                 </template>
                                 <button type="button" @click="addMultiRow(field.id_isian_kategori)"
-                                        class="flex h-10 w-fit items-center gap-2 rounded-lg border border-brand px-3.5 text-sm font-semibold text-brand hover:bg-blue-50">
-                                    <i class="ti ti-plus text-base"></i>
+                                        class="flex h-9 w-fit items-center gap-1.5 rounded-lg bg-blue-100 px-3.5 text-sm font-medium text-brand hover:bg-blue-200">
+                                    <i class="ti ti-plus text-sm"></i>
                                     <span x-text="'Tambah ' + field.input"></span>
                                 </button>
                             </div>
@@ -414,77 +403,82 @@
             </div>
         </section>
 
-        {{-- 3. DOKUMEN PENDUKUNG (BERKAS) --}}
-        <section x-show="activeCategory !== null && fileFields.length > 0" x-cloak class="{{ $sectionClass }}" aria-labelledby="h-dokumen">
+        {{-- 3. DOKUMEN PENDUKUNG (BERKAS & TAUTAN) --}}
+        <section x-show="activeCategory !== null" x-cloak class="{{ $sectionClass }}" aria-labelledby="h-dokumen">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">3</span>
-                <h2 id="h-dokumen" class="text-[15px] font-semibold text-gray-900">Dokumen Pendukung</h2>
+                <h2 id="h-dokumen" class="text-lg font-medium text-gray-900">Dokumen Pendukung</h2>
             </div>
 
-            <p class="text-[15px] text-gray-400">Unggah berkas pendukung sesuai persyaratan kategori (format PDF, JPG, JPEG, atau PNG).</p>
+            <div class="flex flex-col gap-5">
+                {{-- Berkas Wajib/Opsional dari Kategori Admin --}}
+                <template x-if="fileFields.length > 0">
+                    <div class="flex flex-col gap-4">
+                        <p class="text-sm text-gray-500">Unggah berkas pendukung sesuai persyaratan kategori (format PDF, JPG, JPEG, atau PNG).</p>
 
-            <div class="flex flex-col gap-4">
-                <template x-for="(field, index) in fileFields" :key="field.id_isian_kategori">
-                    <div class="overflow-hidden rounded-lg border border-gray-200">
-                        <div class="flex items-center justify-between gap-3 bg-[#02215c] px-3.5 py-3 text-white">
-                            <h3 class="text-sm font-semibold" x-text="'Dokumen ' + (index + 1) + ' — ' + field.input"></h3>
-                            <span x-show="field.wajib" class="rounded bg-white/15 px-2 py-0.5 text-xs font-medium">Wajib</span>
-                        </div>
-                        <div class="flex flex-col gap-2 p-3.5">
-                            <label class="text-[15px] font-medium text-gray-900">
-                                <span x-text="field.input"></span>
-                                <span x-show="field.wajib" class="text-red-500">*</span>
-                            </label>
-                            <input type="file"
-                                   :name="'detail_files[' + field.id_isian_kategori + ']'"
-                                   accept=".pdf,.jpg,.jpeg,.png"
-                                   :required="field.wajib && !savedDetails[field.id_isian_kategori]"
-                                   class="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[15px] text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-blue-100 file:px-3.5 file:py-1.5 file:text-sm file:font-medium file:text-brand hover:file:bg-blue-200">
-                            <template x-if="savedDetails[field.id_isian_kategori]">
-                                <p class="text-xs text-emerald-600">Berkas tersimpan: <span x-text="savedDetails[field.id_isian_kategori]"></span> (unggah baru jika ingin mengganti).</p>
-                            </template>
-                        </div>
+                        <template x-for="(field, index) in fileFields" :key="field.id_isian_kategori">
+                            <div class="overflow-hidden rounded-md border border-gray-300">
+                                <div class="flex items-center justify-between gap-3 bg-gray-100 px-3.5 py-2.5 text-gray-900 border-b border-gray-300">
+                                    <h3 class="text-sm font-medium" x-text="'Dokumen ' + (index + 1) + ' — ' + field.input"></h3>
+                                    <span x-show="field.wajib" class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-brand">Wajib</span>
+                                </div>
+                                <div class="flex flex-col gap-2 p-3.5">
+                                    <label class="text-sm font-medium text-gray-700">
+                                        <span x-text="field.input"></span>
+                                        <span x-show="field.wajib" class="text-red-500">*</span>
+                                    </label>
+                                    <input type="file"
+                                           :name="'detail_files[' + field.id_isian_kategori + ']'"
+                                           accept=".pdf,.jpg,.jpeg,.png"
+                                           :required="field.wajib && !savedDetails[field.id_isian_kategori]"
+                                           class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-100 file:px-3.5 file:py-1.5 file:text-sm file:font-medium file:text-brand hover:file:bg-blue-200">
+                                    <template x-if="savedDetails[field.id_isian_kategori]">
+                                        <p class="text-xs text-emerald-700">Berkas tersimpan: <span x-text="savedDetails[field.id_isian_kategori]"></span> (unggah baru jika ingin mengganti).</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </template>
 
                 {{-- DOKUMEN PENDUKUNG (TAUTAN GOOGLE DRIVE / URL) --}}
                 <div class="flex flex-col gap-3">
                     <div class="flex flex-col gap-1">
-                        <span class="text-[13px] font-semibold leading-5 text-[#374151]">
-                            Dokumen Pendukung <span class="font-normal text-[#6B7280]">(opsional, tautan Google Drive / URL)</span>
+                        <span class="text-sm font-medium text-gray-700">
+                            Dokumen Pendukung <span class="font-normal text-gray-400">(opsional, tautan Google Drive / URL)</span>
                         </span>
-                        <p class="text-xs leading-[18px] text-[#6B7280]">Tambahkan tautan Google Drive atau dokumen pendukung lainnya jika diperlukan.</p>
+                        <p class="text-xs text-gray-500">Tambahkan tautan Google Drive atau dokumen pendukung lainnya jika diperlukan.</p>
                     </div>
 
                     <template x-for="(doc, idx) in documents" :key="idx">
-                        <div class="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                        <div class="flex flex-col gap-3 rounded-md border border-gray-300 bg-gray-50 p-4">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold text-[#374151]" x-text="'Dokumen #' + (idx + 1)"></span>
+                                <span class="text-sm font-medium text-gray-900" x-text="'Dokumen #' + (idx + 1)"></span>
                                 <button type="button" @click="removeDocument(idx)"
-                                        class="flex h-7 w-7 items-center justify-center rounded-md text-[#DC2626] hover:bg-[#FEE2E2]">
+                                        class="flex size-8 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100">
                                     <i class="ti ti-trash text-sm"></i>
                                 </button>
                             </div>
                             <div class="grid gap-3 sm:grid-cols-2">
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-xs font-medium text-[#374151]">Nama Dokumen <span class="text-[#FF3F3F]">*</span></label>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-sm font-medium text-gray-700">Nama Dokumen <span class="text-red-500">*</span></label>
                                     <input type="text" x-model="doc.name" :name="'documents[' + idx + '][name]'" required maxlength="255"
                                            class="{{ $input }}" placeholder="Contoh: Sertifikat / Surat Tugas">
                                 </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-xs font-medium text-[#374151]">Jenis Dokumen <span class="text-[#FF3F3F]">*</span></label>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="text-sm font-medium text-gray-700">Jenis Dokumen <span class="text-red-500">*</span></label>
                                     <div class="relative">
                                         <select x-model="doc.type" :name="'documents[' + idx + '][type]'" required class="{{ $select }}">
                                             <template x-for="t in documentTypes" :key="t">
                                                 <option :value="t" x-text="t"></option>
                                             </template>
                                         </select>
-                                        <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-3 text-base"></i>
+                                        <i class="ti ti-chevron-down pointer-events-none absolute right-3.5 top-3 text-base text-gray-400"></i>
                                     </div>
                                 </div>
                             </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-medium text-[#374151]">Tautan Dokumen (Link Google Drive) <span class="text-[#FF3F3F]">*</span></label>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-sm font-medium text-gray-700">Tautan Dokumen (Link Google Drive) <span class="text-red-500">*</span></label>
                                 <input type="url" x-model="doc.url" :name="'documents[' + idx + '][url]'" required maxlength="500"
                                        class="{{ $input }}" placeholder="https://drive.google.com/...">
                             </div>
@@ -492,7 +486,7 @@
                     </template>
 
                     <button type="button" @click="addDocument()"
-                            class="flex h-9 w-fit items-center gap-1.5 rounded-lg border border-[#2277FF] bg-white px-3 text-xs font-semibold text-[#2277FF] hover:bg-[#EFF6FF]">
+                            class="flex h-9 w-fit items-center gap-1.5 rounded-lg bg-blue-100 px-3.5 text-sm font-medium text-brand hover:bg-blue-200">
                         <i class="ti ti-plus text-sm"></i>
                         Tambah Tautan Dokumen
                     </button>
@@ -500,17 +494,17 @@
             </div>
         </section>
 
-        {{-- Kotak Status Biru (Style Kelompok 3) --}}
-        <div role="status" class="flex items-center gap-2.5 rounded-lg bg-blue-100 px-4 py-3.5 text-sm text-brand">
+        {{-- Kotak Status Biru (Style Halaman Kegiatan Mahasiswa) --}}
+        <div role="status" class="flex items-center gap-2.5 rounded-lg bg-blue-100 px-4 py-3 text-sm text-brand">
             <svg class="size-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5M12 7.5v.5"/></svg>
             <span x-text="activeCategory ? 'Lengkapi semua isian wajib (*) pada kategori ' + activeCategory.nama_kategori + ' sebelum menyimpan.' : 'Pilih kategori kegiatan terlebih dahulu untuk menampilkan formulir isian.'"></span>
         </div>
 
         {{-- Tombol Aksi --}}
         <div class="flex flex-wrap items-center justify-end gap-2.5">
-            <a href="{{ $cancelUrl }}" class="flex h-11 items-center rounded-lg border border-gray-200 bg-white px-5 text-base font-medium text-gray-700 hover:bg-gray-50">Batal</a>
+            <a href="{{ $cancelUrl }}" class="flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Batal</a>
             <button type="submit" :disabled="!selectedCategoryId || submitting"
-                    class="flex h-11 items-center gap-2 rounded-lg bg-brand px-5 text-base font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    class="flex h-10 items-center gap-2 rounded-lg bg-brand px-5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                 <span x-text="submitting ? 'Menyimpan...' : '{{ $isActivityHistory ? 'Simpan ke Riwayat' : ($item ? 'Simpan Perubahan' : 'Kirim Pengajuan') }}'"></span>
                 <i class="ti text-xs" :class="submitting ? 'ti-loader-2 animate-spin' : 'ti-arrow-right'"></i>
             </button>
