@@ -7,11 +7,34 @@ use App\Models\User;
 use Database\Seeders\JenisDokumenSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class KaprodiJenisDokumenTest extends TestCase
 {
     use DatabaseMigrations;
+
+    private function palsukanApiJenisDokumen(): void
+    {
+        Http::fake([
+            '*/jenis-dokumen*' => function () {
+                $data = JenisDokumen::query()
+                    ->get()
+                    ->map(fn (JenisDokumen $item) => [
+                        'id_jenis_dokumen' => $item->id_jenis_dokumen,
+                        'nama_jenis_dokumen' => $item->nama_jenis_dokumen,
+                        'keterangan' => $item->keterangan,
+                    ])
+                    ->all();
+
+                return Http::response([
+                    'success' => true,
+                    'message' => 'Data berhasil diambil',
+                    'data' => $data,
+                ], 200);
+            },
+        ]);
+    }
 
     private function masukSebagaiKaprodi(): User
     {
@@ -33,6 +56,7 @@ class KaprodiJenisDokumenTest extends TestCase
     public function test_kaprodi_can_view_seeded_document_types_from_database(): void
     {
         $this->seed(JenisDokumenSeeder::class);
+        $this->palsukanApiJenisDokumen();
 
         $response = $this->actingAs($this->masukSebagaiKaprodi())
             ->withSession(['kaprodi' => ['nama' => 'Kaprodi']])
@@ -43,7 +67,7 @@ class KaprodiJenisDokumenTest extends TestCase
         $response->assertViewHas('rows');
 
         $rows = $response->viewData('rows');
-        $this->assertCount(5, $rows);
+        $this->assertCount(6, $rows);
         $this->assertSame('Sertifikat', $rows[0]['name']);
         $this->assertSame('Sertifikat keikutsertaan atau penghargaan kegiatan', $rows[0]['description']);
     }
@@ -54,6 +78,7 @@ class KaprodiJenisDokumenTest extends TestCase
             'nama_jenis_dokumen' => 'Surat Rekomendasi Lomba',
             'keterangan' => 'Surat rekomendasi resmi dari pimpinan jurusan',
         ]);
+        $this->palsukanApiJenisDokumen();
 
         $response = $this->actingAs($this->masukSebagaiKaprodi())
             ->withSession(['kaprodi' => ['nama' => 'Kaprodi']])

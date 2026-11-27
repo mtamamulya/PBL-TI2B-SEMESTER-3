@@ -30,4 +30,105 @@ input, select, textarea, button {
     main p.text-2xl  { font-size: 1.125rem; line-height: 1.75rem; }
 }
 
-html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+html, body { overflow-x: clip; overscroll-behavior-x: none; }
+/* Kunci tinggi layar & scroll khusus layout Dosen agar sidebar dan header tetap diam */
+html:has(body.dosen-shell),
+body.dosen-shell {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.dosen-shell [data-frontend-shell] {
+    height: 100%;
+    overflow: hidden;
+}
+
+body.dosen-shell [data-frontend-navigation] {
+    height: 100%;
+}
+
+body.dosen-shell .frontend-main {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+html:has(body.mahasiswa-shell),
+body.mahasiswa-shell {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-shell] {
+    height: 100%;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-navigation] {
+    height: 100%;
+}
+
+body.mahasiswa-shell .frontend-main {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.berita-editor .ql-toolbar.ql-snow {
+    border-color: #e5e7eb;
+    border-radius: 0.75rem 0.75rem 0 0;
+    background: #f9fafb;
+}
+
+.berita-editor .ql-container.ql-snow {
+    border-color: #e5e7eb;
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.berita-editor .ql-editor {
+    min-height: 16rem;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.75;
+}
+
+.berita-editor .ql-editor.ql-blank::before {
+    color: #9ca3af;
+    font-style: normal;
+}
+
+.berita-content > * + * {
+    margin-top: 0.75rem;
+}
+
+.berita-content {
+    white-space: pre-line;
+}
+
+.berita-content h1,
+.berita-content h2,
+.berita-content h3 {
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.berita-content h1 { font-size: 1.5rem; }
+.berita-content h2 { font-size: 1.25rem; }
+.berita-content h3 { font-size: 1.125rem; }
+
+.berita-content ol,
+.berita-content ul {
+    padding-left: 1.5rem;
+}
+
+.berita-content ol { list-style: decimal; }
+.berita-content ul { list-style: disc; }
+
+.berita-content blockquote {
+    border-left: 3px solid #d1d5db;
+    padding-left: 1rem;
+    color: #4b5563;
+}
+
+.berita-content a {
+    color: #2563eb;
+    text-decoration: underline;
+}

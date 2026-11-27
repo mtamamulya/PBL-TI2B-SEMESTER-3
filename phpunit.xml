@@ -33,5 +33,6 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="DATA_SOURCE" value="json"/>
+        <env name="API_TOKEN_SESI" value="false"/>
     </php>
 </phpunit>

@@ -88,6 +88,7 @@ class DatabaseSuratAkreditasiTest extends TestCase
         foreach (array_reverse($migrations) as $migration) {
             $migration->down();
         }
+        $kategoriAwal = DB::table('kategori')->count();
         ['user' => $user, 'kategori' => $kategori, 'dokumen' => $dokumen, 'akreditasi' => $akreditasi] = $this->records();
         foreach ($migrations as $migration) {
             $migration->up();
@@ -116,7 +117,7 @@ class DatabaseSuratAkreditasiTest extends TestCase
         $this->assertFalse(Schema::hasColumn('akreditasi', 'berlaku_sampai'));
         $this->assertFalse(Schema::hasColumn('akreditasi', 'status'));
         $this->assertDatabaseCount('users', 1);
-        $this->assertDatabaseCount('kategori', 1);
+        $this->assertDatabaseCount('kategori', $kategoriAwal + 1);
         $this->assertDatabaseCount('dokumen', 1);
         $this->assertDatabaseCount('akreditasi', 1);
     }

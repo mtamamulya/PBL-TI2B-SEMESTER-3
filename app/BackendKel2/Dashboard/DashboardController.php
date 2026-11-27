@@ -16,19 +16,45 @@ class DashboardController extends Controller
     {
         $user = $this->user($request);
         RoleGuard::ensure($user, ['mahasiswa']);
+
+        return ApiResponse::ok($this->dataMahasiswa($user), 'Ringkasan dashboard mahasiswa berhasil diambil.');
+    }
+
+    public function contohMahasiswa()
+    {
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        return ApiResponse::ok(
+            ContohDashboardMahasiswa::data(),
+            'Data contoh dashboard mahasiswa berhasil diambil.'
+        );
+    }
+
+    public function dataMahasiswa(User $user): array
+    {
         $activities = Kegiatan::query()->untukUser($user)
             ->with(['kategori', 'statusTerkini', 'detail.isianKategori'])
+            ->withCount(['dokumen as dokumen_siap_count' => fn ($query) => $query
+                ->whereNotNull('link_dokumen')
+                ->whereNotIn('link_dokumen', ['', '#'])])
             ->get();
         $yearJoined = (int) ($user->mahasiswa?->tahun_masuk ?? now()->year);
         $completed = $activities->filter(fn (Kegiatan $activity) => $activity->statusTerkini?->status === 'selesai');
+        $active = $activities->filter(fn (Kegiatan $activity) => in_array(
+            $activity->statusTerkini?->status,
+            ['diajukan', 'direview', 'diterima', 'direvisi'],
+            true
+        ));
 
-        return ApiResponse::ok([
+        return [
             'total_kegiatan' => $activities->count(),
             'selesai' => $completed->count(),
+            'pengajuan_aktif' => $active->count(),
+            'dokumen_siap' => $completed->sum('dokumen_siap_count'),
             'per_kategori' => $this->categoryCounts($activities),
             'per_semester' => $this->semesterCounts($activities, $yearJoined),
             'kegiatan_selesai' => $completed->sortByDesc(fn (Kegiatan $activity) => $activity->tanggal_mulai?->timestamp ?? 0)->values(),
-        ], 'Ringkasan dashboard mahasiswa berhasil diambil.');
+        ];
     }
 
     public function kegiatan(Request $request)
@@ -67,7 +93,10 @@ class DashboardController extends Controller
                 continue;
             }
 
-            $semester = (((int) $start->format('Y') - $yearJoined) * 2) + ((int) $start->format('n') >= 8 ? 1 : 2);
+            $month = (int) $start->format('n');
+            $academicYearStart = $month >= 8 ? (int) $start->format('Y') : (int) $start->format('Y') - 1;
+            $semesterInYear = $month >= 8 || $month === 1 ? 1 : 2;
+            $semester = (($academicYearStart - $yearJoined) * 2) + $semesterInYear;
             if (isset($counts[$semester])) {
                 $counts[$semester]++;
             }

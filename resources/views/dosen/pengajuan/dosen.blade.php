@@ -2,36 +2,6 @@
 
 @section('title', 'Pengajuan Dosen')
 
-@php
-    $daftar = [
-        ['judul' => 'Penyuluhan Literasi Digital', 'oleh' => 'Filda Huwani Dewi', 'kategori' => 'Pengabdian', 'tanggal' => '3 Oktober 2026', 'status' => 'Diajukan', 'catatan' => null],
-        ['judul' => 'Seminar Nasional AI', 'oleh' => 'Angga Wahyu Wibowo', 'kategori' => 'Pengabdian', 'tanggal' => '15 Agustus 2026', 'status' => 'Direview', 'catatan' => null],
-        ['judul' => 'Pelatihan Industri', 'oleh' => 'Kuwat Santoso', 'kategori' => 'Pengabdian', 'tanggal' => '12 Agustus 2026', 'status' => 'Direvisi', 'catatan' => 'Lampirkan surat tugas yang sudah ditandatangani.'],
-        ['judul' => 'Woorkshop Penulisan Jurnal', 'oleh' => 'Tahan Prahara', 'kategori' => 'Pengabdian', 'tanggal' => '2 Juli 2026', 'status' => 'Ditolak', 'catatan' => 'Jadwal bentrok dengan kegiatan fakultas pada tanggal yang sama.'],
-        ['judul' => 'Kunjungan Industri', 'oleh' => 'Wiktasari', 'kategori' => 'Pengabdian', 'tanggal' => '26 Juli 2026', 'status' => 'Diterima', 'catatan' => null],
-        ['judul' => 'Kuliah Tamu', 'oleh' => 'Kuwat Santoso', 'kategori' => 'Pengabdian', 'tanggal' => '10 Juli 2026', 'status' => 'Selesai', 'catatan' => null],
-    ];
-
-    $alur = [
-        'Diajukan' => ['langkah' => ['a', 'm', 'm', 'm'], 'warna' => 'biru', 'label3' => 'Keputusan'],
-        'Direview' => ['langkah' => ['d', 'a', 'm', 'm'], 'warna' => 'biru', 'label3' => 'Keputusan'],
-        'Direvisi' => ['langkah' => ['d', 'd', 'a', 'm'], 'warna' => 'oranye', 'label3' => 'Direvisi'],
-        'Ditolak' => ['langkah' => ['d', 'd', 'a', 'm'], 'warna' => 'merah', 'label3' => 'Ditolak'],
-        'Diterima' => ['langkah' => ['d', 'd', 'h', 'm'], 'warna' => 'hijau', 'label3' => 'Diterima'],
-        'Selesai' => ['langkah' => ['d', 'd', 'd', 'h'], 'warna' => 'hijau', 'label3' => 'Diterima'],
-    ];
-
-    $daftar = array_map(function ($pengajuan, $index) use ($alur) {
-        $status = $alur[$pengajuan['status']];
-        $pengajuan['id'] = $index + 1;
-        $pengajuan['langkah'] = $status['langkah'];
-        $pengajuan['warna'] = $status['warna'];
-        $pengajuan['label3'] = $status['label3'];
-
-        return $pengajuan;
-    }, $daftar, array_keys($daftar));
-@endphp
-
 @section('content')
     <div class="flex flex-col gap-1.5">
         <h1 class="text-3xl font-bold tracking-tight">Pengajuan Dosen</h1>
@@ -39,7 +9,8 @@
     </div>
 
     <section class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm"
-             x-data="pengajuanDosen(@js($daftar))">
+             x-data="pengajuanDosen()">
+        <a href="{{ route('pengajuan.dosen.create') }}" class="self-start rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white">Ajukan kegiatan</a>
         <div role="tablist" aria-label="Status pengajuan"
              class="flex gap-x-2 overflow-x-auto border-b border-gray-200 pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <template x-for="t in tab" :key="t">
@@ -65,7 +36,11 @@
                    class="h-10 w-full rounded-lg border border-gray-200 bg-white pr-3 pl-10 text-[15px] placeholder:text-gray-400">
         </div>
 
-        <div class="flex flex-col gap-5">
+        <div x-show="loading" class="py-10 text-center text-sm text-gray-500">
+            Memuat data pengajuan dari database...
+        </div>
+
+        <div x-show="!loading" class="flex flex-col gap-5">
             <template x-for="k in tampil" :key="k.id">
                 <article class="flex flex-col gap-5 rounded-lg border border-gray-200 p-4">
                     <div class="flex items-start justify-between gap-3">
@@ -123,28 +98,86 @@
             </template>
 
             <p x-show="tampil.length === 0" x-cloak class="px-4 py-10 text-center text-sm text-gray-500">
-                Tidak ada pengajuan yang cocok dengan filter ini.
+                Belum ada data pengajuan di database untuk akun ini.
             </p>
         </div>
     </section>
-@endsection
 
-@push('scripts')
     <script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('pengajuanDosen', (daftar) => ({
-                daftar,
+            Alpine.data('pengajuanDosen', () => ({
+                daftar: [],
+                loading: true,
                 tab: ['Semua', 'Diajukan', 'Direview', 'Direvisi', 'Ditolak', 'Diterima', 'Selesai'],
                 aktif: 'Semua',
                 cari: '',
                 warnaBadge: {
+                    Draft:    'border border-gray-200 bg-gray-100 text-gray-700',
                     Diajukan: 'border border-blue-200 bg-blue-100 text-blue-700',
                     Direview: 'border border-blue-200 bg-blue-100 text-blue-700',
                     Direvisi: 'border border-orange-200 bg-orange-100 text-orange-700',
-                    Ditolak: 'border border-red-200 bg-red-100 text-red-600',
+                    Ditolak:  'border border-red-200 bg-red-100 text-red-600',
                     Diterima: 'border border-green-200 bg-green-100 text-green-700',
-                    Selesai: 'border border-green-200 bg-green-100 text-green-700',
+                    Selesai:  'border border-green-200 bg-green-100 text-green-700',
                 },
+                alurMap: {
+                    Draft:    { langkah: ['m', 'm', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
+                    Diajukan: { langkah: ['a', 'm', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
+                    Direview: { langkah: ['d', 'a', 'm', 'm'], warna: 'biru', label3: 'Keputusan' },
+                    Direvisi: { langkah: ['d', 'd', 'a', 'm'], warna: 'oranye', label3: 'Direvisi' },
+                    Ditolak:  { langkah: ['d', 'd', 'a', 'm'], warna: 'merah', label3: 'Ditolak' },
+                    Diterima: { langkah: ['d', 'd', 'h', 'm'], warna: 'hijau', label3: 'Diterima' },
+                    Selesai:  { langkah: ['d', 'd', 'd', 'h'], warna: 'hijau', label3: 'Diterima' },
+                },
+
+                init() {
+                    this.fetchData();
+                },
+
+                fetchData() {
+                    this.loading = true;
+                    fetch('/api/v1/dosen/pengajuan', {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                    })
+                    .then(res => {
+                        if (res.status === 'success' && Array.isArray(res.data)) {
+                            this.daftar = res.data.map(item => {
+                                const rawStatus = item.status_terkini?.status || 'draft';
+                                const statusFormatted = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+                                const alur = this.alurMap[statusFormatted] || this.alurMap['Draft'];
+
+                                const rawDate = item.status_terkini?.tanggal_status || item.created_at;
+                                const tanggalFormatted = rawDate 
+                                    ? new Date(rawDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                                    : '-';
+
+                                return {
+                                    id: item.id_kegiatan,
+                                    judul: item.nama_kegiatan,
+                                    oleh: '{{ auth()->user()->dosen->nama ?? auth()->user()->email ?? "Dosen" }}',
+                                    kategori: item.kategori?.nama_kategori || 'Umum',
+                                    tanggal: tanggalFormatted,
+                                    status: statusFormatted,
+                                    catatan: item.status_terkini?.catatan_revisi || null,
+                                    langkah: alur.langkah,
+                                    warna: alur.warna,
+                                    label3: alur.label3
+                                };
+                            });
+                        }
+                    })
+                    .catch(err => console.error('Gagal mengambil daftar pengajuan:', err))
+                    .finally(() => { this.loading = false; });
+                },
+
                 jumlah(status) {
                     return status === 'Semua'
                         ? this.daftar.length
@@ -199,4 +232,4 @@
             }));
         });
     </script>
-@endpush
+@endsection

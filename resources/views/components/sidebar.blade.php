@@ -47,9 +47,9 @@
 <nav id="menu-utama" data-frontend-navigation aria-label="Menu utama"
      :data-open="menu ? 'true' : 'false'"
      class="flex w-60 shrink-0 flex-col justify-between overflow-y-auto bg-linear-to-b from-brand from-0% via-[#1550bd] via-50% to-[#0b2f7a] to-100% p-3 text-white
+            lg:sticky lg:top-0 lg:h-dvh
             max-lg:invisible max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:w-64 max-lg:-translate-x-full max-lg:shadow-xl max-lg:transition-transform
-            max-lg:data-[open=true]:visible max-lg:data-[open=true]:translate-x-0">
-    <div class="flex flex-col gap-3">
+            max-lg:data-[open=true]:visible max-lg:data-[open=true]:translate-x-0">    <div class="flex flex-col gap-3">
         {{-- Logo: klik untuk ke Dashboard. Taruh file logo di public/images/logo_trk.png.
              Kalau file belum ada, tampil kotak "TI" sementara. Tombol tutup hanya tampil di layar kecil. --}}
         <div class="flex items-center justify-between gap-2 px-1 pb-5">
@@ -104,5 +104,4 @@
         @endforeach
     </div>
 
-    <a href="{{ route('mahasiswa.dashboard') }}" class="{{ $linkBase }} mt-6 text-white hover:bg-white/10">Tampilan mahasiswa</a>
 </nav>

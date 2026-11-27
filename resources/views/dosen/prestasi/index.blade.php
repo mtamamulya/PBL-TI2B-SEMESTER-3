@@ -5,7 +5,7 @@
 @section('content')
 
 @php
-    $daftarTingkat = ['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'];
+    $daftarTingkat = ['Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'];
     $selectClass = 'h-10 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-9 pl-3.5 text-[15px] text-gray-900';
 @endphp
 
@@ -78,8 +78,8 @@
                                        class="flex size-8 items-center justify-center rounded-lg bg-orange-100 text-orange-400 hover:bg-orange-200">
                                         <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>
                                     </a>
-                                    <button type="button" :aria-label="`Hapus ${k.nama}`"
-                                            x-on:click="$dispatch('minta-hapus', { jenis: 'prestasi', nama: k.nama, action: `{{ url('/api/v1/prestasi') }}/${k.id}` })"
+                                    <button x-show="k.bisaDiubah" type="button" :aria-label="`Hapus ${k.nama}`"
+                                            x-on:click="hapus(k)"
                                             class="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-red-100 text-red-500 hover:bg-red-200">
                                         <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5"/></svg>
                                     </button>
@@ -90,58 +90,62 @@
                 </tbody>
             </table>
 
-            <p x-show="!loading && terfilter.length === 0" x-cloak class="px-4 py-10 text-center text-sm text-gray-500">
+            <p x-show="!loading && !error && terfilter.length === 0" x-cloak class="px-4 py-10 text-center text-sm text-gray-500">
                 Tidak ada prestasi yang cocok dengan pencarian atau filter ini.
             </p>
         </div>
 
+        <p x-show="error" x-text="error" role="alert" class="text-red-600"></p>
         <x-tabel-footer />
     </section>
 
-    <x-modal-hapus />
+
 
     <x-tabel-js />
 
 @endsection
 
 @push('scripts')
+@include('dosen.prestasi._api')
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('prestasi', () => tabelData({
             daftar: [],
             loading: true,
+            error: '',
             cari: '',
             f: { tingkat: '' },
 
             async muatData() {
                 this.loading = true;
                 try {
-                    const response = await fetch('/api/v1/prestasi?per_page=100', {
-                        headers: {
-                            'Accept': 'application/json',
-                            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
-                        }
-                    });
-                    const result = await response.json();
-
-                    if (response.ok && result.success) {
-                        this.daftar = result.data.map(item => ({
-                            id: item.id,
-                            nama: item.nama_prestasi,
-                            penghargaan: item.penghargaan,
-                            tingkat: item.tingkat_prestasi,
-                            penyelenggara: item.penyelenggara
-                        }));
-                    } else {
-                        console.error('Gagal mengambil data API:', result);
-                    }
-                } catch (error) {
-                    console.error('Kesalahan jaringan:', error);
+                    this.error = '';
+                    const items = [];
+                    let page = 1;
+                    let result;
+                    do {
+                        result = await apiPrestasi('?per_page=100&page=' + page++);
+                        items.push(...result.data);
+                    } while (page <= result.meta.last_page);
+                    this.daftar = items.map(item => ({
+                        id: item.id, nama: item.nama_prestasi, penghargaan: item.penghargaan,
+                        tingkat: item.tingkat_prestasi, penyelenggara: item.penyelenggara, bisaDiubah: item.bisa_diubah
+                    }));
+                } catch (e) {
+                    this.error = e.message;
                 } finally {
                     this.loading = false;
                 }
             },
 
+            async hapus(k) {
+                if (!window.confirm('Hapus prestasi ' + k.nama + '?')) return;
+                try {
+                    await apiPrestasi('/' + k.id, 'DELETE');
+                    await this.muatData();
+                    this.halaman = 1;
+                } catch (e) { this.error = e.message; }
+            },
             get terfilter() {
                 const q = this.cari.trim().toLowerCase();
                 return this.daftar.filter(k =>
@@ -149,13 +153,13 @@
                         (k.nama && k.nama.toLowerCase().includes(q)) ||
                         (k.penyelenggara && k.penyelenggara.toLowerCase().includes(q)) ||
                         (k.penghargaan && k.penghargaan.toLowerCase().includes(q))) &&
-                    (this.f.tingkat === '' || k.tingkat === this.f.tingkat)
+                    (this.f.tingkat === '' || k.tingkat?.toLowerCase() === this.f.tingkat.toLowerCase())
                 );
             },
         }, {
             perHalaman: 5,
             kunci: {
-                tingkat: (k) => ['Internal', 'Kabupaten/kota', 'Provinsi', 'Nasional', 'Internasional'].indexOf(k.tingkat)
+                tingkat: (k) => ['kabupaten/kota', 'provinsi', 'nasional', 'internasional'].indexOf(k.tingkat?.toLowerCase())
             }
         }));
     });

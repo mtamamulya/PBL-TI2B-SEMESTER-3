@@ -3,11 +3,14 @@
 @section('title', 'Tambah Penelitian')
 
 @php
-    $inputClass  = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
-    $selectClass = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
-    $labelClass  = 'text-[15px] font-medium';
+    $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
+    $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
+    $labelClass   = 'text-[15px] font-medium';
     $sectionClass = 'flex flex-col gap-4.5 rounded-lg border border-gray-200 bg-white p-4.5';
-    $numClass    = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
+    $numClass     = 'flex size-[26px] shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white';
+
+    $userLogin = auth()->user();
+    $namaKetua = $userLogin?->nama ?? $userLogin?->name ?? 'Ketua Penelitian';
 @endphp
 
 @section('content')
@@ -17,21 +20,43 @@
         <p class="text-2xl text-gray-400">Dashboard / Penelitian / Tambah</p>
     </div>
 
-    {{--
-        Form ini memakai Alpine.js (lihat layouts/app.blade.php) untuk hal-hal kecil:
-        Ranah terisi otomatis dari Skim, dan daftar anggota bisa ditambah / dihapus.
-        Atribut name="..." sudah disiapkan supaya backend nanti tinggal membaca datanya.
-    --}}
-    <form x-data="formPenelitian()" x-on:submit.prevent="simpan()"
+    <form x-data="formPenelitian()"
+          x-init="init()"
+          x-on:submit.prevent="simpan()"
           method="POST" action="#"
           class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
         @csrf
+
+        <template x-if="errorMsg">
+            <div role="alert" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" x-text="errorMsg"></div>
+        </template>
 
         {{-- 1. INFORMASI PENELITIAN --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-info">
             <div class="flex items-center gap-2.5">
                 <span class="{{ $numClass }}">1</span>
                 <h2 id="h-info" class="text-[15px] font-semibold">Informasi Penelitian</h2>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
+                <div class="flex flex-col gap-2">
+                    <label for="kategori" class="{{ $labelClass }}">Kategori penelitian</label>
+                    <input id="kategori" name="kategori" type="text" list="daftar-kategori" required
+                           x-model="kategori" x-on:input="sinkronIdKategori()"
+                           placeholder="Contoh: Penelitian (sesuai master kategori)" class="{{ $inputClass }}">
+                    <datalist id="daftar-kategori">
+                        <template x-for="kat in opsiKategori" :key="kat.id_kategori ?? kat.nama_kategori">
+                            <option :value="kat.nama_kategori"></option>
+                        </template>
+                    </datalist>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label for="id_kategori" class="{{ $labelClass }}">ID kategori (opsional jika nama sudah sesuai)</label>
+                    <input id="id_kategori" name="id_kategori" type="number" min="1"
+                           x-model="idKategori" placeholder="Otomatis terisi jika cocok dengan master"
+                           class="{{ $inputClass }}">
+                </div>
             </div>
 
             <div class="flex flex-col gap-2">
@@ -86,8 +111,9 @@
                         <select id="sebelumnya" name="penelitian_sebelumnya" x-model="sebelumnya"
                                 x-on:change="isiDariSebelumnya()" class="{{ $selectClass }}">
                             <option value="">Tidak ada, Penelitian baru</option>
-                            <option value="p1">Deteksi hoaks dengan ML (2025)</option>
-                            <option value="p2">Analisis sentimen ulasan aplikasi kampus (2024)</option>
+                            <template x-for="item in daftarSebelumnya" :key="item.id_kegiatan">
+                                <option :value="item.id_kegiatan" x-text="item.nama_kegiatan"></option>
+                            </template>
                         </select>
                         <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
                     </div>
@@ -106,7 +132,7 @@
                 <div class="flex flex-col gap-2">
                     <label for="tahun" class="{{ $labelClass }}">Tahun anggaran</label>
                     <div class="relative">
-                        <select id="tahun" name="tahun_anggaran" class="{{ $selectClass }}">
+                        <select id="tahun" name="tahun_anggaran" x-model="tahunAnggaran" class="{{ $selectClass }}">
                             @foreach ([2024, 2025, 2026, 2027] as $t)
                                 <option value="{{ $t }}" @selected($t === 2026)>{{ $t }}</option>
                             @endforeach
@@ -135,11 +161,11 @@
             <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
                 <div class="flex flex-col gap-2">
                     <label for="noSk" class="{{ $labelClass }}">Nomor SK penugasan</label>
-                    <input id="noSk" name="nomor_sk" type="text" required placeholder="Nomor SK" class="{{ $inputClass }}">
+                    <input id="noSk" name="nomor_sk" type="text" required x-model="nomorSk" placeholder="Nomor SK" class="{{ $inputClass }}">
                 </div>
                 <div class="flex flex-col gap-2">
                     <label for="tglSk" class="{{ $labelClass }}">Tanggal SK penugasan</label>
-                    <input id="tglSk" name="tanggal_sk" type="date" required class="{{ $inputClass }}">
+                    <input id="tglSk" name="tanggal_sk" type="date" required x-model="tanggalSk" class="{{ $inputClass }}">
                 </div>
             </div>
         </section>
@@ -160,9 +186,9 @@
                 ] as [$nama, $label])
                     <div class="flex flex-col gap-2">
                         <label for="{{ $nama }}" class="{{ $labelClass }}">{{ $label }}</label>
-                        {{-- Titik ribuan otomatis. Backend nanti membuang titiknya sebelum disimpan. --}}
                         <input id="{{ $nama }}" name="{{ $nama }}" type="text" inputmode="numeric" placeholder="Rp"
-                               x-on:input="$event.target.value = $event.target.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')"
+                               x-model="dana['{{ $nama }}']"
+                               x-on:input="$event.target.value = $event.target.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); dana['{{ $nama }}'] = $event.target.value"
                                class="{{ $inputClass }}">
                     </div>
                 @endforeach
@@ -186,15 +212,8 @@
                 <div class="relative min-w-56 flex-[3_1_260px]">
                     <label for="cari" class="sr-only">Cari dosen atau mahasiswa</label>
                     <svg class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
-                    <input id="cari" type="text" list="kandidat" x-model="baru.nama" placeholder="Cari dosen atau mahasiswa..."
+                    <input id="cari" type="text" x-model="baru.nama" placeholder="Nama lengkap dosen atau mahasiswa..."
                            class="{{ $inputClass }} pl-10">
-                    <datalist id="kandidat">
-                        <option value="Kuwat Santoso"></option>
-                        <option value="Wiktasari"></option>
-                        <option value="Mukhlis Pratama Mulya"></option>
-                        <option value="Angga Wahyu Wibowo"></option>
-                        <option value="Arif Setyawan"></option>
-                    </datalist>
                 </div>
 
                 <div class="relative min-w-40 flex-[1_1_160px]">
@@ -243,7 +262,6 @@
                             <tr class="border-t border-gray-300">
                                 <td class="px-2 py-2.5">
                                     <span x-text="a.nama"></span>
-                                    {{-- data yang dikirim ke backend --}}
                                     <input type="hidden" :name="`anggota[${i}][nama]`" :value="a.nama">
                                     <input type="hidden" :name="`anggota[${i}][peran]`" :value="a.peran">
                                     <input type="hidden" :name="`anggota[${i}][status]`" :value="a.status">
@@ -268,14 +286,13 @@
         {{-- TOMBOL --}}
         <div class="flex flex-wrap items-center justify-end gap-3">
             <template x-if="tersimpan">
-                <p role="status" class="mr-auto rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-sm text-green-800">
-                    Tersimpan (simulasi). Data belum masuk database.
-                </p>
+                <p role="status" class="mr-auto rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5 text-sm text-green-800" x-text="pesanSukses"></p>
             </template>
             <a href="{{ route('penelitian.index') }}"
                class="flex h-11 items-center rounded-md bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</a>
-            <button type="submit"
-                    class="h-11 cursor-pointer rounded-md bg-brand px-6 text-base text-white hover:bg-blue-700">Simpan</button>
+            <button type="submit" :disabled="menyimpan"
+                    class="h-11 cursor-pointer rounded-md bg-brand px-6 text-base text-white hover:bg-blue-700 disabled:opacity-50"
+                    x-text="menyimpan ? 'Menyimpan...' : 'Simpan'"></button>
         </div>
     </form>
 
@@ -285,10 +302,19 @@
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('formPenelitian', () => ({
+            kategori: '',
+            idKategori: '',
+            opsiKategori: [],
             judul: '', afiliasi: '', skim: '', bidang: '', sebelumnya: '',
-            lokasi: '', mitra: '', tahunKe: '', lama: '',
+            tahunAnggaran: '2026', tahunKe: '', lama: '', lokasi: '',
+            nomorSk: '', tanggalSk: '', mitra: '',
+            dana: {
+                dana_dikti: '',
+                dana_perguruan_tinggi: '',
+                dana_institusi_lain: '',
+                in_kind: '',
+            },
 
-            // Skim => Ranah
             ranahMap: {
                 'Penelitian Dasar Unggulan Perguruan Tinggi': 'Penelitian Dasar',
                 'Penelitian Terapan': 'Penelitian Terapan',
@@ -296,24 +322,87 @@
             },
             get ranah() { return this.ranahMap[this.skim] || ''; },
 
-            // Data tiruan untuk "Penelitian sebelumnya"
-            dataSebelumnya: {
-                p1: { judul: 'Deteksi hoaks dengan ML', afiliasi: 'Jurusan Teknik Elektro / Politeknik Negeri Semarang',
-                      skim: 'Penelitian Terapan', bidang: 'Teknologi Informasi', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '3' },
-                p2: { judul: 'Analisis sentimen ulasan aplikasi kampus', afiliasi: 'Jurusan Teknik Elektro / Politeknik Negeri Semarang',
-                      skim: 'Penelitian Pengembangan', bidang: 'Pendidikan', lokasi: 'Kota Semarang', mitra: '', tahunKe: '2', lama: '2' },
-            },
-            isiDariSebelumnya() {
-                const d = this.dataSebelumnya[this.sebelumnya];
-                if (d) Object.assign(this, d);
+            bersihkanAngka(val) {
+                if (val === null || val === undefined || val === '') return 0;
+                const clean = String(val).replace(/\D/g, '');
+                return clean ? Number(clean) : 0;
             },
 
-            // Anggota
-            // Ketua = akun yang login, selalu ada dan terkunci (tidak bisa dihapus).
-            // Anggota lain kosong di awal, muncul setelah ditambahkan.
-            // Nanti backend mengganti nama ini dengan nama user yang login.
+            sinkronIdKategori() {
+                const target = (this.kategori || '').trim().toLowerCase();
+                if (!target) {
+                    this.idKategori = '';
+                    return;
+                }
+                const cocok = this.opsiKategori.find(
+                    k => String(k.nama_kategori || '').trim().toLowerCase() === target
+                );
+                if (cocok && cocok.id_kategori) {
+                    this.idKategori = String(cocok.id_kategori);
+                }
+            },
+
+            daftarSebelumnya: [],
+            async init() {
+                try {
+                    const res = await fetch('/api/v1/dosen/penelitian?per_page=50', {
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) return;
+                    const json = await res.json();
+                    const items = Array.isArray(json.data) ? json.data : (json.data?.data || []);
+                    this.daftarSebelumnya = items;
+
+                    const kategoriMap = new Map();
+                    for (const item of items) {
+                        if (item.id_kategori && item.nama_kategori) {
+                            kategoriMap.set(String(item.id_kategori), {
+                                id_kategori: item.id_kategori,
+                                nama_kategori: item.nama_kategori,
+                            });
+                        }
+                    }
+                    this.opsiKategori = Array.from(kategoriMap.values());
+                    if (this.opsiKategori.length === 1 && !this.kategori) {
+                        this.kategori = this.opsiKategori[0].nama_kategori;
+                        this.idKategori = String(this.opsiKategori[0].id_kategori);
+                    }
+                } catch (_) {
+                    this.daftarSebelumnya = [];
+                }
+            },
+
+            async isiDariSebelumnya() {
+                if (!this.sebelumnya) return;
+                try {
+                    const res = await fetch(`/api/v1/dosen/penelitian/${this.sebelumnya}`, {
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                    });
+                    if (!res.ok) return;
+                    const json = await res.json();
+                    const d = json.data || {};
+                    if (d.nama_kegiatan) this.judul = d.nama_kegiatan;
+                    if (d.lokasi) this.lokasi = d.lokasi;
+                    if (d.id_kategori) this.idKategori = String(d.id_kategori);
+                    if (d.nama_kategori) this.kategori = d.nama_kategori;
+                    if (d.id_kegiatan) this.sebelumnya = String(d.id_kegiatan);
+                    if (Array.isArray(d.detail)) {
+                        for (const row of d.detail) {
+                            if (row.input === 'afiliasi' && row.isian) this.afiliasi = row.isian;
+                            if (row.input === 'skim' && row.isian) this.skim = row.isian;
+                            if (row.input === 'kelompok_bidang' && row.isian) this.bidang = row.isian;
+                            if (row.input === 'tahun_pelaksanaan_ke' && row.isian) this.tahunKe = String(row.isian);
+                            if (row.input === 'lama_kegiatan' && row.isian) this.lama = String(row.isian);
+                            if (row.input === 'mitra' && row.isian) this.mitra = row.isian;
+                        }
+                    }
+                } catch (_) {}
+            },
+
             anggota: [
-                { nama: 'Kuwat Santoso', peran: 'Ketua', status: 'Dosen', kunci: true },
+                { nama: @js($namaKetua), peran: 'Ketua', status: 'Dosen', kunci: true },
             ],
             baru: { nama: '', peran: '', status: '' },
             errorAnggota: '',
@@ -333,9 +422,69 @@
             },
             hapus(i) { this.anggota.splice(i, 1); },
 
-            // Simpan (simulasi)
+            menyimpan: false,
             tersimpan: false,
-            simpan() { this.tersimpan = true; },
+            pesanSukses: '',
+            errorMsg: '',
+            async simpan() {
+                this.menyimpan = true;
+                this.tersimpan = false;
+                this.errorMsg = '';
+
+                const payload = {
+                    ...(this.idKategori ? { id_kategori: Number(this.idKategori) } : {}),
+                    ...(this.kategori.trim() !== '' ? { kategori: this.kategori.trim() } : {}),
+                    nama_kegiatan: this.judul,
+                    lokasi: this.lokasi,
+                    nomor_sk: this.nomorSk || null,
+                    tanggal_sk: this.tanggalSk || null,
+                    id_kegiatan_sebelumnya: this.sebelumnya ? Number(this.sebelumnya) : null,
+                    detail: {
+                        afiliasi: this.afiliasi,
+                        skim: this.skim,
+                        ranah: this.ranah,
+                        kelompok_bidang: this.bidang,
+                        tahun_anggaran: this.tahunAnggaran,
+                        tahun_pelaksanaan_ke: this.tahunKe,
+                        lama_kegiatan: this.lama,
+                        dana_dikti: this.bersihkanAngka(this.dana.dana_dikti),
+                        dana_perguruan_tinggi: this.bersihkanAngka(this.dana.dana_perguruan_tinggi),
+                        dana_institusi_lain: this.bersihkanAngka(this.dana.dana_institusi_lain),
+                        in_kind: this.bersihkanAngka(this.dana.in_kind),
+                        mitra: this.mitra,
+                    },
+                    anggota: this.anggota.map(a => ({
+                        nama: a.nama,
+                        peran: (a.peran || 'anggota').toLowerCase(),
+                        status: a.status,
+                    })),
+                };
+
+                try {
+                    const res = await fetch('/api/v1/dosen/penelitian', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) {
+                        const detailErr = json.errors ? Object.values(json.errors).flat().join(' ') : '';
+                        throw new Error(detailErr || json.message || 'Gagal menyimpan penelitian.');
+                    }
+                    this.tersimpan = true;
+                    this.pesanSukses = json.message || 'Penelitian berhasil disimpan.';
+                    window.location.href = @js(route('penelitian.index'));
+                } catch (err) {
+                    this.errorMsg = err.message || 'Terjadi kesalahan saat menyimpan data.';
+                } finally {
+                    this.menyimpan = false;
+                }
+            },
         }));
     });
 </script>

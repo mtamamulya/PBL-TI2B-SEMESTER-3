@@ -2,23 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\KegiatanData;
-use App\Repositories\KegiatanProdiData;
+use App\Support\ApiClient;
+use App\Support\ApiException;
 use App\Support\Laporan\LaporanKegiatan;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Unduh laporan data kegiatan semua / dosen / mahasiswa / prodi (PDF atau Excel) per kurun waktu tahun.
- * Dipakai admin (/admin/kegiatan/{dosen|mahasiswa|prodi}/laporan) DAN kaprodi (/kaprodi/...).
- *   - kaprodi : selalu hanya kegiatan yang sudah disetujui.
- *   - admin   : boleh memilih status (bawaan: Disetujui).
+ * Dipakai admin (/admin/kegiatan/{dosen|mahasiswa|prodi|semua}/laporan) DAN kaprodi (/kaprodi/...).
+ * Sumber data: API GET /admin/kegiatan (semua halaman), sama dengan halaman daftar, jadi angkanya selalu cocok.
+ * API hanya mengembalikan kegiatan yang sudah disetujui, jadi status laporan selalu "Disetujui".
  *
- * Parameter GET: dari (tahun), sampai (tahun), format (pdf | xlsx), status (khusus admin).
+ * Parameter GET: dari (tahun), sampai (tahun), format (pdf | xlsx).
  */
 class KegiatanLaporanController extends Controller
 {
-    public function __construct(private KegiatanData $data) {}
+    private const STATUS = 'Disetujui';
+
+    /** Batas pengaman jumlah halaman yang diambil (200 baris per halaman). */
+    private const MAKS_HALAMAN = 50;
 
     public function dosen(Request $request): Response
     {
@@ -40,40 +43,80 @@ class KegiatanLaporanController extends Controller
         return $this->unduh($request, 'semua');
     }
 
-    /** Gabungan dosen + mahasiswa + prodi dengan kolom seragam (jenis, pelaku). */
-    private function gabungan(): array
+    /**
+     * Ambil SEMUA halaman /admin/kegiatan (opsional per jenis) dan ubah ke bentuk baris yang dipakai LaporanKegiatan::susun().
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function ambilBaris(string $jenis): array
     {
-        $ambil = fn (array $rows, string $jenis, string $pelaku) => array_map(fn ($r) => [
-            'nama' => $r['nama'],
-            'kategori' => $r['kategori'],
-            'jenis' => $jenis,
-            'pelaku' => $r[$pelaku] ?? '-',
-            'tanggal' => $r['tanggal'],
-            'tanggal_iso' => $r['tanggal_iso'],
-            'tahun' => $r['tahun'],
-            'semester' => $r['semester'],
-            'status' => $r['status'],
-        ], $rows);
+        $query = ['per_page' => 200];
+        if ($jenis !== 'semua') {
+            $query['jenis'] = $jenis;
+        }
 
-        return array_merge(
-            $ambil($this->data->dosen(), 'Dosen', 'dosen'),
-            $ambil($this->data->mahasiswa(), 'Mahasiswa', 'pengaju'),
-            $ambil(KegiatanProdiData::semua(), 'Prodi', 'penanggung_jawab'),
-        );
+        $baris = [];
+        $halaman = 1;
+
+        do {
+            $hasil = ApiClient::pengguna()->get('/admin/kegiatan', $query + ['page' => $halaman]);
+
+            foreach ($hasil['data'] ?? [] as $r) {
+                if (is_array($r)) {
+                    $baris[] = $this->petakan($r);
+                }
+            }
+
+            $terakhir = (int) ($hasil['meta']['last_page'] ?? 1);
+            $halaman++;
+        } while ($halaman <= $terakhir && $halaman <= self::MAKS_HALAMAN);
+
+        return $baris;
+    }
+
+    /** Samakan baris API dengan kolom yang dibaca LaporanKegiatan (dosen / pengaju / penanggung_jawab / pelaku). */
+    private function petakan(array $r): array
+    {
+        $pengaju = (string) ($r['pengaju'] ?? '-');
+
+        return [
+            'nama' => $r['nama'] ?? '-',
+            'kategori' => $r['kategori'] ?? '-',
+            'jenis' => ucfirst((string) ($r['jenis'] ?? '')),
+            'pelaku' => $pengaju,
+            'dosen' => $pengaju,
+            'pengaju' => $pengaju,
+            'penanggung_jawab' => $pengaju,
+            'tanggal' => $r['tanggal'] ?? '-',
+            'tanggal_iso' => (string) ($r['raw_date'] ?? ''),
+            'tahun' => (int) ($r['tahun'] ?? 0), // 0 = tanpa tanggal; tidak ikut laporan per tahun
+            'semester' => $r['semester'] ?? '',
+            'status' => self::STATUS,
+            'tingkat' => $r['tingkat'] ?? '',
+            'kelas' => $r['kelas'] ?? '',
+        ];
     }
 
     private function unduh(Request $request, string $jenis): Response
     {
         $kaprodi = $request->routeIs('kaprodi.*');
-        $rows = match ($jenis) {
-            'dosen' => $this->data->dosen(),
-            'mahasiswa' => $this->data->mahasiswa(),
-            'semua' => $this->gabungan(),
-            default => KegiatanProdiData::semua(),
-        };
+
+        try {
+            $rows = $this->ambilBaris($jenis);
+        } catch (ApiException $e) {
+            if (in_array($e->getStatusCode(), [401, 403], true)) {
+                throw $e;
+            }
+            \Log::error('Gagal memuat data laporan kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
+
+            return redirect()
+                ->route($kaprodi ? 'kaprodi.kegiatan.index' : 'admin.kegiatan.index')
+                ->with('error', 'Laporan gagal dibuat: '.$e->getMessage());
+        }
 
         // Tahun: bila kosong/tidak valid pakai tahun terbaru; bila terbalik ditukar.
-        $tahunList = in_array($jenis, ['prodi', 'semua'], true) ? KegiatanProdiData::tahun($rows) : $this->data->tahun($rows);
+        $tahunList = array_values(array_unique(array_filter(array_column($rows, 'tahun'))));
+        sort($tahunList);
         $terbaru = end($tahunList) ?: (int) date('Y');
         $dari = (int) $request->query('dari', $terbaru);
         $sampai = (int) $request->query('sampai', $terbaru);
@@ -83,15 +126,9 @@ class KegiatanLaporanController extends Controller
             [$dari, $sampai] = [$sampai, $dari];
         }
 
-        // Status: kaprodi dikunci "Disetujui".
-        $status = KegiatanData::DISETUJUI;
-        if (! $kaprodi && in_array($request->query('status'), ['Semua', ...KegiatanData::STATUS], true)) {
-            $status = $request->query('status');
-        }
-
         $format = $request->query('format') === 'xlsx' ? 'xlsx' : 'pdf';
 
-        $laporan = LaporanKegiatan::susun($jenis, $rows, $dari, $sampai, $status);
+        $laporan = LaporanKegiatan::susun($jenis, $rows, $dari, $sampai, self::STATUS);
         $oleh = (string) session($kaprodi ? 'kaprodi.nama' : 'admin.nama', $kaprodi ? 'Kaprodi' : 'Admin');
         $waktu = now()->setTimezone('Asia/Jakarta')->locale('id')->translatedFormat('j F Y, H:i').' WIB';
 

@@ -17,6 +17,7 @@
     // Anggota tim. Kirim $daftarMahasiswa dan $peranList dari controller (cadangan di bawah ini hanya contoh).
     $daftarMahasiswa = $daftarMahasiswa ?? ['Ivan Sigit Santoso', 'Anisa Aulia Nurusyifa', config('mahasiswa.nama'), 'Dewi Lestari', 'Fajar Nugroho', 'Rizky Pratama', 'Salsabila Putri'];
     $peranList       = $peranList ?? ['Ketua', 'Anggota'];
+    $saranIsian      = $saranIsian ?? [];
 
     // Mode edit: controller mengirim $prestasi (data yang sudah ada). Tanpa itu, form dalam mode tambah.
     // Kunci yang dibaca: id, sumber, kegiatan, nama_lomba, penyelenggara, lokasi, dosen, tingkat, capaian, jenis,
@@ -44,12 +45,41 @@
                   'deskripsi'       => $v('deskripsi'),
                   'kegiatanList'    => $kegiatanList,
                   'bentuk'          => $v('bentuk', 'Individu'),
-                  'anggota'         => $v('anggota_form', []),
+                  'anggota'         => old('anggota', $prestasi['anggota_form'] ?? []),
                   'daftarMahasiswa' => $daftarMahasiswa,
+                  'anggotaOptions'  => $anggotaOptions,
+                  'pemilikOptions' => $pemilikList,
+                  'lokasi' => $v('lokasi'),
+                  'dosen' => $v('dosen'),
+                  'tingkat' => $v('tingkat'),
+                  'tanggalMulai' => $v('tanggal_mulai'),
+                  'tanggalSelesai' => $v('tanggal_selesai'),
+                  'idUser'          => $v('id_user'),
+                  'capaian'         => $v('capaian'),
+                  'capaianOptions'  => $capaianList,
+                  'saranIsian'      => $saranIsian,
                   'dokumenLama'     => $dokumenLama,
                   'dokumenInput'    => $dokumenInput,
                   'errors'          => $errors->getMessages(),
+                  'jenisPrestasi' => $v('jenis'),
+                  'bidangPrestasi' => old('kategori', $prestasi['kategori_form'] ?? ''),
               ]))"
+
+              x-init="
+                   $watch('idUser', () => {
+                      sinkronPemilik();
+                      if (idUser) sinkronTeksPemilik();
+                   });
+                   $watch('bentuk', () => sinkronPemilik());
+                   $watch('sumber', () => {
+                      sinkronPemilik();
+                      pastikanPemilikValid();
+                   });
+                   $watch('idKegiatan', () => pastikanPemilikValid());
+                   sinkronPemilik();
+                   pastikanPemilikValid();
+                   sinkronTeksPemilik();
+              "
               x-on:submit="cekKirim($event)"
               class="flex flex-col gap-4">
             @csrf
@@ -70,16 +100,27 @@
                         <p class="text-[13px] text-[#6B7280]">Kegiatan terkait bersifat opsional. Anda tetap dapat mencatat prestasi secara mandiri.</p>
                     </div>
 
+
                     <div class="grid gap-2.5 sm:grid-cols-2">
                         <label class="{{ $radioCls }}">
-                            <input type="radio" name="sumber" value="sebelumnya" x-model="sumber" class="size-4 accent-[#2277FF]">
+                            <input type="radio" name="sumber"
+                                value="sebelumnya"
+                                x-model="sumber"
+                                x-on:change="gantiSumber()"
+                                class="size-4 accent-[#2277FF]">
                             Dari kegiatan sebelumnya
                         </label>
+
                         <label class="{{ $radioCls }}">
-                            <input type="radio" name="sumber" value="mandiri" x-model="sumber" x-on:change="idKegiatan = ''" class="size-4 accent-[#2277FF]">
+                            <input type="radio" name="sumber"
+                                value="mandiri"
+                                x-model="sumber"
+                                x-on:change="gantiSumber()"
+                                class="size-4 accent-[#2277FF]">
                             Tanpa kegiatan sebelumnya
                         </label>
                     </div>
+
 
                     <div class="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-3.5 transition-opacity"
                          x-bind:class="sumber === 'mandiri' ? 'opacity-70' : ''">
@@ -93,8 +134,8 @@
                             <datalist id="daftar-kegiatan">
                                 @foreach ($kegiatanList as $k)
                                     <option value="{{ $k['label'] }}"></option>
-                                @endforeach
-                            </datalist>
+                            @endforeach
+                        </datalist>
                         </div>
                         {!! $galat('kegiatan') !!}
                         <div class="flex flex-col gap-1 {{ $hint }}">
@@ -115,81 +156,308 @@
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <label for="id_user" class="{{ $label }}">Nama pemilik prestasi {!! $wajib !!}</label>
-                        <select id="id_user" name="id_user" class="{{ $in('id_user') }}" required>
-                            <option value="">Pilih pemilik prestasi</option>
-                            @foreach ($pemilikList as $pemilik)
-                                <option value="{{ $pemilik['id'] }}" @selected((string) $v('id_user') === (string) $pemilik['id'])>{{ $pemilik['nama'] }}@if ($pemilik['email'] !== $pemilik['nama']) ({{ $pemilik['email'] }})@endif</option>
-                            @endforeach
-                        </select>
+                        <label for="nama_pemilik" class="{{ $label }}">Nama pemilik prestasi {!! $wajib !!}</label>
+                        <div class="relative" x-on:click.outside="bukaPemilik = false">
+                            <input id="nama_pemilik" type="text" autocomplete="off" role="combobox"
+                                   aria-autocomplete="list" aria-controls="daftar-pemilik"
+                                   x-bind:aria-expanded="bukaPemilik && hasilPemilik.length > 0"
+                                   x-model="cariPemilik" x-on:focus="bukaPemilik = true; indeksPemilik = 0"
+                                   x-on:input="idUser = ''; bukaPemilik = true; indeksPemilik = 0; galatPemilik = ''"
+                                   x-on:keydown.arrow-down.prevent="indeksPemilik = Math.min(indeksPemilik + 1, hasilPemilik.length - 1)"
+                                   x-on:keydown.arrow-up.prevent="indeksPemilik = Math.max(0, indeksPemilik - 1)"
+                                   x-on:keydown.enter.prevent="if (bukaPemilik && hasilPemilik.length) pilihPemilik(hasilPemilik[indeksPemilik])"
+                                   x-on:keydown.escape="bukaPemilik = false"
+                                   placeholder="Ketik nama atau email dosen/mahasiswa" class="{{ $in('id_user') }} pr-10">
+                            <input id="id_user" name="id_user" type="hidden" x-bind:value="idUser">
+                            <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                            <ul id="daftar-pemilik" role="listbox" x-show="bukaPemilik && hasilPemilik.length" x-cloak
+                                class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                <template x-for="(pemilik, i) in hasilPemilik" x-bind:key="pemilik.id">
+                                    <li>
+                                        <button type="button" role="option" x-bind:aria-selected="i === indeksPemilik"
+                                                x-on:click="pilihPemilik(pemilik)"
+                                                x-bind:class="i === indeksPemilik ? 'bg-[#F2F6FD]' : ''"
+                                                class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                            <span class="block font-medium" x-text="pemilik.nama || pemilik.email"></span>
+                                            <span class="block text-xs text-[#6B7280]" x-text="pemilik.email"></span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        <p x-show="bukaPemilik && !hasilPemilik.length" x-cloak
+                           class="text-xs text-[#6B7280]">Tidak ditemukan pengguna yang cocok. Pastikan kegiatan atau kata kunci sudah benar.</p>
+                        <p x-show="galatPemilik" x-cloak x-text="galatPemilik" class="text-xs text-[#FF3F3F]"></p>
+                        <p class="{{ $hint }}">Pilih salah satu hasil pencarian; nama saja tidak cukup untuk menyimpan.</p>
                         {!! $galat('id_user') !!}
                     </div>
 
                     <div class="flex flex-col gap-1.5">
                         <label for="nama_lomba" class="{{ $label }}">Nama lomba {!! $wajib !!}</label>
-                        <input id="nama_lomba" name="nama_lomba" x-model="namaLomba" placeholder="Contoh: Techcomfest 2026" class="{{ $in('nama_lomba') }}">
+                        <div class="relative" x-on:click.outside="tutupSaran('nama_lomba')">
+                                <input id="nama_lomba" name="nama_lomba" type="text" maxlength="150" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-nama_lomba"
+                                       x-bind:aria-expanded="bukaSaran === 'nama_lomba' && hasilSaran('nama_lomba').length > 0"
+                                       x-model="namaLomba" x-bind:readonly="kunciDariKegiatan('namaLomba')"
+                                       x-on:focus="if (!kunciDariKegiatan('namaLomba')) bukaOpsiSaran('nama_lomba')"
+                                       x-on:input="ubahOpsiSaran('nama_lomba')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('nama_lomba', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('nama_lomba', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('nama_lomba', $event)"
+                                       x-on:keydown.escape="tutupSaran('nama_lomba')"
+                                       x-on:keydown.tab="tutupSaran('nama_lomba')"
+                                       placeholder="Contoh: Techcomfest 2026" class="{{ $in('nama_lomba') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-nama_lomba" role="listbox" x-show="bukaSaran === 'nama_lomba' && hasilSaran('nama_lomba').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('nama_lomba')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('nama_lomba', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Nama lomba sebelumnya</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                         {!! $galat('nama_lomba') !!}
                     </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
                             <label for="penyelenggara" class="{{ $label }}">Penyelenggara {!! $wajib !!}</label>
-                            <input id="penyelenggara" name="penyelenggara" x-model="penyelenggara" placeholder="Nama institusi penyelenggara" class="{{ $in('penyelenggara') }}">
+                            <div class="relative" x-on:click.outside="tutupSaran('penyelenggara')">
+                                <input id="penyelenggara" name="penyelenggara" type="text" maxlength="150" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-penyelenggara"
+                                       x-bind:aria-expanded="bukaSaran === 'penyelenggara' && hasilSaran('penyelenggara').length > 0"
+                                       x-model="penyelenggara" x-bind:readonly="kunciDariKegiatan('penyelenggara')"
+                                       x-on:focus="if (!kunciDariKegiatan('penyelenggara')) bukaOpsiSaran('penyelenggara')"
+                                       x-on:input="ubahOpsiSaran('penyelenggara')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('penyelenggara', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('penyelenggara', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('penyelenggara', $event)"
+                                       x-on:keydown.escape="tutupSaran('penyelenggara')"
+                                       x-on:keydown.tab="tutupSaran('penyelenggara')"
+                                       placeholder="Nama institusi penyelenggara" class="{{ $in('penyelenggara') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-penyelenggara" role="listbox" x-show="bukaSaran === 'penyelenggara' && hasilSaran('penyelenggara').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('penyelenggara')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('penyelenggara', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Penyelenggara sebelumnya</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                             {!! $galat('penyelenggara') !!}
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <label for="lokasi" class="{{ $label }}">Lokasi {!! $wajib !!}</label>
-                            <input id="lokasi" name="lokasi" value="{{ $v('lokasi') }}" placeholder="Lokasi penyelenggaraan" class="{{ $in('lokasi') }}">
+                            <div class="relative" x-on:click.outside="tutupSaran('lokasi')">
+                                <input id="lokasi" name="lokasi" type="text" maxlength="150" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-lokasi"
+                                       x-bind:aria-expanded="bukaSaran === 'lokasi' && hasilSaran('lokasi').length > 0"
+                                       x-model="lokasi" x-bind:readonly="kunciDariKegiatan('lokasi')"
+                                       x-on:focus="if (!kunciDariKegiatan('lokasi')) bukaOpsiSaran('lokasi')"
+                                       x-on:input="ubahOpsiSaran('lokasi')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('lokasi', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('lokasi', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('lokasi', $event)"
+                                       x-on:keydown.escape="tutupSaran('lokasi')"
+                                       x-on:keydown.tab="tutupSaran('lokasi')"
+                                       placeholder="Lokasi penyelenggaraan" class="{{ $in('lokasi') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-lokasi" role="listbox" x-show="bukaSaran === 'lokasi' && hasilSaran('lokasi').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('lokasi')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('lokasi', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Lokasi sebelumnya</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                             {!! $galat('lokasi') !!}
+                            <p class="{{ $hint }}">Gunakan lokasi tahap yang menghasilkan capaian: nama venue/gedung dan kota jika diketahui; untuk acara online tulis Daring.</p>
                         </div>
                     </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
                             <label for="dosen" class="{{ $label }}">Dosen pembimbing (opsional)</label>
-                            <input id="dosen" name="dosen" value="{{ $v('dosen') }}" placeholder="Nama dosen pembimbing" class="{{ $in('dosen') }}">
+                            <div class="relative" x-on:click.outside="tutupSaran('dosen')">
+                                <input id="dosen" name="dosen" type="text" maxlength="100" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-dosen"
+                                       x-bind:aria-expanded="bukaSaran === 'dosen' && hasilSaran('dosen').length > 0"
+                                       x-model="dosen"
+                                       x-on:focus="if (true) bukaOpsiSaran('dosen')"
+                                       x-on:input="ubahOpsiSaran('dosen')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('dosen', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('dosen', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('dosen', $event)"
+                                       x-on:keydown.escape="tutupSaran('dosen')"
+                                       x-on:keydown.tab="tutupSaran('dosen')"
+                                       placeholder="Nama dosen pembimbing" class="{{ $in('dosen') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-dosen" role="listbox" x-show="bukaSaran === 'dosen' && hasilSaran('dosen').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('dosen')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('dosen', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Pembimbing sebelumnya</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                             {!! $galat('dosen') !!}
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <label for="kategori" class="{{ $label }}">Kategori / bidang (opsional)</label>
-                            <input id="kategori" name="kategori" value="{{ $v('kategori_form') }}" placeholder="Contoh: CTF" class="{{ $in('kategori') }}">
+                            <label for="kategori" class="{{ $label }}">Bidang Lomba/Prestasi</label>
+                            <div class="relative" x-on:click.outside="tutupSaran('kategori')">
+                                <input id="kategori" name="kategori" type="text" maxlength="100" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-kategori"
+                                       x-bind:aria-expanded="bukaSaran === 'kategori' && hasilSaran('kategori').length > 0"
+                                       x-model="bidangPrestasi" x-bind:readonly="kunciDariKegiatan('bidangPrestasi')"
+                                       x-on:focus="if (!kunciDariKegiatan('bidangPrestasi')) bukaOpsiSaran('kategori')"
+                                       x-on:input="ubahOpsiSaran('kategori')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('kategori', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('kategori', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('kategori', $event)"
+                                       x-on:keydown.escape="tutupSaran('kategori')"
+                                       x-on:keydown.tab="tutupSaran('kategori')"
+                                       placeholder="Contoh: CTF" class="{{ $in('kategori') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-kategori" role="listbox" x-show="bukaSaran === 'kategori' && hasilSaran('kategori').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('kategori')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('kategori', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Bidang prestasi sebelumnya</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                             {!! $galat('kategori') !!}
                         </div>
                     </div>
 
-                    {{-- Tingkat, capaian, jenis --}}
+                    {{-- Tingkat dan jenis tetap pilihan terbatas, sedangkan capaian menerima nominasi khusus. --}}
                     <div class="grid gap-4 sm:grid-cols-3">
                         @foreach ([
-                            ['tingkat', 'Tingkat kejuaraan', 'Pilih tingkat',  $tingkatList, 'Dari kabupaten/kota hingga internasional'],
-                            ['capaian', 'Capaian peringkat', 'Pilih capaian',  $capaianList, 'Juara 1, 2, 3, dan seterusnya'],
-                            ['jenis',   'Jenis prestasi',    'Pilih jenis',    $jenisList,   'Akademik atau nonakademik'],
+                            ['tingkat', 'Tingkat kejuaraan', 'Pilih tingkat', $tingkatList, 'Dari kabupaten/kota hingga internasional'],
+                            ['jenis',   'Jenis prestasi',   'Pilih jenis',   $jenisList, 'Akademik atau nonakademik'],
                         ] as [$f, $judul, $placeholder, $opsi, $ket])
                             <div class="flex flex-col gap-1.5">
                                 <label for="{{ $f }}" class="{{ $label }}">{{ $judul }} {!! $wajib !!}</label>
                                 <div class="relative">
-                                    <select id="{{ $f }}" name="{{ $f }}" class="{{ $in($f) }} appearance-none pr-9">
+                                    <select id="{{ $f }}" name="{{ $f }}"
+                                            @if ($f === 'jenis') x-model="jenisPrestasi" @endif
+                                            @if ($f === 'tingkat') x-model="tingkat" @endif
+
+                                            @if ($f === 'tingkat')
+                                                x-bind:disabled="kunciDariKegiatan('tingkat')"
+                                            @endif
+                                            @if ($f === 'jenis')
+                                                x-bind:disabled="kunciDariKegiatan('jenisPrestasi')"
+                                            @endif
+
+                                            class="{{ $in($f) }} appearance-none pr-9">
+
                                         <option value="">{{ $placeholder }}</option>
+
                                         @foreach ($opsi as $o)
-                                            <option value="{{ $o }}" @selected($v($f) === $o)>{{ $o }}</option>
+                                            <option value="{{ $o }}" @selected($v($f) === $o)>
+                                                {{ $o }}
+                                            </option>
                                         @endforeach
                                     </select>
+
+                                    @if ($f === 'tingkat')
+                                        <input type="hidden" name="tingkat"
+                                            x-bind:value="tingkat"
+                                            x-bind:disabled="!kunciDariKegiatan('tingkat')">
+                                    @endif
+
+                                    @if ($f === 'jenis')
+                                        <input type="hidden" name="jenis"
+                                            x-bind:value="jenisPrestasi"
+                                            x-bind:disabled="!kunciDariKegiatan('jenisPrestasi')">
+                                    @endif
                                     {!! $chev !!}
                                 </div>
                                 {!! $galat($f) ?: '<span class="' . $hint . '">' . e($ket) . '</span>' !!}
                             </div>
                         @endforeach
+                        <div class="flex flex-col gap-1.5">
+                            <label for="capaian" class="{{ $label }}">Capaian / Juara {!! $wajib !!}</label>
+<div class="relative" x-on:click.outside="tutupSaran('capaian')">
+                                <input id="capaian" name="capaian" type="text" maxlength="255" autocomplete="off" role="combobox"
+                                       aria-autocomplete="list" aria-controls="pilihan-capaian"
+                                       x-bind:aria-expanded="bukaSaran === 'capaian' && hasilSaran('capaian').length > 0"
+                                       x-model="capaian"
+                                       x-on:focus="if (true) bukaOpsiSaran('capaian')"
+                                       x-on:input="ubahOpsiSaran('capaian')"
+                                       x-on:keydown.arrow-down.prevent="geserSaran('capaian', 1)"
+                                       x-on:keydown.arrow-up.prevent="geserSaran('capaian', -1)"
+                                       x-on:keydown.enter="konfirmasiSaran('capaian', $event)"
+                                       x-on:keydown.escape="tutupSaran('capaian')"
+                                       x-on:keydown.tab="tutupSaran('capaian')"
+                                       placeholder="Pilih atau tulis capaian khusus" class="{{ $in('capaian') }} pr-9">
+                                <svg class="pointer-events-none absolute right-3 top-[11px] size-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 9l6 6l6-6"/></svg>
+                                <ul id="pilihan-capaian" role="listbox" x-show="bukaSaran === 'capaian' && hasilSaran('capaian').length" x-cloak
+                                    class="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                                    <template x-for="(saran, i) in hasilSaran('capaian')" x-bind:key="saran">
+                                        <li>
+                                            <button type="button" role="option" x-bind:aria-selected="i === indeksSaran"
+                                                    x-on:click="pilihSaran('capaian', saran)"
+                                                    x-bind:class="i === indeksSaran ? 'bg-[#F2F6FD]' : ''"
+                                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]">
+                                                <span class="block font-medium" x-text="saran"></span>
+                                                <span class="block text-xs text-[#6B7280]">Pilihan atau riwayat capaian</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                            <p x-show="galatCapaian" x-cloak x-text="galatCapaian" class="text-xs text-[#FF3F3F]"></p>
+                            {!! $galat('capaian') ?: '<span class="' . $hint . '">Pilihan muncul saat diklik; nominasi khusus boleh diketik manual.</span>' !!}
+                        </div>
                     </div>
 
                     {{-- Tanggal --}}
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
                             <label for="tanggal_mulai" class="{{ $label }}">Tanggal mulai {!! $wajib !!}</label>
-                            <input id="tanggal_mulai" name="tanggal_mulai" type="date" value="{{ $v('tanggal_mulai') }}" class="{{ $in('tanggal_mulai') }}">
+                            <input id="tanggal_mulai" name="tanggal_mulai" x-bind:readonly="kunciDariKegiatan('tanggalMulai')" type="date" x-model="tanggalMulai" class="{{ $in('tanggal_mulai') }}">
                             {!! $galat('tanggal_mulai') ?: '<span class="' . $hint . '">Sesuai bukti prestasi.</span>' !!}
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <label for="tanggal_selesai" class="{{ $label }}">Tanggal selesai {!! $wajib !!}</label>
-                            <input id="tanggal_selesai" name="tanggal_selesai" type="date" value="{{ $v('tanggal_selesai') }}" class="{{ $in('tanggal_selesai') }}">
+                            <input id="tanggal_selesai" name="tanggal_selesai" x-bind:readonly="kunciDariKegiatan('tanggalSelesai')" type="date" x-model="tanggalSelesai" class="{{ $in('tanggal_selesai') }}">
                             {!! $galat('tanggal_selesai') ?: '<span class="' . $hint . '">Sesuaikan dengan tanggal perolehan.</span>' !!}
                         </div>
                     </div>
@@ -208,7 +476,7 @@
                         {!! $galat('bentuk') !!}
 
                         {{-- ===== Anggota tim (muncul saat memilih "Tim") ===== --}}
-                        <div x-show="bentuk === 'Tim'" x-cloak x-transition class="flex flex-col gap-2.5">
+                        <div x-show="bentuk === 'Tim' && sumber === 'mandiri'" x-cloak x-transition class="flex flex-col gap-2.5">
                             <span class="{{ $label }}">Anggota {!! $wajib !!}</span>
 
                             <div class="flex flex-col gap-3 rounded-lg border border-[#E5E7EB] bg-white p-3.5">
@@ -220,17 +488,17 @@
                                         <input type="text" autocomplete="off" placeholder="Cari nama anggota ..."
                                                x-model="cari"
                                                x-on:focus="buka = true"
-                                               x-on:input="buka = true; galatAnggota = ''"
+                                               x-on:input="buka = true; idAnggota = ''; galatAnggota = ''"
                                                x-on:keydown.escape="buka = false"
                                                x-on:keydown.enter.prevent="tambahAnggota()"
                                                class="{{ $in('anggota') }} pl-9">
 
                                         <ul x-show="buka && hasil.length" x-cloak
                                             class="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                                            <template x-for="n in hasil" x-bind:key="n">
+                                            <template x-for="n in hasil" x-bind:key="n.id_user">
                                                 <li>
                                                     <button type="button" x-on:click="pilihNama(n)"
-                                                            class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]" x-text="n"></button>
+                                                            class="block w-full px-3 py-2 text-left text-sm hover:bg-[#F2F6FD]" x-text="n.nama + ' (' + n.email + ')'"></button>
                                                 </li>
                                             </template>
                                         </ul>
@@ -267,10 +535,18 @@
                                     <template x-for="(a, i) in anggota" x-bind:key="a.id">
                                         <div class="grid grid-cols-[minmax(0,1fr)_120px_64px] items-center border-t border-[#E5E7EB] max-sm:grid-cols-[minmax(0,1fr)_64px]">
                                             <div class="min-w-0 px-3 py-2 max-sm:col-span-2 max-sm:truncate" x-text="a.nama"></div>
-                                            <div class="px-3 py-2" x-text="a.peran"></div>
+                                            <div class="px-3 py-2">
+                                                <select x-model="a.peran"
+                                                        x-on:change="aturPeran(a)"
+                                                        class="{{ $selDok }}">
+                                                    <option value="Ketua">Ketua</option>
+                                                    <option value="Anggota">Anggota</option>
+                                                </select>
+                                            </div>
                                             <div class="px-3 py-1.5">
-                                                <input type="hidden" x-bind:name="'anggota[' + i + '][nama]'" x-bind:value="a.nama" x-bind:disabled="bentuk !== 'Tim'">
-                                                <input type="hidden" x-bind:name="'anggota[' + i + '][peran]'" x-bind:value="a.peran" x-bind:disabled="bentuk !== 'Tim'">
+                                                <input type="hidden" x-bind:name="'anggota[' + i + '][id_user]'" x-bind:value="a.id_user" x-bind:disabled="bentuk !== 'Tim' || sumber !== 'mandiri'">
+                                                <input type="hidden" x-bind:name="'anggota[' + i + '][nama]'" x-bind:value="a.nama" x-bind:disabled="bentuk !== 'Tim' || sumber !== 'mandiri'">
+                                                <input type="hidden" x-bind:name="'anggota[' + i + '][peran]'" x-bind:value="a.peran" x-bind:disabled="bentuk !== 'Tim' || sumber !== 'mandiri'">
                                                 <button type="button" aria-label="Hapus anggota" x-on:click="hapusAnggota(a.id)"
                                                         class="rounded-md bg-[#FBCBCB] p-1.5 text-[#FF3F3F] transition hover:bg-[#F8B4B4]">
                                                     <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
@@ -280,6 +556,30 @@
                                     </template>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {{-- Peserta kegiatan sebelumnya: hanya referensi, bukan anggota prestasi mandiri --}}
+                    <div x-show="sumber === 'sebelumnya' && idKegiatan" x-cloak
+                         class="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                        <h3 class="text-sm font-semibold text-[#111827]">Peserta Kegiatan Sebelumnya</h3>
+                        <p class="mt-1 text-xs text-[#6B7280]">
+                            Data berasal dari kegiatan yang dipilih dan tidak dapat diubah melalui formulir Prestasi.
+                        </p>
+                        <p x-show="idUser && !pesertaKegiatanTerpilih.some(p => String(p.id_user) === String(idUser))"
+                           x-cloak class="mt-2 text-xs text-red-600">
+                            Pemilik prestasi yang dipilih tidak terdaftar sebagai peserta kegiatan ini.
+                        </p>
+                        <div class="mt-3 flex flex-col gap-2">
+                            <template x-for="p in pesertaKegiatanTerpilih" x-bind:key="p.id_user">
+                                <div class="flex items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm">
+                                    <span x-text="p.nama"></span>
+                                    <span class="text-xs text-[#6B7280]" x-text="p.peran"></span>
+                                </div>
+                            </template>
+                            <p x-show="pesertaKegiatanTerpilih.length === 0" class="text-xs text-[#6B7280]">
+                                Belum ada peserta yang tercatat pada kegiatan ini.
+                            </p>
                         </div>
                     </div>
 
@@ -421,54 +721,312 @@
             penyelenggara: cfg.penyelenggara,
             deskripsi: cfg.deskripsi,
             kegiatanList: cfg.kegiatanList,
+            idUser: cfg.idUser,
+            cariPemilik: '',
+            bukaPemilik: false,
+            indeksPemilik: 0,
+            galatPemilik: '',
+            capaian: cfg.capaian || '',
+            // Saran dari API tetap string. Semua field teks memakai satu renderer dropdown.
+            saranIsian: { ...(cfg.saranIsian || {}), capaian: cfg.capaianOptions || [] },
+            bukaSaran: '',
+            filterSaran: false,
+            indeksSaran: 0,
+            galatCapaian: '',
+            anggotaOptions: cfg.anggotaOptions || [],
+            pemilikOptions: cfg.pemilikOptions || [],
+            pemilikOtomatis: null,
+            lokasi: cfg.lokasi || '',
+            dosen: cfg.dosen || '',
+            tingkat: cfg.tingkat || '',
+            tanggalMulai: cfg.tanggalMulai || '',
+            tanggalSelesai: cfg.tanggalSelesai || '',
+            jenisPrestasi: cfg.jenisPrestasi || '',
+            bidangPrestasi: cfg.bidangPrestasi || '',
 
             // ----- Bentuk partisipasi & anggota tim -----
             bentuk: cfg.bentuk,
             daftarMahasiswa: cfg.daftarMahasiswa || [],
-            anggota: (cfg.anggota || []).map((a, i) => ({ id: i + 1, nama: a.nama ?? '', peran: a.peran ?? '' })),
+            anggota: (cfg.anggota || []).map((a, i) => ({
+                id: i + 1,
+                id_user: a.id_user ?? '',
+                nama: a.nama ?? '',
+                peran: a.peran ?? ''
+            })),
             nextAnggota: (cfg.anggota || []).length + 1,
             cari: '',
+            idAnggota : '',
             peran: '',
             buka: false,
             galatAnggota: '',
 
+            labelPemilik(pemilik) {
+                const nama = String(pemilik.nama || pemilik.email || '').trim();
+                const email = String(pemilik.email || '').trim();
+                return email && email !== nama ? `${nama} (${email})` : nama;
+            },
+
+            sinkronTeksPemilik() {
+                const terpilih = this.pemilikOptions.find(
+                    p => String(p.id) === String(this.idUser)
+                );
+                this.cariPemilik = terpilih ? this.labelPemilik(terpilih) : '';
+            },
+
+            get hasilPemilik() {
+                const q = this.idUser ? '' : this.cariPemilik.trim().toLowerCase();
+                return this.pemilikTersedia.filter(p =>
+                    !q || `${p.nama || ''} ${p.email || ''}`.toLowerCase().includes(q)
+                ).slice(0, 8);
+            },
+
+            pilihPemilik(pemilik) {
+                this.idUser = String(pemilik.id);
+                this.cariPemilik = this.labelPemilik(pemilik);
+                this.bukaPemilik = false;
+                this.galatPemilik = '';
+            },
+
+            modelSaran(field) {
+                return {
+                    nama_lomba: 'namaLomba',
+                    penyelenggara: 'penyelenggara',
+                    lokasi: 'lokasi',
+                    dosen: 'dosen',
+                    kategori: 'bidangPrestasi',
+                    capaian: 'capaian',
+                }[field];
+            },
+
+            hasilSaran(field) {
+                const pilihan = this.saranIsian[field] || [];
+                const model = this.modelSaran(field);
+                if (!model) return [];
+                // Saat fokus tampil semua; setelah mengetik, saring menurut teks.
+                const q = this.bukaSaran === field && this.filterSaran
+                    ? String(this[model] || '').trim().toLowerCase()
+                    : '';
+                return pilihan.filter(teks =>
+                    !q || String(teks).toLowerCase().includes(q)
+                ).slice(0, 8);
+            },
+
+            bukaOpsiSaran(field) {
+                if (field !== 'capaian' && this.kunciDariKegiatan(this.modelSaran(field))) return;
+                this.bukaSaran = field;
+                this.filterSaran = false;
+                this.indeksSaran = 0;
+            },
+
+            ubahOpsiSaran(field) {
+                if (field !== 'capaian' && this.kunciDariKegiatan(this.modelSaran(field))) return;
+                this.bukaSaran = field;
+                this.filterSaran = true;
+                this.indeksSaran = 0;
+                if (field === 'capaian') this.galatCapaian = '';
+            },
+
+            geserSaran(field, arah) {
+                if (this.bukaSaran !== field) this.bukaOpsiSaran(field);
+                if (this.bukaSaran !== field) return;
+                const total = this.hasilSaran(field).length;
+                if (total) this.indeksSaran = Math.max(0, Math.min(total - 1, this.indeksSaran + arah));
+            },
+
+            konfirmasiSaran(field, event) {
+                if (this.bukaSaran !== field) return;
+                const pilihan = this.hasilSaran(field)[this.indeksSaran];
+                if (pilihan == null) return;
+                event.preventDefault();
+                this.pilihSaran(field, pilihan);
+            },
+
+            pilihSaran(field, nilai) {
+                const model = this.modelSaran(field);
+                if (!model) return;
+                this[model] = String(nilai);
+                this.tutupSaran(field);
+                if (field === 'capaian') this.galatCapaian = '';
+            },
+
+            tutupSaran(field) {
+                if (this.bukaSaran === field) this.bukaSaran = '';
+            },
+
+            get pemilikTerpilih() {
+                return this.anggotaOptions.find(
+                    u => String(u.id_user) === String(this.idUser)
+                ) || null;
+            },
+
+            get pemilikTersedia() {
+                if (this.sumber !== 'sebelumnya') {
+                    return this.pemilikOptions;
+                }
+
+                if (!this.idKegiatan) {
+                    return [];
+                }
+
+                const idPeserta = this.pesertaKegiatanTerpilih.map(
+                    p => String(p.id_user)
+                );
+
+                return this.pemilikOptions.filter(
+                    u => idPeserta.includes(String(u.id))
+                );
+            },
+
+            pastikanPemilikValid() {
+                if (this.sumber !== 'sebelumnya' || !this.idUser) return;
+
+                const tersedia = this.pemilikTersedia.some(
+                    p => String(p.id) === String(this.idUser)
+                );
+
+                if (!tersedia) {
+                    this.idUser = '';
+                    this.cariPemilik = '';
+                }
+            },
+
+            get pesertaKegiatanTerpilih() {
+                const kegiatan = this.kegiatanList.find(
+                    k => String(k.id) === String(this.idKegiatan)
+                );
+                if (!kegiatan) return [];
+
+                const peserta = [...(kegiatan.anggota || [])];
+                const pemilikSudahAda = peserta.some(
+                    a => String(a.id_user) === String(kegiatan.idPemilik)
+                );
+                if (kegiatan.idPemilik && !pemilikSudahAda) {
+                    peserta.unshift({
+                        id_user: kegiatan.idPemilik,
+                        nama: kegiatan.namaPemilik,
+                        peran: 'Pemilik kegiatan'
+                    });
+                }
+                return peserta;
+            },
+
+            sinkronPemilik() {
+                // Hapus pemilik lama jika sebelumnya ditambahkan otomatis
+                if (this.pemilikOtomatis &&
+                    String(this.pemilikOtomatis) !== String(this.idUser)) {
+                    this.anggota = this.anggota.filter(a =>
+                        String(a.id_user) !== String(this.pemilikOtomatis)
+                    );
+                    this.pemilikOtomatis = null;
+                }
+
+                if (this.bentuk !== 'Tim' || this.sumber !== 'mandiri') return;
+
+                const pemilik = this.pemilikTerpilih;
+                if (!pemilik) return;
+
+                const sudahAda = this.anggota.some(a =>
+                    String(a.id_user) === String(pemilik.id_user)
+                );
+
+                if (!sudahAda) {
+                    this.anggota.push({
+                        id: this.nextAnggota++,
+                        id_user: pemilik.id_user,
+                        nama: pemilik.nama,
+                        peran: 'Anggota'
+                    });
+
+                    this.pemilikOtomatis = pemilik.id_user;
+                }
+            },
             // Saran nama: yang cocok dengan ketikan dan belum ditambahkan.
             get hasil() {
                 const q = this.cari.trim().toLowerCase();
-                return this.daftarMahasiswa
-                    .filter(n => !this.anggota.some(a => a.nama.toLowerCase() === n.toLowerCase()))
-                    .filter(n => !q || n.toLowerCase().includes(q))
+
+                return this.anggotaOptions
+                    .filter(u => !this.anggota.some(a =>
+                        String(a.id_user) === String(u.id_user)
+                    ))
+                    .filter(u =>
+                        !q || `${u.nama} ${u.email}`.toLowerCase().includes(q)
+                    )
                     .slice(0, 6);
             },
 
-            pilihNama(nama) {
-                this.cari = nama;
+            pilihNama(user) {
+                this.cari = user.nama;
+                this.idAnggota = user.id_user;
                 this.buka = false;
                 this.galatAnggota = '';
             },
 
+
             tambahAnggota() {
-                const nama = this.cari.trim();
-                if (!nama) {
-                    this.galatAnggota = 'Cari dan pilih nama anggota terlebih dahulu.';
+                const user = this.anggotaOptions.find(
+                    u => String(u.id_user) === String(this.idAnggota)
+                );
+
+                if (!user) {
+                    this.galatAnggota = 'Pilih anggota dari daftar yang tersedia.';
                     return;
                 }
+
                 if (!this.peran) {
                     this.galatAnggota = 'Pilih peran anggota.';
                     return;
                 }
-                if (this.anggota.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
+
+                if (this.anggota.some(
+                    a => String(a.id_user) === String(user.id_user)
+                )) {
                     this.galatAnggota = 'Anggota tersebut sudah ditambahkan.';
                     return;
                 }
-                this.anggota.push({ id: this.nextAnggota++, nama, peran: this.peran });
+
+                if (this.peran === 'Ketua') {
+                    this.anggota.forEach(a => {
+                        if (a.peran === 'Ketua') {
+                            a.peran = 'Anggota';
+                        }
+                    });
+                }
+
+                this.anggota.push({
+                    id: this.nextAnggota++,
+                    id_user: user.id_user,
+                    nama: user.nama,
+                    peran: this.peran
+                });
+
                 this.cari = '';
+                this.idAnggota = '';
                 this.peran = '';
                 this.buka = false;
                 this.galatAnggota = '';
             },
 
+            aturPeran(anggotaDipilih) {
+                if (anggotaDipilih.peran === 'Ketua') {
+                    this.anggota.forEach(a => {
+                        if (a.id !== anggotaDipilih.id && a.peran === 'Ketua') {
+                            a.peran = 'Anggota';
+                        }
+                    });
+                }
+
+                this.galatAnggota = '';
+            },
+
             hapusAnggota(id) {
+                const anggota = this.anggota.find(a => a.id === id);
+
+                if (anggota && this.bentuk === 'Tim' &&
+                    String(anggota.id_user) === String(this.idUser)) {
+                    this.galatAnggota = 'Pemilik prestasi wajib menjadi anggota tim.';
+                    return;
+                }
+
                 this.anggota = this.anggota.filter(a => a.id !== id);
             },
 
@@ -488,16 +1046,146 @@
             jenisBaru: '',
             galatDok: '',
 
-            // Jika kegiatan yang dipilih ada di daftar, isi nama lomba dan penyelenggara otomatis.
-            pilihKegiatan() {
+
+            kunciDariKegiatan(field) {
+                if (this.sumber !== 'sebelumnya' || !this.idKegiatan) {
+                    return false;
+                }
+
+                const k = this.kegiatanList.find(
+                    x => String(x.id) === String(this.idKegiatan)
+                );
+
+                if (!k) return false;
+
+                const mapping = {
+                    namaLomba: 'nama',
+                    penyelenggara: 'penyelenggara',
+                    lokasi: 'lokasi',
+                    tingkat: 'tingkat',
+                    jenisPrestasi: 'jenisPrestasi',
+                    bidangPrestasi: 'bidangPrestasi',
+                    tanggalMulai: 'tanggalMulai',
+                    tanggalSelesai: 'tanggalSelesai'
+                };
+
+                const nilai = String(k[mapping[field]] ?? '').trim();
+
+                if (!nilai) return false;
+
+                if (field === 'tingkat') {
+                    return [
+                        'Kabupaten/Kota', 'Provinsi',
+                        'Nasional', 'Internasional'
+                    ].includes(nilai);
+                }
+
+                if (field === 'jenisPrestasi') {
+                    return [
+                        'akademik', 'nonakademik',
+                        'non-akademik', 'non akademik'
+                    ].includes(nilai.toLowerCase());
+                }
+
+                return true;
+            },
+
+
+            bersihkanDataKegiatan() {
+                this.bentuk = 'Individu';
+                this.anggota = [];
+                this.pemilikOtomatis = null;
+
                 this.idKegiatan = '';
-                const k = this.kegiatanList.find(x => x.label === this.kegiatan);
-                if (k) {
-                    this.idKegiatan = k.id;
-                    this.namaLomba = k.nama;
-                    this.penyelenggara = k.penyelenggara;
+                this.idUser = '';
+                this.cariPemilik = '';
+                this.bukaPemilik = false;
+                this.bukaSaran = '';
+                this.namaLomba = '';
+                this.penyelenggara = '';
+                this.lokasi = '';
+                this.dosen = '';
+                this.tingkat = '';
+                this.tanggalMulai = '';
+                this.tanggalSelesai = '';
+                this.jenisPrestasi = '';
+                this.bidangPrestasi = '';
+
+                this.cari = '';
+                this.idAnggota = '';
+                this.peran = '';
+                this.galatAnggota = '';
+            },
+
+            gantiSumber() {
+                this.kegiatan = '';
+                this.bersihkanDataKegiatan();
+            },
+
+
+            // Jika kegiatan yang dipilih ada di daftar, isi nama lomba dan penyelenggara otomatis.
+
+            pilihKegiatan() {
+                // Bersihkan data kegiatan lama terlebih dahulu.
+                this.bersihkanDataKegiatan();
+
+                if (this.sumber !== 'sebelumnya') return;
+
+                const k = this.kegiatanList.find(
+                    x => x.label === this.kegiatan
+                );
+
+                if (!k) return;
+
+                const teks = nilai =>
+                    nilai == null ? '' : String(nilai).trim();
+
+                // Identitas kegiatan dan pemilik.
+                this.idKegiatan = k.id;
+                this.namaLomba = teks(k.nama);
+                this.idUser = teks(k.idPemilik);
+
+                // Bentuk partisipasi mengikuti peserta kegiatan.
+                this.bentuk = this.pesertaKegiatanTerpilih.length > 1
+                    ? 'Tim'
+                    : 'Individu';
+
+                // Nilai dari isian dinamis kegiatan.
+                this.penyelenggara = teks(k.penyelenggara);
+                this.lokasi = teks(k.lokasi);
+                this.dosen = teks(k.dosenPembimbing);
+                this.tanggalMulai = teks(k.tanggalMulai);
+                this.tanggalSelesai = teks(k.tanggalSelesai);
+                this.bidangPrestasi = teks(k.bidangPrestasi);
+
+                // Tingkat kejuaraan.
+                const tingkatValid = [
+                    'Kabupaten/Kota',
+                    'Provinsi',
+                    'Nasional',
+                    'Internasional'
+                ];
+
+                const tingkat = teks(k.tingkat);
+
+                this.tingkat = tingkatValid.includes(tingkat)
+                    ? tingkat
+                    : '';
+
+                // Jenis prestasi.
+                const jenis = teks(k.jenisPrestasi).toLowerCase();
+
+                if (jenis === 'akademik') {
+                    this.jenisPrestasi = 'Akademik';
+                } else if ([
+                    'nonakademik',
+                    'non-akademik',
+                    'non akademik'
+                ].includes(jenis)) {
+                    this.jenisPrestasi = 'Nonakademik';
                 }
             },
+
 
             linkValid(link) {
                 try {
@@ -562,9 +1250,41 @@
             cekKirim(e) {
                 let valid = true;
 
-                if (this.bentuk === 'Tim' && this.anggota.length === 0) {
-                    this.galatAnggota = 'Tambahkan minimal satu anggota tim.';
+                const pemilikValid = this.pemilikTersedia.some(p =>
+                    String(p.id) === String(this.idUser)
+                );
+                if (!pemilikValid) {
+                    this.galatPemilik = 'Pilih pemilik prestasi dari hasil pencarian.';
                     valid = false;
+                } else {
+                    this.galatPemilik = '';
+                }
+
+                if (!this.capaian.trim()) {
+                    this.galatCapaian = 'Capaian/Juara wajib diisi.';
+                    valid = false;
+                } else {
+                    this.galatCapaian = '';
+                }
+
+                if (this.bentuk === 'Tim' && this.sumber === 'mandiri') {
+                    const jumlahKetua = this.anggota.filter(a => a.peran === 'Ketua').length;
+                    const pemilikAda = this.anggota.some(
+                        a => String(a.id_user) === String(this.idUser)
+                    );
+
+                    if (this.anggota.length < 2) {
+                        this.galatAnggota = 'Tim minimal terdiri dari 2 orang.';
+                        valid = false;
+                    } else if (!pemilikAda) {
+                        this.galatAnggota = 'Pemilik prestasi wajib menjadi anggota tim.';
+                        valid = false;
+                    } else if (jumlahKetua !== 1) {
+                        this.galatAnggota = 'Tim harus memiliki tepat satu Ketua.';
+                        valid = false;
+                    } else {
+                        this.galatAnggota = '';
+                    }
                 }
 
                 if (this.dokLama.length + this.docs.length === 0) {

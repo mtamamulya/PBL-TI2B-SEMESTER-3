@@ -15,21 +15,7 @@ class DataMasterSeeder extends Seeder
             ['nama_prodi' => 'Teknologi Rekayasa Komputer', 'jenjang' => 'D4']
         );
 
-        // 2. Isi Tabel Kelas (A, B, C, D)
-        foreach (['A', 'B', 'C', 'D'] as $k) {
-            DB::table('kelas')->updateOrInsert(
-                ['jenis_kelas' => $k],
-                ['keterangan' => "Kelas $k"]
-            );
-        }
-
-        // 3. Isi Tabel Tingkat (1, 2, 3, 4)
-        foreach ([1, 2, 3, 4] as $t) {
-            DB::table('tingkat')->updateOrInsert(
-                ['tingkat' => $t],
-                ['keterangan' => "Tingkat $t"]
-            );
-        }
+        $this->call(TingkatKelasSeeder::class);
 
         // 4. Pastikan role 'mahasiswa' ada (dibutuhkan oleh MahasiswaDbStore)
         DB::table('roles')->updateOrInsert(
@@ -47,7 +33,6 @@ class DataMasterSeeder extends Seeder
             ['tahun_akademik' => 'Ganjil 2025/2026', 'status' => 0],
             ['tahun_akademik' => 'Genap 2025/2026', 'status' => 0],
             ['tahun_akademik' => 'Ganjil 2026/2027', 'status' => 1], // Status 1 = Aktif saat ini
-            ['tahun_akademik' => 'Genap 2026/2027', 'status' => 0],
         ];
 
         foreach ($tahunAkademik as $ta) {

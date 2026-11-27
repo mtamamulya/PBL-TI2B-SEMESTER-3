@@ -1,13 +1,4 @@
-{{--
-    Satu kolom isian yang hanya untuk dibaca (halaman Detail).
-    Pemakaian: <x-detail-field label="Judul penelitian" :value="$p['judul']" />
-    icon      (opsional): 'chevron' atau 'kalender', supaya tampilannya sama dengan form isian.
-    multiline (opsional): true untuk teks panjang (Keterangan), kotaknya lebih tinggi dan teks boleh turun baris.
-    locked    (opsional): true untuk kolom yang terisi otomatis (garis putus-putus, teks abu-abu), mis. Semester.
-    href      (opsional): kalau diisi, nilainya tampil sebagai tautan yang bisa diklik (Tautan dokumen).
-    Kalau value kosong, tampil tanda "-" berwarna abu-abu.
---}}
-@props(['label', 'value' => null, 'icon' => null, 'multiline' => false, 'href' => null, 'locked' => false])
+@props(['label', 'value' => null, 'xText' => null, 'icon' => null, 'multiline' => false, 'href' => null, 'locked' => false])
 
 <div class="flex min-w-0 flex-col gap-2">
     <dt class="text-[15px] font-medium">{{ $label }}</dt>
@@ -18,7 +9,9 @@
         'min-h-20 items-start py-2.5' => $multiline,
         'h-11 items-center' => ! $multiline,
     ])>
-        @if (filled($value))
+        @if ($xText)
+            <span @class(['whitespace-pre-line' => $multiline, 'truncate' => ! $multiline]) x-text="{{ $xText }} || '-'"></span>
+        @elseif (filled($value))
             @if ($href)
                 <a href="{{ $href }}" target="_blank" rel="noopener noreferrer" class="truncate text-brand hover:underline">{{ $value }}</a>
             @else

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\BackendKel2\Workflow\HasWorkflow;
+use App\BackendKel2\Workflow\Workflowable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,15 +15,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
-class Kegiatan extends Model
+class Kegiatan extends Model implements Workflowable
 {
+    use HasWorkflow {
+        timeline as workflowTimeline;
+    }
+
     protected $table = 'kegiatan';
 
     protected $primaryKey = 'id_kegiatan';
 
     protected $fillable = [
         'id_kategori', 'id_user', 'id_skim', 'id_kelompok_bidang',
-        'nama_kegiatan', 'nomor_sk', 'tanggal_sk',
+        'nama_kegiatan', 'dosen_pendamping', 'nomor_sk', 'tanggal_sk',
     ];
 
     protected function casts(): array
@@ -29,6 +35,16 @@ class Kegiatan extends Model
         return [
             'tanggal_sk' => 'date',
         ];
+    }
+
+    public static function workflowKey(): string
+    {
+        return 'kegiatan';
+    }
+
+    public function workflowOwnerId(): int|string|null
+    {
+        return $this->id_user;
     }
 
     protected static function booted(): void

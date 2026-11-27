@@ -386,7 +386,9 @@ class DashboardNotifikasiTest extends TestCase
         $this->actingAs($a);
 
         $id = $this->idTimeline($k['p_diajukan']);
+        $this->get('/prestasi')->assertOk()->assertSee('x-data="{ n: 4 }"', false);
         $this->postJson("/notifikasi/$id/baca")->assertOk();
+        $this->get('/prestasi')->assertOk()->assertSee('x-data="{ n: 3 }"', false);
 
         $this->get('/notifikasi')->assertOk()->assertViewHas('notifikasi', function ($n) use ($id) {
             $daftar = collect($n);
@@ -396,6 +398,7 @@ class DashboardNotifikasiTest extends TestCase
         });
 
         $this->postJson('/notifikasi/baca-semua')->assertOk();
+        $this->get('/prestasi')->assertOk()->assertSee('x-data="{ n: 0 }"', false);
         $this->get('/notifikasi')->assertViewHas('notifikasi', fn ($n) => collect($n)->where('unread', true)->isEmpty());
     }
 

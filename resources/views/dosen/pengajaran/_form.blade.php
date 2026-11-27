@@ -1,7 +1,4 @@
 @php
-    // Hanya variabel khusus styling (CSS) yang dipertahankan. 
-    // Variabel data ($opsi, $awal, dll) sudah DIHAPUS.
-    
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
     $lockedClass  = 'h-11 w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3.5 text-[15px] text-gray-500';
@@ -11,9 +8,7 @@
     $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 @endphp
 
-{{-- x-data memanggil komponen Alpine tanpa parameter PHP. --}}
-{{-- @submit.prevent mencegah halaman refresh saat tombol simpan ditekan. --}}
-<form x-data="formPengajaran()" @submit.prevent="submitForm" class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
+<form x-data="formPengajaran({{ !empty($isEdit) ? 'true' : 'false' }})" @submit.prevent="submitForm" class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
     
     {{-- Indikator Loading saat mengambil opsi dari API --}}
     <div x-show="isFetchingOpsi" class="flex items-center justify-center rounded-lg bg-blue-50 p-4 text-brand">
@@ -34,8 +29,8 @@
                     <div class="relative">
                         <select id="tahunAkademik" required x-model="tahun" class="{{ $selectClass }}">
                             <option value="">Pilih tahun</option>
-                            <template x-for="t in opsi.tahun" :key="t.id">
-                                <option :value="t.id" x-text="t.label"></option>
+                            <template x-for="t in daftarTahun" :key="t.id">
+                                <option :value="String(t.id)" x-text="t.label"></option>
                             </template>
                         </select>
                         {!! $chevron !!}
@@ -66,12 +61,11 @@
                         <select id="kelas" required x-model="rombel" class="{{ $selectClass }}">
                             <option value="">Pilih kelas</option>
                             <template x-for="r in daftarRombel" :key="r.id">
-                                <option :value="r.id" x-text="r.kelas"></option>
+                                <option :value="String(r.id)" x-text="r.kelas"></option>
                             </template>
                         </select>
                         {!! $chevron !!}
                     </div>
-                    {{-- Error dari API dimunculkan di sini --}}
                     <template x-if="errors.id_enrollment_tingkat_kelas">
                         <p class="text-[13px] text-red-600" x-text="errors.id_enrollment_tingkat_kelas[0]"></p>
                     </template>
@@ -80,42 +74,65 @@
         </section>
 
         {{-- 2. MATA KULIAH DAN DOSEN --}}
-        <section class="{{ $sectionClass }}" aria-labelledby="h-matkul">
-            <div class="flex items-center gap-2.5">
-                <span class="{{ $numClass }}">2</span>
-                <h2 id="h-matkul" class="text-[15px] font-semibold">Mata Kuliah dan Dosen</h2>
+        <section class="flex flex-col gap-5 rounded-xl border border-gray-200 bg-white p-6">
+            <div class="flex items-center gap-3">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">2</span>
+                <h2 class="text-base font-semibold text-gray-900">Mata Kuliah dan Dosen</h2>
             </div>
 
-            <div class="grid grid-cols-1 gap-4.5 md:grid-cols-2">
-                <div class="flex flex-col gap-2">
-                    <label for="matkul" class="{{ $labelClass }}">Mata kuliah</label>
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                {{-- Dropdown Kurikulum (GET /kurikulum) --}}
+                <div class="flex flex-col gap-1.5">
+                    <label for="kurikulum" class="text-sm font-medium text-gray-800">Kurikulum</label>
                     <div class="relative">
-                        <select id="matkul" required x-model="matkul" class="{{ $selectClass }}">
-                            <option value="">Pilih mata kuliah</option>
-                            <template x-for="m in daftarMatkul" :key="m.id">
-                                <option :value="m.id" x-text="m.label"></option>
+                        <select id="kurikulum" x-model="kurikulum"
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-white pr-10 pl-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none">
+                            <option value="">Pilih kurikulum</option>
+                            <template x-for="k in opsi.kurikulum" :key="k.id">
+                                <option :value="String(k.id)" x-text="k.label"></option>
                             </template>
                         </select>
-                        {!! $chevron !!}
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
                     </div>
-                    {{-- Error dari API --}}
-                    <template x-if="errors.id_enrollment_mk">
-                        <p class="text-[13px] text-red-600" x-text="errors.id_enrollment_mk[0]"></p>
+                </div>
+
+                {{-- Dropdown Mata Kuliah (GET /kurikulum/{id}/mata-kuliah) --}}
+                <div class="flex flex-col gap-1.5">
+                    <label for="matkul" class="text-sm font-medium text-gray-800">Mata kuliah</label>
+                    <div class="relative">
+                        <select id="matkul" required x-model="matkul" :disabled="!kurikulum || isLoadingMatkul"
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-white pr-10 pl-3.5 text-sm text-gray-900 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500">
+                            <option value="" x-text="!kurikulum ? 'Pilih kurikulum terlebih dahulu' : (isLoadingMatkul ? 'Memuat mata kuliah...' : 'Pilih mata kuliah')"></option>
+                            <template x-for="m in daftarMatkul" :key="m.id">
+                                <option :value="String(m.id)" x-text="m.label"></option>
+                            </template>
+                        </select>
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </div>
+                    <template x-if="errors.id_mk">
+                        <p class="text-[13px] text-red-600" x-text="errors.id_mk[0]"></p>
                     </template>
                 </div>
 
-                <div class="flex flex-col gap-2">
-                    <label for="dosen" class="{{ $labelClass }}">Dosen pengampu</label>
+                {{-- Dosen Pengampu (Otomatis) --}}
+                <div class="flex flex-col gap-1.5 md:col-span-2">
+                    <label for="dosen_pengampu" class="text-sm font-medium text-gray-800">Dosen pengampu</label>
                     <div class="relative">
-                        <select id="dosen" disabled aria-describedby="dosen-info"
-                                class="h-11 w-full appearance-none rounded-lg border border-dashed border-gray-300 bg-gray-50 pr-10 pl-3.5 text-[15px] text-gray-700">
+                        <select id="dosen_pengampu" disabled
+                                class="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-gray-100 pr-10 pl-3.5 text-sm text-gray-600">
                             <option x-text="dosenName"></option>
                         </select>
-                        {!! $chevron !!}
+                        <svg class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
                     </div>
+                    <p class="text-xs text-gray-500">Dosen pengampu terisi otomatis dari akun yang login.</p>
                 </div>
             </div>
-            <p id="dosen-info" class="text-[15px] text-gray-400">Dosen pengampu terisi otomatis dari akun yang login.</p>
         </section>
 
         {{-- RINGKASAN --}}
@@ -130,8 +147,6 @@
                 <span class="{{ $numClass }}">3</span>
                 <h2 id="h-dokumen" class="text-[15px] font-semibold">Dokumen Pendukung</h2>
             </div>
-
-            <p role="note" class="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-700">Catatan: dokumen belum disimpan ke database, menunggu keputusan tim.</p>
 
             <template x-for="(d, i) in dokumen" :key="d.id">
                 <div class="overflow-hidden rounded-lg border border-gray-200">
@@ -151,21 +166,25 @@
                             <div class="flex flex-col gap-2">
                                 <label :for="`nama-${d.id}`" class="{{ $labelClass }}">Nama dokumen</label>
                                 <input :id="`nama-${d.id}`" type="text" required x-model="d.nama"
-                                       placeholder="Contoh : Proposal pengabdian" class="{{ $inputClass }}">
+                                       placeholder="Contoh : RPS Pemrograman Web" class="{{ $inputClass }}">
+                                <template x-if="errors[`dokumen.${i}.nama`]">
+                                    <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.nama`][0]"></p>
+                                </template>
                             </div>
                             <div class="flex flex-col gap-2">
                                 <label :for="`jenis-${d.id}`" class="{{ $labelClass }}">Jenis dokumen</label>
                                 <div class="relative">
-                                    <select :id="`jenis-${d.id}`" required x-model="d.jenis" class="{{ $selectClass }}">
+                                    <select :id="`jenis-${d.id}`" required x-model="d.id_jenis_dokumen" class="{{ $selectClass }}">
                                         <option value="">Pilih jenis dokumen</option>
-                                        <option>RPS</option>
-                                        <option>Materi Ajar</option>
-                                        <option>Soal Ujian</option>
-                                        <option>Surat Tugas</option>
-                                        <option>Lainnya</option>
+                                        <template x-for="j in opsi.jenis_dokumen" :key="j.id">
+                                            <option :value="String(j.id)" x-text="j.nama"></option>
+                                        </template>
                                     </select>
                                     {!! $chevron !!}
                                 </div>
+                                <template x-if="errors[`dokumen.${i}.id_jenis_dokumen`]">
+                                    <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.id_jenis_dokumen`][0]"></p>
+                                </template>
                             </div>
                         </div>
 
@@ -173,7 +192,10 @@
                             <label :for="`tautan-${d.id}`" class="{{ $labelClass }}">Tautan dokumen</label>
                             <input :id="`tautan-${d.id}`" type="url" required x-model="d.tautan"
                                    placeholder="https://drive.google.com/..." class="{{ $inputClass }}">
-                            <p class="text-[13px] text-gray-500">Tempel tautan Google Drive atau cloud lain.</p>
+                            <p class="text-[13px] text-gray-500">Tempel tautan Google Drive, OneDrive, atau cloud lain. Pastikan akses tautan dibuka untuk yang memiliki tautan.</p>
+                            <template x-if="errors[`dokumen.${i}.tautan`]">
+                                <p class="text-[13px] text-red-600" x-text="errors[`dokumen.${i}.tautan`][0]"></p>
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -204,15 +226,28 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('formPengajaran', () => ({
-            opsi: { tahun: [], rombel: [], matkul: [] },
-            tahun: '', prodi: '', rombel: '', matkul: '',
-            
+        Alpine.data('formPengajaran', (isEdit = false) => ({
+            opsi: { tahun: [], rombel: [], kurikulum: [], matkul: [], jenis_dokumen: [] },
+            tahun: '', prodi: '', rombel: '', kurikulum: '', matkul: '',
+            editId: null,
+
             dosenName: 'Memuat data akun...',
             isFetchingOpsi: true,
+            isLoadingMatkul: false,
+            isInitializing: true,
             isSubmitting: false,
-            errors: {}, // Menyimpan error validasi dari API (422)
+            errors: {},
 
+            get daftarTahun() {
+                const empatTeratas = this.opsi.tahun.slice(0, 4);
+
+                if (this.tahun && !empatTeratas.some(t => String(t.id) === String(this.tahun))) {
+                    const terpilih = this.opsi.tahun.find(t => String(t.id) === String(this.tahun));
+                    if (terpilih) return [...empatTeratas, terpilih];
+                }
+
+                return empatTeratas;
+            },
             get daftarProdi() {
                 return [...new Set(this.opsi.rombel.filter(r => String(r.ta) === String(this.tahun)).map(r => r.prodi))];
             },
@@ -220,7 +255,7 @@
                 return this.opsi.rombel.filter(r => String(r.ta) === String(this.tahun) && r.prodi === this.prodi);
             },
             get daftarMatkul() {
-                return this.opsi.matkul.filter(m => String(m.ta) === String(this.tahun));
+                return this.opsi.matkul;
             },
             get semester() {
                 const t = this.opsi.tahun.find(t => String(t.id) === String(this.tahun));
@@ -234,12 +269,11 @@
                 return [m && m.label, r && `Kelas ${r.kelas}`, r && r.prodi, t && t.label].filter(Boolean).join(' · ');
             },
 
-            // ---- Dokumen pendukung (belum disimpan ke database, menunggu keputusan tim) ----
-            dokumen: [{ id: 1, nama: '', jenis: '', tautan: '' }],
+            dokumen: [{ id: 1, nama: '', id_jenis_dokumen: '', tautan: '' }],
             urutDokumen: 1,
             tambahDokumen() {
                 this.urutDokumen++;
-                this.dokumen.push({ id: this.urutDokumen, nama: '', jenis: '', tautan: '' });
+                this.dokumen.push({ id: this.urutDokumen, nama: '', id_jenis_dokumen: '', tautan: '' });
             },
             hapusDokumen(i) {
                 this.dokumen.splice(i, 1);
@@ -248,66 +282,163 @@
             header() {
                 return {
                     'Accept': 'application/json',
-                    'Authorization': 'Bearer ' + (localStorage.getItem('token_auth_kelompok3') || '')
+                    'X-CSRF-TOKEN': @js(csrf_token())
                 };
             },
 
+            async muatMatkulByKurikulum(idKurikulum) {
+                this.opsi.matkul = [];
+                if (!idKurikulum) return;
+
+                this.isLoadingMatkul = true;
+                try {
+                    const templateUrl = @js(route('api.kurikulum.mata-kuliah', ['id' => 0], false));
+                    const url = templateUrl.replace('/0/mata-kuliah', `/${encodeURIComponent(idKurikulum)}/mata-kuliah`);
+
+                    const res = await fetch(url, { credentials: 'same-origin', headers: this.header() });
+                    const json = await res.json();
+                    const list = Array.isArray(json?.data) ? json.data : [];
+
+                    this.opsi.matkul = list.map(m => ({
+                        id: m.id_mk,
+                        id_kurikulum: m.id_kurikulum,
+                        semester: m.semester,
+                        label: `${m.nama_mk} (${m.kode_mk}) · Sem ${m.semester}`,
+                    }));
+                } catch (e) {
+                    console.error('Gagal memuat mata kuliah:', e);
+                } finally {
+                    this.isLoadingMatkul = false;
+                }
+            },
+
             async init() {
-                this.$watch('tahun', () => { this.prodi = ''; this.rombel = ''; this.matkul = ''; });
-                this.$watch('prodi', () => { this.rombel = ''; });
+                this.$watch('tahun', () => {
+                    if (this.isInitializing) return;
+                    this.prodi = ''; this.rombel = '';
+                });
+                this.$watch('prodi', () => {
+                    if (this.isInitializing) return;
+                    this.rombel = '';
+                });
+                this.$watch('kurikulum', async (val) => {
+                    if (this.isInitializing) return;
+                    this.matkul = '';
+                    await this.muatMatkulByKurikulum(val);
+                });
 
                 try {
-                    // Satu panggilan: dropdown (tahun, kelas, matkul) + nama dosen yang login
-                    const res = await fetch('/api/v1/pengajaran/opsi', { headers: this.header() });
+                    const [res, resKurikulum] = await Promise.all([
+                        fetch('/api/v1/pengajaran/opsi', { credentials: 'same-origin', headers: this.header() }),
+                        fetch(@js(route('api.kurikulum.index', ['per_page' => 100], false)), {
+                            credentials: 'same-origin',
+                            headers: this.header()
+                        }),
+                    ]);
 
                     if (res.status === 401) {
-                        this.dosenName = 'Belum login (token tidak ada / tidak valid)';
+                        this.dosenName = 'Sesi login berakhir. Silakan masuk kembali.';
                         return;
                     }
+
                     const json = await res.json();
+                    const jsonKurikulum = await resKurikulum.json();
+                    const listKurikulum = Array.isArray(jsonKurikulum?.data)
+                        ? jsonKurikulum.data
+                        : (jsonKurikulum?.data?.data ?? []);
 
                     if (json.status === 'success') {
-                        this.opsi = json.data;
+                        this.opsi = {
+                            tahun: json.data.tahun ?? [],
+                            rombel: json.data.rombel ?? [],
+                            kurikulum: listKurikulum.map(k => {
+                                const tahun = k.tahun_terbit ? ` (${k.tahun_terbit})` : '';
+                                const status = k.status === false ? ' [Nonaktif]' : '';
+                                return {
+                                    id: k.id_kurikulum,
+                                    label: `${k.nama_kurikulum}${tahun}${status}`,
+                                };
+                            }),
+                            matkul: [],
+                            jenis_dokumen: json.data.jenis_dokumen ?? [],
+                        };
                         this.dosenName = (json.data.dosen || 'Akun Anda') + ' (akun Anda)';
+                    }
+
+                    if (isEdit) {
+                        const segments = window.location.pathname.split('/').filter(Boolean);
+                        this.editId = segments[segments.length - 2];
+
+                        const resDetail = await fetch(`/api/v1/pengajaran/${this.editId}`, {
+                            credentials: 'same-origin',
+                            headers: this.header()
+                        });
+                        const jsonDetail = await resDetail.json();
+
+                        if (jsonDetail.status === 'success' && jsonDetail.data.form) {
+                            const f = jsonDetail.data.form;
+                            this.tahun = String(f.tahun);
+                            this.prodi = f.prodi;
+                            this.rombel = String(f.rombel);
+
+                            if (f.id_kurikulum) {
+                                this.kurikulum = String(f.id_kurikulum);
+                                await this.muatMatkulByKurikulum(this.kurikulum);
+                            }
+                            this.matkul = String(f.id_mk ?? f.matkul);
+
+                            if (Array.isArray(jsonDetail.data.dokumen) && jsonDetail.data.dokumen.length > 0) {
+                                this.dokumen = jsonDetail.data.dokumen.map((d, idx) => ({
+                                    id: idx + 1,
+                                    nama: d.nama ?? '',
+                                    id_jenis_dokumen: d.id_jenis_dokumen ? String(d.id_jenis_dokumen) : '',
+                                    tautan: d.tautan ?? '',
+                                }));
+                                this.urutDokumen = this.dokumen.length;
+                            }
+                        }
                     }
                 } catch (error) {
                     console.error('Gagal memuat data:', error);
                     this.dosenName = 'Gagal memuat';
                 } finally {
+                    this.$nextTick(() => { this.isInitializing = false; });
                     this.isFetchingOpsi = false;
                 }
             },
 
-            // Fungsi ini berjalan otomatis saat tombol 'Simpan' ditekan
             async submitForm() {
                 this.isSubmitting = true;
-                this.errors = {}; // Reset error sebelumnya
-                // Siapkan data JSON yang akan dikirim ke Backend
+                this.errors = {};
+
                 const payload = {
                     id_enrollment_tingkat_kelas: this.rombel,
-                    id_enrollment_mk: this.matkul
+                    id_mk: this.matkul,
+                    dokumen: this.dokumen.map(d => ({
+                        nama: d.nama,
+                        id_jenis_dokumen: d.id_jenis_dokumen,
+                        tautan: d.tautan,
+                    })),
                 };
 
+                const url = isEdit ? `/api/v1/pengajaran/${this.editId}` : '/api/v1/pengajaran';
+                const method = isEdit ? 'PUT' : 'POST';
+
                 try {
-                    const response = await fetch('/api/v1/pengajaran', {
-                        method: 'POST',
+                    const response = await fetch(url, {
+                        method,
+                        credentials: 'same-origin',
                         headers: { ...this.header(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
                     const result = await response.json();
 
-                    // Jika validasi Backend gagal (misal kelas sudah ada)
                     if (response.status === 422) {
                         this.errors = result.errors;
-                    } 
-                    // Jika sukses disimpan
-                    else if (response.ok) {
-                        // Redirect kembali ke halaman tabel pengajaran
+                    } else if (response.ok) {
                         window.location.href = '/pengajaran';
-                    } 
-                    // Jika ada error lain
-                    else {
+                    } else {
                         alert(result.message || 'Terjadi kesalahan pada server');
                     }
                 } catch (error) {

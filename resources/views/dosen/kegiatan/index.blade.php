@@ -5,21 +5,6 @@
 @section('content')
 
 @php
-    // Data dari KegiatanController ($allActivities). Dua field tambahan, keduanya OPSIONAL:
-    //   'peran'     => 'Ketua' | 'Anggota'  (kalau belum dikirim backend, semua dianggap Ketua)
-    //   'raw_date'  => 'YYYY-MM-DD'          (sudah ada di controller; dipakai supaya urut tanggal benar)
-    // SEMENTARA: data contoh supaya tampilan terlihat. HAPUS blok ini sebelum push.
-    $allActivities = collect([
-        ['id'=>1, 'name'=>'KMIPN VIII 2026',                  'type'=>'Lomba',             'date'=>'13 Mei 2026', 'raw_date'=>'2026-05-13', 'status'=>'Diajukan',  'peran'=>'Ketua'],
-        ['id'=>2, 'name'=>'Seminar Nasional Kecerdasan Buatan','type'=>'Seminar',          'date'=>'02 Mar 2026', 'raw_date'=>'2026-03-02', 'status'=>'Disetujui', 'peran'=>'Anggota', 'ketua'=>'Angga Wahyu Wibowo (dosen)'],
-        ['id'=>3, 'name'=>'Kunjungan Industri ke PT Telkom',  'type'=>'Kunjungan Industri','date'=>'20 Jan 2026', 'raw_date'=>'2026-01-20', 'status'=>'Diajukan',  'peran'=>'Anggota', 'ketua'=>'Mukhlis Pratama Mulya (mahasiswa)'],
-        ['id'=>4, 'name'=>'Magang Dosen di Industri',         'type'=>'Magang',            'date'=>'08 Feb 2026', 'raw_date'=>'2026-02-08', 'status'=>'Direvisi',  'peran'=>'Ketua'],
-        ['id'=>5, 'name'=>'Pelatihan Laravel untuk Mahasiswa','type'=>'Pelatihan',         'date'=>'15 Apr 2026', 'raw_date'=>'2026-04-15', 'status'=>'Disetujui', 'peran'=>'Ketua'],
-        ['id'=>6, 'name'=>'Workshop Cloud Computing',         'type'=>'Workshop',          'date'=>'11 Des 2025', 'raw_date'=>'2025-12-11', 'status'=>'Ditolak',   'peran'=>'Anggota', 'ketua'=>'Wiktasari (dosen)'],
-        ['id'=>8, 'name'=>'Deteksi Hoaks dengan Machine Learning','type'=>'Penelitian',      'date'=>'05 Jan 2026', 'raw_date'=>'2026-01-05', 'status'=>'Diajukan',  'peran'=>'Ketua'],
-        ['id'=>9, 'name'=>'Pelatihan Literasi Digital Desa',  'type'=>'Pengabdian',        'date'=>'18 Feb 2026', 'raw_date'=>'2026-02-18', 'status'=>'Disetujui', 'peran'=>'Anggota', 'ketua'=>'Arif Setyawan (dosen)'],
-        ['id'=>7, 'name'=>'Lomba Karya Ilmiah Nasional',      'type'=>'Lomba',             'date'=>'30 Nov 2025', 'raw_date'=>'2025-11-30', 'status'=>'Selesai',   'peran'=>'Ketua'],
-    ]);
     $kegiatan = $allActivities->map(fn ($row) => [
         'id'          => $row['id'],
         'nama'        => $row['name'],
@@ -27,6 +12,7 @@
         'jenis'       => 'Kegiatan dosen',
         'tanggal'     => $row['date'],
         'tanggal_raw' => $row['raw_date'] ?? '',
+        'editable'    => $row['editable'],
         'peran'       => $row['peran'] ?? 'Ketua',
         'ketua'       => $row['ketua'] ?? '',   // nama pengaju/ketua, dipakai untuk penanda "Diajak oleh ..." saat peran Anggota
         'status'      => $row['status'],
@@ -126,7 +112,7 @@
                                         <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
                                     </a>
                                     {{-- Edit hanya untuk kegiatan milik sendiri (Ketua). Sebagai Anggota, dosen hanya melihat detail. --}}
-                                    <template x-if="k.peran === 'Ketua'">
+                                    <template x-if="k.editable">
                                         <a :href="`{{ url('/dosen/kegiatan') }}/${k.id}/edit`" :aria-label="`Edit ${k.nama}`"
                                            class="flex size-8 items-center justify-center rounded-lg bg-orange-100 text-orange-400 hover:bg-orange-200">
                                             <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>

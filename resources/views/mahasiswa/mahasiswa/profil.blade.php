@@ -4,15 +4,26 @@
 
 @section('content')
 @php
-    $nama     = $mahasiswa->nama     ?? config('mahasiswa.nama');
-    $angkatan = $mahasiswa->angkatan ?? config('mahasiswa.angkatan');
-    $email    = $mahasiswa->email    ?? config('mahasiswa.email');
-    $nim      = $mahasiswa->nim      ?? config('mahasiswa.nim');
-    $prodi    = $mahasiswa->prodi    ?? config('mahasiswa.prodi');
-    $status   = $mahasiswa->status   ?? config('mahasiswa.status');
+    $nama     = $mahasiswa->nama;
+    $angkatan = $mahasiswa->angkatan;
+    $email    = $mahasiswa->email;
+    $nim      = $mahasiswa->nim;
+    $prodi    = $mahasiswa->prodi;
+    $jenjang  = $mahasiswa->jenjang;
+    $status   = $mahasiswa->status;
 
-    [$local, $domain] = explode('@', $email, 2);
-    $maskedEmail = substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
+    $user = auth()->user();
+    $usesLocalOtpOverride = app()->environment('local')
+        && $user
+        && (int) $user->id_role === 4
+        && filled(config('mahasiswa.otp_email'))
+        && filled(config('mahasiswa.otp_test_nim'))
+        && (string) $nim === (string) config('mahasiswa.otp_test_nim');
+    $emailOtp = $usesLocalOtpOverride ? config('mahasiswa.otp_email') : $email;
+    [$local, $domain] = array_pad(explode('@', $emailOtp, 2), 2, '');
+    $maskedEmail = $domain === ''
+        ? $emailOtp
+        : substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
 @endphp
 
 <div class="mx-auto flex w-full max-w-7xl flex-col gap-6"
@@ -92,6 +103,10 @@
                 <span class="text-xs font-medium text-[#6B7280]">Email</span>
                 <p class="mt-1 text-xs font-bold break-all text-[#111827] sm:text-sm">{{ $email }}</p>
                 <span class="mt-0.5 block text-[10px] text-[#9CA3AF]">Email mahasiswa</span>
+                <button type="button" x-on:click="bukaModalGantiEmail()"
+                        class="mt-2 text-[11px] font-semibold text-[#2563EB] hover:underline">
+                    Ubah email
+                </button>
             </div>
 
             <div class="rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] p-3.5">
@@ -103,7 +118,7 @@
             <div class="rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] p-3.5">
                 <span class="text-xs font-medium text-[#6B7280]">Prodi (Program Studi)</span>
                 <p class="mt-1 text-xs font-bold text-[#111827] sm:text-sm">{{ $prodi }}</p>
-                <span class="mt-0.5 block text-[10px] text-[#9CA3AF]">Diploma IV / Sarjana Terapan</span>
+                <span class="mt-0.5 block text-[10px] text-[#9CA3AF]">{{ $jenjang ? 'Jenjang '.$jenjang : 'Program studi saat ini' }}</span>
             </div>
 
             <div class="rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] p-3.5">
@@ -120,6 +135,67 @@
             <span>Data mahasiswa dikelola oleh bagian administrasi akademik.</span>
         </div>
     </section>
+
+    {{-- ================= MODAL: UBAH EMAIL ================= --}}
+    <div x-show="emailChangeOpen" x-cloak x-transition.opacity
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+         x-on:click.self="tutupModalGantiEmail()">
+        <div role="dialog" aria-modal="true" class="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
+            <div class="flex items-center justify-between border-b border-[#F3F4F6] pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-[#111827]">Ubah email akun</h3>
+                    <p class="mt-1 text-xs text-[#6B7280]">Email baru perlu diverifikasi sebelum digunakan untuk OTP.</p>
+                </div>
+                <button type="button" aria-label="Tutup" x-on:click="tutupModalGantiEmail()"
+                        class="rounded-lg p-1 text-[#9CA3AF] hover:bg-gray-100">
+                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-4 py-5">
+                <template x-if="emailChangeStep === 1">
+                    <div class="flex flex-col gap-2">
+                        <label for="email-baru" class="text-xs font-semibold text-[#111827]">Email baru</label>
+                        <input id="email-baru" type="email" x-model.trim="emailBaru" autocomplete="email"
+                               placeholder="nama@contoh.ac.id"
+                               class="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm outline-none focus:border-[#2563EB]">
+                        <p class="text-[11px] text-[#6B7280]">Kami akan mengirim kode verifikasi ke alamat ini.</p>
+                    </div>
+                </template>
+
+                <template x-if="emailChangeStep === 2">
+                    <div class="flex flex-col gap-2">
+                        <label for="email-otp" class="text-xs font-semibold text-[#111827]">Kode OTP</label>
+                        <p class="text-xs text-[#6B7280]">Masukkan kode yang dikirim ke <span class="font-semibold text-[#111827]" x-text="emailBaru"></span>. Kode berlaku 5 menit.</p>
+                        <input id="email-otp" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                               x-model="emailOtp" x-on:input="emailOtp = emailOtp.replace(/[^0-9]/g, '').slice(0, 6)"
+                               autocomplete="one-time-code" placeholder="6 digit"
+                               class="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm tracking-widest outline-none focus:border-[#2563EB]">
+                        <button type="button" x-on:click="kirimOtpEmailBaru()" :disabled="emailChangeLoading"
+                                class="w-fit text-xs font-semibold text-[#2563EB] hover:underline disabled:opacity-50">
+                            Kirim ulang kode
+                        </button>
+                    </div>
+                </template>
+
+                <p x-show="emailChangeError" x-cloak x-text="emailChangeError"
+                   class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-700"></p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 border-t border-[#F3F4F6] pt-4">
+                <button type="button" x-on:click="tutupModalGantiEmail()"
+                        class="rounded-lg border border-[#E5E7EB] px-4 py-2 text-xs font-semibold text-[#4B5563] hover:bg-gray-50">
+                    Batal
+                </button>
+                <button type="button"
+                        x-on:click="emailChangeStep === 1 ? kirimOtpEmailBaru() : verifikasiEmailBaru()"
+                        :disabled="emailChangeLoading || (emailChangeStep === 1 ? !emailBaru : emailOtp.length !== 6)"
+                        class="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    <span x-text="emailChangeLoading ? 'Memproses...' : (emailChangeStep === 1 ? 'Kirim kode OTP' : 'Verifikasi email')"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     {{-- ================= MODAL: ATUR FOTO PROFIL ================= --}}
     <div x-show="openPhotoModal" x-cloak x-transition.opacity
@@ -298,6 +374,8 @@
                             </div>
 
                             <p class="text-[11px] text-[#9CA3AF]">Kode OTP akan dikirim ke {{ $maskedEmail }}.</p>
+                            <p x-show="pesanError" x-cloak x-text="pesanError"
+                               class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-700"></p>
                         </div>
                     </div>
 
@@ -306,9 +384,9 @@
                                 class="rounded-lg bg-[#EF4444] px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-600">
                             Batal
                         </button>
-                        <button type="button" x-on:click="goToStep2()" :disabled="!canSubmit"
+                        <button type="button" x-on:click="goToStep2()" :disabled="!canSubmit || loading"
                                 class="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-                            Kirim Kode OTP
+                            <span x-text="loading ? 'Mengirim...' : 'Kirim Kode OTP'"></span>
                         </button>
                     </div>
                 </div>
@@ -341,9 +419,13 @@
                                 </template>
                             </div>
 
+                            <p x-show="pesanError" x-cloak x-text="pesanError"
+                               class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-700"></p>
+
                             <div class="flex items-center justify-start">
-                                <button type="button" x-on:click="startTimer()" class="text-xs font-semibold text-[#2563EB] hover:underline">
-                                    Kirim ulang kode
+                                <button type="button" x-on:click="kirimUlangOtp()" :disabled="loading"
+                                        class="text-xs font-semibold text-[#2563EB] hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-text="loading ? 'Mengirim...' : 'Kirim ulang kode'"></span>
                                 </button>
                             </div>
                         </div>
@@ -354,10 +436,9 @@
                                 class="rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition hover:bg-gray-50">
                             Kembali
                         </button>
-                        {{-- Sementara dummy. Nanti backend mengganti ini dengan form POST ke route verifikasi OTP. --}}
-                        <button type="button" x-on:click="simpanKataSandi()" :disabled="!isOtpComplete"
+                        <button type="button" x-on:click="simpanKataSandi()" :disabled="!isOtpComplete || loading"
                                 class="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-                            Simpan Kata Sandi
+                            <span x-text="loading ? 'Menyimpan...' : 'Simpan Kata Sandi'"></span>
                         </button>
                     </div>
                 </div>
@@ -373,6 +454,12 @@
             // --- Modal ---
             open: false,
             step: 1,
+            emailChangeOpen: false,
+            emailChangeStep: 1,
+            emailBaru: '',
+            emailOtp: '',
+            emailChangeLoading: false,
+            emailChangeError: '',
             openPhotoModal: false,
             previewPhoto: null,
 
@@ -396,6 +483,9 @@
             otp: ['', '', '', '', '', ''],
             timer: 300,
             timerInterval: null,
+            otpId: null,
+            loading: false,
+            pesanError: '',
 
             init() {
                 try {
@@ -430,6 +520,87 @@
             },
             get isOtpComplete() { return this.otp.every((d) => d !== ''); },
 
+            bukaModalGantiEmail() {
+                this.emailChangeOpen = true;
+                this.emailChangeStep = 1;
+                this.emailBaru = '';
+                this.emailOtp = '';
+                this.emailChangeError = '';
+            },
+
+            tutupModalGantiEmail() {
+                this.emailChangeOpen = false;
+                this.emailChangeStep = 1;
+                this.emailOtp = '';
+                this.emailChangeError = '';
+            },
+
+            async kirimOtpEmailBaru() {
+                if (this.emailChangeLoading) return;
+
+                this.emailChangeLoading = true;
+                this.emailChangeError = '';
+
+                try {
+                    const response = await fetch('/api/v1/profil/ganti-email/kirim-otp', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                        },
+                        body: JSON.stringify({ email: this.emailBaru }),
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (! response.ok) {
+                        this.emailChangeError = data.message || data.errors?.email?.[0] || data.errors?.otp?.[0] || 'Kode OTP gagal dikirim.';
+                        return;
+                    }
+
+                    this.emailChangeStep = 2;
+                    this.emailOtp = '';
+                } catch (error) {
+                    this.emailChangeError = 'Tidak dapat menghubungi server. Periksa koneksi Anda.';
+                } finally {
+                    this.emailChangeLoading = false;
+                }
+            },
+
+            async verifikasiEmailBaru() {
+                if (this.emailChangeLoading || this.emailOtp.length !== 6) return;
+
+                this.emailChangeLoading = true;
+                this.emailChangeError = '';
+
+                try {
+                    const response = await fetch('/api/v1/profil/ganti-email/verifikasi', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                        },
+                        body: JSON.stringify({ otp: this.emailOtp }),
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (! response.ok) {
+                        this.emailChangeError = data.message || data.errors?.otp?.[0] || 'Verifikasi email gagal.';
+                        return;
+                    }
+
+                    alert(data.message || 'Email akun berhasil diperbarui.');
+                    window.location.reload();
+                } catch (error) {
+                    this.emailChangeError = 'Tidak dapat menghubungi server. Periksa koneksi Anda.';
+                } finally {
+                    this.emailChangeLoading = false;
+                }
+            },
+
             startTimer() {
                 this.timer = 300;
                 clearInterval(this.timerInterval);
@@ -442,17 +613,56 @@
                 }, 1000);
             },
 
-            goToStep2() {
-                if (!this.canSubmit) return;
-                this.step = 2;
-                this.startTimer();
-                setTimeout(() => {
-                    const first = document.getElementById('otp-0');
-                    if (first) {
-                        first.focus();
-                        first.select();
+            async requestOtp() {
+                if (this.loading) return false;
+
+                this.loading = true;
+                this.pesanError = '';
+
+                try {
+                    const response = await fetch(@js(route('mahasiswa.profil.sandi.kirim-otp')), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                        },
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (! response.ok) {
+                        this.pesanError = data.message || data.errors?.otp?.[0] || 'Kode OTP gagal dikirim.';
+                        return false;
                     }
-                }, 150);
+
+                    return true;
+                } catch (error) {
+                    this.pesanError = 'Tidak dapat menghubungi server. Periksa koneksi Anda.';
+                    return false;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async goToStep2() {
+                if (!this.canSubmit) return;
+
+                if (! await this.requestOtp()) return;
+
+                this.step = 2;
+                this.otpId = null;
+                this.otp = ['', '', '', '', '', ''];
+                this.startTimer();
+                setTimeout(() => this.focusOtp(0), 150);
+            },
+
+            async kirimUlangOtp() {
+                if (await this.requestOtp()) {
+                    this.otp = ['', '', '', '', '', ''];
+                    this.otpId = null;
+                    this.startTimer();
+                }
             },
 
             // --- Handler OTP ---
@@ -501,10 +711,78 @@
                 this.focusOtp(Math.min(pasted.length, 5));
             },
 
-            simpanKataSandi() {
-                if (!this.isOtpComplete) return;
-                alert('Kata sandi berhasil disimpan!');
-                this.close();
+            async simpanKataSandi() {
+                if (!this.isOtpComplete || this.loading) return;
+
+                this.loading = true;
+                this.pesanError = '';
+                const headers = {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': @js(csrf_token()),
+                };
+
+                try {
+                    const otp = this.otp.join('');
+                    if (! this.otpId) {
+                        const verifyResponse = await fetch(@js(route('mahasiswa.profil.sandi.verifikasi')), {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers,
+                            body: JSON.stringify({ otp }),
+                        });
+                        const verifyData = await verifyResponse.json().catch(() => ({}));
+
+                        if (! verifyResponse.ok) {
+                            this.pesanError = verifyData.message || verifyData.errors?.otp?.[0] || 'Kode OTP tidak valid.';
+                            return;
+                        }
+
+                        this.otpId = verifyData.data?.otp_id;
+                        if (! this.otpId) {
+                            this.pesanError = 'Sesi OTP tidak valid. Kirim ulang kode.';
+                            return;
+                        }
+                    }
+
+                    const saveResponse = await fetch(@js(route('mahasiswa.profil.sandi.simpan')), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers,
+                        body: JSON.stringify({
+                            otp_id: this.otpId,
+                            password: this.pw,
+                            password_confirmation: this.confirm,
+                        }),
+                    });
+                    const saveData = await saveResponse.json().catch(() => ({}));
+
+                    if (! saveResponse.ok) {
+                        this.pesanError = saveData.message || saveData.errors?.password?.[0] || 'Kata sandi gagal disimpan.';
+                        return;
+                    }
+
+                    alert(saveData.message || 'Kata sandi berhasil disimpan!');
+
+                    const logoutResponse = await fetch(@js(route('logout')), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'text/html',
+                            'X-CSRF-TOKEN': @js(csrf_token()),
+                        },
+                    });
+                    if (! logoutResponse.ok) {
+                        this.pesanError = 'Kata sandi berhasil diubah, tetapi sesi gagal ditutup. Silakan keluar secara manual.';
+                        return;
+                    }
+
+                    window.location.href = @js(route('login'));
+                } catch (error) {
+                    this.pesanError = 'Tidak dapat menghubungi server. Periksa koneksi Anda.';
+                } finally {
+                    this.loading = false;
+                }
             },
 
             close() {
@@ -515,6 +793,9 @@
                 this.showPw = false;
                 this.showConfirm = false;
                 this.otp = ['', '', '', '', '', ''];
+                this.otpId = null;
+                this.loading = false;
+                this.pesanError = '';
                 clearInterval(this.timerInterval);
             },
 

@@ -34,6 +34,13 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    public function getNameAttribute(): ?string
+    {
+        return $this->dosen?->nama
+            ?? $this->mahasiswa?->nama
+            ?? $this->email;
+    }
+
     protected function casts(): array
     {
         return [

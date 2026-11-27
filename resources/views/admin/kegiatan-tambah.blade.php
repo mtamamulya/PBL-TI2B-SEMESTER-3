@@ -1,7 +1,7 @@
 {{--
     resources/views/admin/kegiatan-tambah.blade.php
     Form "Tambah Kegiatan": 1 Informasi kegiatan, 2 Anggota kegiatan, 3 Unggah dokumen.
-    Anggota & dokumen dinamis (JavaScript biasa). Simpan = SIMULASI (lihat controller, TODO-DB).
+    Anggota & dokumen dinamis (JavaScript biasa). Simpan lewat API POST /admin/kegiatan (lihat controller).
 --}}
 @extends(request()->routeIs('kaprodi.*') ? 'layouts.kaprodi' : 'layouts.admin')
 
@@ -35,30 +35,28 @@
 
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="flex min-w-0 flex-col gap-2">
-                    <label for="kategori" class="{{ $label }}">Kategori</label>
+                    <label for="id_kategori" class="{{ $label }}">Kategori</label>
                     <div class="relative">
-                        <select id="kategori" name="kategori" class="{{ $select }}">
+                        <select id="id_kategori" name="id_kategori" class="{{ $select }}">
                             <option value="">Pilih kategori</option>
-                            @foreach ($kategori as $k)
-                                <option value="{{ $k }}" @selected(old('kategori') === $k)>{{ $k }}</option>
+                            @foreach (collect($kategori)->groupBy(fn ($k) => $k['jenis'] ?? 'Lainnya') as $jenis => $items)
+                                <optgroup label="{{ $jenis }}">
+                                    @foreach ($items as $k)
+                                        <option value="{{ $k['id_kategori'] }}" data-jenis="{{ $jenis }}" @selected((string) old('id_kategori') === (string) $k['id_kategori'])>{{ $k['nama_kategori'] }}</option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
                         {!! $chev !!}
                     </div>
-                    @error('kategori') <p class="{{ $error }}">{{ $message }}</p> @enderror
+                    @error('id_kategori') <p class="{{ $error }}">{{ $message }}</p> @enderror
+                    @if (empty($kategori)) <p class="{{ $error }}">Belum ada kategori kegiatan. Buat dulu di menu Kategori Kegiatan.</p> @endif
                 </div>
 
                 <div class="flex min-w-0 flex-col gap-2">
-                    <label for="jenis_kegiatan" class="{{ $label }}">Jenis kegiatan</label>
-                    <div class="relative">
-                        <select id="jenis_kegiatan" name="jenis_kegiatan" class="{{ $select }}">
-                            <option value="">Pilih jenis kegiatan</option>
-                            @foreach ($jenisKegiatan as $j)
-                                <option value="{{ $j }}" @selected(old('jenis_kegiatan') === $j)>{{ $j }}</option>
-                            @endforeach
-                        </select>
-                        {!! $chev !!}
-                    </div>
+                    <label for="jenis_kegiatan_tampil" class="{{ $label }}">Jenis kegiatan <span class="text-[#A8A8A8]">(otomatis dari kategori)</span></label>
+                    <input id="jenis_kegiatan_tampil" type="text" value="{{ old('jenis_kegiatan') }}" placeholder="Pilih kategori dulu" readonly tabindex="-1" class="{{ $field }} cursor-not-allowed bg-[#F5F5F7]">
+                    <input id="jenis_kegiatan" name="jenis_kegiatan" type="hidden" value="{{ old('jenis_kegiatan') }}">
                     @error('jenis_kegiatan') <p class="{{ $error }}">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -70,23 +68,10 @@
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-                <div class="flex min-w-0 flex-col gap-2">
+                <div class="flex min-w-0 flex-col gap-2 md:col-span-2">
                     <label for="penyelenggara" class="{{ $label }}">Penyelenggara</label>
                     <input id="penyelenggara" name="penyelenggara" type="text" value="{{ old('penyelenggara') }}" placeholder="Nama penyelenggara" class="{{ $field }}">
                     @error('penyelenggara') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                </div>
-
-                <div class="flex min-w-0 flex-col gap-2">
-                    <label for="tahun" class="{{ $label }}">Tahun penyelenggaraan</label>
-                    <div class="relative">
-                        <select id="tahun" name="tahun" class="{{ $select }}">
-                            @foreach ($tahun as $t)
-                                <option value="{{ $t }}" @selected((int) old('tahun', date('Y')) === $t)>{{ $t }}</option>
-                            @endforeach
-                        </select>
-                        {!! $chev !!}
-                    </div>
-                    @error('tahun') <p class="{{ $error }}">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="flex min-w-0 flex-col gap-2">
@@ -176,6 +161,16 @@
     var ERR_DOK = @json($errors->getBag('default')->messages());
 
     var $ = function (id) { return document.getElementById(id); };
+
+    /* Jenis kegiatan otomatis mengikuti kategori yang dipilih (kategori sudah terikat ke satu jenis). */
+    var selKategori = $('id_kategori'), jenisTampil = $('jenis_kegiatan_tampil'), jenisHidden = $('jenis_kegiatan');
+    function isiJenis() {
+        var opt = selKategori.options[selKategori.selectedIndex];
+        var j = opt && opt.dataset.jenis ? opt.dataset.jenis : '';
+        jenisTampil.value = j; jenisHidden.value = j;
+    }
+    selKategori.addEventListener('change', isiJenis);
+    isiJenis();
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
