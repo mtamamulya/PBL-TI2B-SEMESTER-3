@@ -10,7 +10,7 @@
     $persen  = $ringkasan['sks_total'] > 0 ? round($ringkasan['sks_tempuh'] / $ringkasan['sks_total'] * 100) : 0;
     $selectCls = 'h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3.5 pr-9 text-sm font-normal text-gray-800 outline-none transition focus:border-brand';
 
-    $kartuCls  = 'flex min-h-[152px] min-w-0 flex-[1_1_220px] flex-col justify-between rounded-lg border border-gray-200/80 bg-white p-4 shadow-sm';
+    $kartuCls  = 'flex min-h-[152px] min-w-0 flex-col justify-between rounded-lg border border-gray-200/80 bg-white p-4 shadow-sm';
     $judulCls  = 'text-[15px] font-semibold tracking-tight text-gray-800';
     $angkaCls  = 'text-4xl font-bold tracking-tight text-gray-900 tabular-nums leading-none';
     $satuanCls = 'text-xs font-medium text-gray-500';
@@ -26,7 +26,7 @@
     </div>
 
     {{-- Kartu Statistik --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {{-- Tahun Akademik --}}
         <div class="{{ $kartuCls }}">
             <div class="flex items-center justify-between gap-2">
