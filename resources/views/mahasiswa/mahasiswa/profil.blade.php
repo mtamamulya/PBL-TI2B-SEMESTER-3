@@ -16,10 +16,14 @@
     $usesLocalOtpOverride = app()->environment('local')
         && $user
         && (int) $user->id_role === 4
-        && filled(config('mahasiswa.otp_email'));
+        && filled(config('mahasiswa.otp_email'))
+        && filled(config('mahasiswa.otp_test_nim'))
+        && (string) $nim === (string) config('mahasiswa.otp_test_nim');
     $emailOtp = $usesLocalOtpOverride ? config('mahasiswa.otp_email') : $email;
-    [$local, $domain] = explode('@', $emailOtp, 2);
-    $maskedEmail = substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
+    [$local, $domain] = array_pad(explode('@', $emailOtp, 2), 2, '');
+    $maskedEmail = $domain === ''
+        ? $emailOtp
+        : substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
 @endphp
 
 <div class="mx-auto flex w-full max-w-7xl flex-col gap-6"

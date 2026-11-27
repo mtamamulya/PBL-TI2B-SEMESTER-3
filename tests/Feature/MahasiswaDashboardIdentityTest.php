@@ -116,6 +116,7 @@ class MahasiswaDashboardIdentityTest extends TestCase
         $idKurikulum = DB::table('kurikulum')->insertGetId([
             'id_prodi' => $idProdi,
             'nama_kurikulum' => 'Kurikulum Uji',
+            'tahun_terbit' => 2024,
             'status' => true,
         ]);
         $idMataKuliah = DB::table('mata_kuliah')->insertGetId([
@@ -243,7 +244,7 @@ class MahasiswaDashboardIdentityTest extends TestCase
         $user->update(['email' => 'student-original@test.local']);
         DB::table('mahasiswa')->insert([
             'id_user' => $user->getKey(),
-            'nim' => '43325112',
+            'nim' => '43325111',
             'nama' => 'Mahasiswa Tes',
             'tahun_masuk' => 2024,
             'created_at' => now(),
