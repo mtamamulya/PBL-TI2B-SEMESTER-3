@@ -23,6 +23,7 @@ class MataKuliahController extends Controller
         $request->validate([
             'id_kurikulum' => ['nullable', 'integer'],
             'angkatan' => ['nullable', 'integer', 'between:2000,2100', 'prohibits:id_kurikulum'],
+            'kode_prodi' => ['nullable', 'string', 'max:30', 'exists:prodi,kode_prodi'],
             'semester' => ['nullable', 'integer', 'between:1,8'],
             'q' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -30,7 +31,17 @@ class MataKuliahController extends Controller
 
         $p = MataKuliah::query()
             ->when($request->filled('id_kurikulum'), fn ($q) => $q->where('id_kurikulum', (int) $request->query('id_kurikulum')))
-            ->when($request->filled('angkatan'), fn ($q) => KurikulumAngkatan::saring($q, (int) $request->query('angkatan')))
+            ->when($request->filled('angkatan'), fn ($q) => KurikulumAngkatan::saring(
+                $q,
+                (int) $request->query('angkatan'),
+                'id_kurikulum',
+                null,
+                $request->query('kode_prodi')
+            ))
+            ->when($request->filled('kode_prodi') && ! $request->filled('angkatan'), fn ($q) => $q->whereHas(
+                'kurikulum.prodi',
+                fn ($prodi) => $prodi->where('kode_prodi', $request->query('kode_prodi'))
+            ))
             ->when($request->filled('semester'), fn ($q) => $q->where('semester', (int) $request->query('semester')))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $kata = '%'.$request->query('q').'%';

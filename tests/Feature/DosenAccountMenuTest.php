@@ -59,8 +59,7 @@ class DosenAccountMenuTest extends TestCase
     public function test_guests_are_offered_login_instead_of_logout(): void
     {
         $this->withoutVite();
-        $this->get('/dosen/kegiatan/create')->assertOk()->assertSee('Pratinjau dosen')
-            ->assertDontSee('Halaman utama')->assertDontSee('action="'.route('logout').'"', false);
+        $this->get('/dosen/kegiatan/create')->assertRedirect(route('login'));
         $this->post(route('logout'))->assertRedirect(route('login'));
     }
 }

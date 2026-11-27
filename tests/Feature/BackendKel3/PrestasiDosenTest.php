@@ -62,6 +62,7 @@ class PrestasiDosenTest extends TestCase
             'dokumen' => [['jenis' => 'Sertifikat', 'tautan' => 'https://example.test/bukti']],
         ];
         $id = $this->postJson(self::API, $input)->assertCreated()->json('data.id_prestasi');
+        $this->getJson("/api/v1/prestasi/$id")->assertOk()->assertJsonPath('data.id_prestasi', $id);
         $url = self::API.'/'.$id;
         $this->getJson(self::API)->assertOk()->assertJsonPath('data.0.id', $id);
         $this->getJson($url)->assertOk()->assertJsonPath('data.bukti_prestasi.0.link', 'https://example.test/bukti');

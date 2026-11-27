@@ -1,8 +1,7 @@
 @php
-    // Menu dropdown Kurikulum dibuat dari data (bertambah/berkurang mengikuti upload & hapus admin)
-    $kurikulumMenu = collect(app(\App\Repositories\KurikulumRepository::class)->all())
-        ->map(fn ($k) => [$k['nama'], route('kurikulum', ['kurikulum' => $k['id']])])
-        ->all();
+    $profil = \App\Support\ProfilProdiLanding::ambil();
+    $logoNavbar = \App\Support\ProfilProdiLanding::logoNavbar($profil);
+    $namaProdi = filled($profil['nama_prodi'] ?? null) ? $profil['nama_prodi'] : 'Teknologi Rekayasa Komputer';
 
     // Menu tanpa dropdown: [label, href]
     // Menu dengan dropdown: [label, [[sub-label, href], ...]]
@@ -13,7 +12,7 @@
             ['Akreditasi', route('akreditasi')],
         ]],
         ['Dosen', route('home') . '#dosen'],
-        ['Kurikulum', array_merge([['Kurikulum', route('kurikulum')]], $kurikulumMenu)],
+        ['Kurikulum', route('kurikulum')],
         ['Kabar TRK', route('home') . '#kabar'],
         ['Prestasi', route('home') . '#prestasi'],
         ['Fasilitas', route('home') . '#fasilitas'],
@@ -24,7 +23,10 @@
 <header class="fixed top-0 inset-x-0 z-50 h-16 border-b border-gray-100 bg-white shadow-sm md:h-[70px]">
     <div class="mx-auto flex h-full max-w-[1200px] items-center justify-between px-5">
         <a href="{{ route('home') }}" class="flex items-center">
-            <img src="{{ asset('images/logo_trk.jpeg') }}" alt="Teknologi Rekayasa Komputer" class="h-9 w-auto object-contain md:h-11">
+            <img src="{{ $logoNavbar }}"
+                 alt="{{ $namaProdi }}"
+                 onerror="this.onerror=null;this.src='{{ asset('images/logo_trk.jpeg') }}';"
+                 class="h-9 w-auto object-contain md:h-11">
         </a>
 
         {{-- Desktop --}}

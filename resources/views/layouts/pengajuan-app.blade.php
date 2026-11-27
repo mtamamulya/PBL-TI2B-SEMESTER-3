@@ -12,13 +12,13 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 </head>
-<body class="frontend-shell mahasiswa-shell pengajuan-shell font-sans antialiased">
-<div class="flex min-h-screen bg-[#F7F7F7] text-[#111827]">
+<body class="frontend-shell mahasiswa-shell pengajuan-shell h-dvh overflow-hidden bg-page font-sans text-gray-900 antialiased">
+<div class="flex h-full overflow-hidden bg-page text-gray-900" data-frontend-shell>
     @include('layouts.partials.pengajuan-sidebar')
 
     <div class="flex min-w-0 flex-1 flex-col lg:ml-60">
         @include('layouts.partials.pengajuan-header')
-        <main class="frontend-main min-w-0 flex-1">
+        <main class="frontend-main flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
             @if (session('success'))
                 <div class="mx-4 mt-4 rounded-lg bg-[#ECFDF5] px-4 py-3 text-sm text-[#047857] sm:mx-6 lg:mx-12">{{ session('success') }}</div>
             @endif

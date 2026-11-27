@@ -24,7 +24,7 @@ class KaprodiBeritaController extends Controller
         return match (strtolower($status)) {
             'publish' => 'Publish',
             'diajukan' => 'Pengajuan',
-            'revisi' => 'Revisi',
+            'revisi', 'direvisi' => 'Revisi',
             'ditolak' => 'Ditolak',
             default => 'Draft',
         };
@@ -60,7 +60,7 @@ class KaprodiBeritaController extends Controller
 
     public function store(Request $request)
     {
-        $payload = $request->only(['judul', 'isi', 'status', 'sumber', 'kegiatan_id', 'kategori']);
+        $payload = $request->only(['judul', 'isi', 'status', 'sumber', 'kegiatan_id', 'kategori', 'sampul_dokumen_id']);
         $berkas = $request->hasFile('foto') ? ['foto' => $request->file('foto')] : [];
 
         $hasil = ApiClient::pengguna()->post('/berita', $payload, $berkas);
@@ -161,7 +161,7 @@ class KaprodiBeritaController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $payload = $request->only(['judul', 'isi', 'status', 'sumber', 'kegiatan_id', 'kategori']);
+        $payload = $request->only(['judul', 'isi', 'status', 'sumber', 'kegiatan_id', 'kategori', 'sampul_dokumen_id']);
         $berkas = $request->hasFile('foto') ? ['foto' => $request->file('foto')] : [];
 
         $hasil = ApiClient::pengguna()->put('/berita/'.$id, $payload, $berkas);

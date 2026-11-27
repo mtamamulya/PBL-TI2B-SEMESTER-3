@@ -16,17 +16,15 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <style>[x-cloak]{display:none !important}</style>
 </head>
-<body class="frontend-shell mahasiswa-shell bg-[#F9FAFB] font-sans text-[#111827] antialiased">
+<body class="frontend-shell mahasiswa-shell h-dvh overflow-hidden bg-page font-sans text-gray-900 antialiased">
 
-<div class="flex min-h-screen bg-[#F7F7F7] text-[#111827]">
+<div class="flex h-full overflow-hidden bg-page text-gray-900" data-frontend-shell>
     @include('layouts.partials.pengajuan-sidebar')
 
     <div class="flex min-w-0 flex-1 flex-col lg:ml-60">
         @include('layouts.partials.pengajuan-header')
-        <main class="min-w-0 flex-1">
-            <div class="frontend-main min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-                @yield('content')
-            </div>
+        <main class="frontend-main flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-10 pt-6 sm:px-6 sm:pb-12 sm:pt-8">
+            @yield('content')
         </main>
     </div>
 

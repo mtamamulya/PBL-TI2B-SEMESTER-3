@@ -55,6 +55,8 @@ tags:
     description: Login dan logout dengan token Bearer (Laravel Sanctum).
   - name: Kurikulum
     description: Kurikulum prodi (baca publik, tulis admin dan kaprodi).
+  - name: Tahun Akademik
+    description: Master tahun akademik dan semester aktif (baca publik, tambah khusus admin).
   - name: Mata Kuliah
     description: Mata kuliah per kurikulum (baca publik, tulis admin dan kaprodi).
   - name: Akreditasi
@@ -71,6 +73,8 @@ tags:
     description: Data mahasiswa, status akademik, dan sinkronisasi kelas semester (baca publik/lintas kelompok, kelola khusus admin, ubah profil oleh admin atau mahasiswa pemilik).
   - name: Jenis Dokumen
     description: Jenis dokumen pendukung kegiatan dan prestasi (baca publik, tulis admin dan kaprodi).
+  - name: Profil Prodi
+    description: Profil prodi tunggal (identitas, visi, misi, kontak, sosial media, logo). Baca publik, tulis admin dan kaprodi.
   - name: Berita
     description: Pengelolaan berita prodi (baca publik, tulis admin dan kaprodi, tinjau khusus admin).
 
@@ -84,6 +88,8 @@ tags:
     description: Pengelolaan seluruh prestasi oleh pengguna dengan role admin.
   - name: Kelompok Bidang
     description: Kelompok bidang (bertingkat lewat id_rujukan). Baca semua pengguna login, tulis admin dan kaprodi.
+  - name: Skim
+    description: Master data skim penelitian dan pengabdian.
 
 paths:
   /ping:
@@ -473,6 +479,59 @@ paths:
           $ref: '#/components/responses/TidakLogin'
         '403':
           $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+
+  /tahun-akademik:
+    get:
+      tags: [Tahun Akademik]
+      summary: Daftar tahun akademik
+      description: Publik / tanpa token. Diurutkan berdasarkan status aktif terlebih dahulu lalu terbaru.
+      responses:
+        '200':
+          description: Daftar tahun akademik berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikListResponse'
+    post:
+      tags: [Tahun Akademik]
+      summary: Tambah dan aktifkan tahun akademik baru
+      description: Khusus peran **admin**. Menambahkan tahun akademik baru dan otomatis menjadikannya satu-satunya yang berstatus aktif.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TahunAkademikInput'
+      responses:
+        '201':
+          description: Tahun akademik berhasil ditambahkan dan diaktifkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /tahun-akademik/aktif:
+    get:
+      tags: [Tahun Akademik]
+      summary: Tahun akademik yang sedang aktif
+      description: Publik / tanpa token. Mengambil satu tahun akademik yang berstatus aktif saat ini.
+      responses:
+        '200':
+          description: Tahun akademik aktif berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TahunAkademikResponse'
         '404':
           $ref: '#/components/responses/TidakDitemukan'
 
@@ -956,7 +1015,7 @@ paths:
             type: string
         - name: status
           in: query
-          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Lulus`, `Non-aktif`, atau `all`).
+          description: Saring berdasarkan status akademik (`Aktif`, `Cuti`, `Drop Out`, `Skripsi/TA`, `Lulus`, `Meninggal Dunia`, atau `all`).
           schema:
             type: string
       responses:
@@ -1049,12 +1108,23 @@ paths:
   /mahasiswa/{id}/status:
     patch:
       tags: [Mahasiswa]
-      summary: Toggle status aktif/nonaktif mahasiswa
-      description: Khusus peran **admin**. Membalik status keaktifan akun dan status akademik mahasiswa (`Aktif` <-> `Non-aktif`) tanpa body request.
+      summary: Ubah atau toggle status akademik mahasiswa
+      description: Khusus peran **admin**. Jika body `status` dikirim, status mahasiswa diubah sesuai nilai tersebut; jika dikosongkan, membalik status antara `Aktif` dan `Cuti`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+                  example: Skripsi/TA
       responses:
         '200':
           description: Status mahasiswa berhasil diperbarui.
@@ -1068,12 +1138,14 @@ paths:
           $ref: '#/components/responses/DilarangPeran'
         '404':
           $ref: '#/components/responses/MahasiswaTidakDitemukan'
+        '422':
+          $ref: '#/components/responses/MahasiswaValidasiGagal'
 
   /mahasiswa/sinkronisasi-kelas:
     post:
       tags: [Mahasiswa]
       summary: Sinkronisasi kelas semester mahasiswa
-      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan serta menempatkannya ke kelas yang sesuai.
+      description: Khusus peran **admin**. Menghitung semester dan tingkat terbaru seluruh mahasiswa aktif berdasarkan tahun akademik berjalan, menempatkannya ke kelas yang sesuai, atau mengubah mahasiswa tingkat akhir menjadi `Skripsi/TA`.
       security:
         - bearerAuth: []
       responses:
@@ -1087,6 +1159,8 @@ paths:
           $ref: '#/components/responses/TidakLogin'
         '403':
           $ref: '#/components/responses/DilarangPeran'
+        '422':
+          description: Tidak ada tahun akademik yang berstatus aktif.
 
   /jenis-dokumen:
     get:
@@ -1210,6 +1284,235 @@ paths:
         '404':
           $ref: '#/components/responses/TidakDitemukan'
 
+  /skim:
+    get:
+      tags: [Skim]
+      summary: Daftar skim (berhalaman)
+      description: Urut nama A–Z. Wajib login.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Cari pada nama skim.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Daftar skim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimListResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    post:
+      tags: [Skim]
+      summary: Tambah skim
+      description: Peran **admin** atau **kaprodi**. `nama_skim` harus unik.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkimInput'
+      responses:
+        '201':
+          description: Skim berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /skim/{id}:
+    get:
+      tags: [Skim]
+      summary: Detail satu skim
+      description: Wajib login.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detail skim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+    put:
+      tags: [Skim]
+      summary: Ubah skim
+      description: Peran **admin** atau **kaprodi**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkimInput'
+      responses:
+        '200':
+          description: Skim berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkimResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+    delete:
+      tags: [Skim]
+      summary: Hapus skim
+      description: Peran **admin** atau **kaprodi**. Gagal jika skim masih dipakai pada data kegiatan.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Skim berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PesanResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Skim masih dipakai kegiatan dan tidak dapat dihapus.
+
+  /prodi/profil:
+    get:
+      tags: [Profil Prodi]
+      summary: Ambil profil prodi
+      description: PUBLIK (tanpa token), dipakai landing page. Jika data belum ada, semua kolom berisi `null` dan daftar `[]`.
+      security: []
+      responses:
+        '200':
+          description: Profil prodi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilProdiResponse'
+    put:
+      tags: [Profil Prodi]
+      summary: Ubah profil prodi
+      description: Peran **admin** atau **kaprodi**. Boleh sebagian (kirim hanya kunci yang diubah). `no_wa` dinormalkan ke `62xxxxxxxxxx`. Logo tidak lewat endpoint ini.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfilProdiInput'
+      responses:
+        '200':
+          description: Profil tersimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilProdiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /prodi/profil/logo:
+    post:
+      tags: [Profil Prodi]
+      summary: Unggah logo prodi
+      description: Peran **admin** atau **kaprodi**. Format png, jpg, jpeg, webp, maks 2 MB. Logo lama diganti dan filenya dihapus.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [jenis, file]
+              properties:
+                jenis:
+                  type: string
+                  enum: [utama, footer]
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Logo tersimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilProdiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '422':
+          $ref: '#/components/responses/ValidasiGagal'
+
+  /prodi/profil/logo/{jenis}:
+    delete:
+      tags: [Profil Prodi]
+      summary: Hapus logo prodi
+      description: Peran **admin** atau **kaprodi**. Untuk `footer`, setelah dihapus landing memakai logo utama.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jenis
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [utama, footer]
+      responses:
+        '200':
+          description: Logo dihapus.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilProdiResponse'
+        '401':
+          $ref: '#/components/responses/TidakLogin'
+        '403':
+          $ref: '#/components/responses/DilarangPeran'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
   /berita:
     get:
       tags: [Berita]
@@ -3996,7 +4299,7 @@ components:
 
     MahasiswaCreateInput:
       type: object
-      required: [nama, nim, angkatan, status, email, password]
+      required: [nama, nim, angkatan, email, password]
       properties:
         nama:
           type: string
@@ -4014,18 +4317,9 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
+          default: Aktif
           example: Aktif
-        email:
-          type: string
-          format: email
-          maxLength: 150
-          example: galih.virgi@mhs.polines.ac.id
-        password:
-          type: string
-          format: password
-          minLength: 8
-          example: password123
 
     MahasiswaUpdateInput:
       type: object
@@ -4050,7 +4344,7 @@ components:
           example: 2025
         status:
           type: string
-          enum: [Aktif, Cuti, Lulus, Non-aktif]
+          enum: [Aktif, Cuti, Drop Out, Skripsi/TA, Lulus, Meninggal Dunia]
           nullable: true
           description: Wajib untuk admin; diabaikan bila diubah oleh mahasiswa pemilik profil.
           example: Aktif
@@ -4142,7 +4436,186 @@ components:
             $ref: '#/components/schemas/JenisDokumen'
         meta:
           $ref: '#/components/schemas/Meta'
+    
+    Skim:
+      type: object
+      properties:
+        id_skim:
+          type: integer
+          example: 1
+        nama_skim:
+          type: string
+          example: Penelitian Dasar
+        total_kegiatan:
+          type: integer
+          example: 0
 
+    SkimInput:
+      type: object
+      required: [nama_skim]
+      properties:
+        nama_skim:
+          type: string
+          maxLength: 100
+          example: Penelitian Dasar
+
+    SkimResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/Skim'
+
+    SkimListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skim'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TahunAkademik:
+      type: object
+      properties:
+        id_tahun_akademik:
+          type: integer
+          example: 1
+        tahun_akademik:
+          type: string
+          example: Ganjil 2026/2027
+        status:
+          type: boolean
+          example: true
+
+    TahunAkademikInput:
+      type: object
+      required: [semester, tahun_ajaran]
+      properties:
+        semester:
+          type: string
+          enum: [Ganjil, Genap]
+          example: Ganjil
+        tahun_ajaran:
+          type: string
+          pattern: '^\d{4}/\d{4}$'
+          description: Format YYYY/YYYY dengan tahun kedua selisih +1 dari tahun pertama.
+          example: 2026/2027
+
+    TahunAkademikResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Tahun akademik aktif berhasil diambil.
+        data:
+          $ref: '#/components/schemas/TahunAkademik'
+
+    TahunAkademikListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Daftar tahun akademik berhasil diambil.
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TahunAkademik'
+
+    ProfilProdi:
+      type: object
+      properties:
+        kode_prodi: { type: string, nullable: true, example: TRK }
+        nama_prodi: { type: string, nullable: true, example: Teknologi Rekayasa Komputer }
+        jenjang: { type: string, nullable: true, enum: [D3, D4], example: D4 }
+        deskripsi: { type: string, nullable: true }
+        visi: { type: string, nullable: true }
+        misi:
+          type: array
+          items: { type: string }
+        tujuan:
+          type: array
+          items: { type: string }
+        profil_lulusan:
+          type: array
+          items:
+            type: object
+            properties:
+              judul: { type: string, example: Software Engineer }
+              deskripsi: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        no_wa: { type: string, nullable: true, example: '6281234567890' }
+        alamat: { type: string, nullable: true }
+        instagram: { type: string, nullable: true }
+        youtube: { type: string, nullable: true }
+        tiktok: { type: string, nullable: true }
+        facebook: { type: string, nullable: true }
+        logo_url: { type: string, nullable: true }
+        logo_footer_url: { type: string, nullable: true }
+
+    ProfilProdiInput:
+      type: object
+      description: Semua kunci opsional (boleh sebagian). URL sosial media hanya http/https.
+      properties:
+        kode_prodi: { type: string, maxLength: 20 }
+        nama_prodi: { type: string, maxLength: 100 }
+        jenjang: { type: string, enum: [D3, D4] }
+        deskripsi: { type: string, nullable: true, maxLength: 2000 }
+        visi: { type: string, nullable: true, maxLength: 1000 }
+        misi:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+        tujuan:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 500 }
+        profil_lulusan:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [judul]
+            properties:
+              judul: { type: string, maxLength: 150 }
+              deskripsi: { type: string, nullable: true, maxLength: 1000 }
+        email: { type: string, nullable: true, maxLength: 100 }
+        no_wa: { type: string, nullable: true, example: '0812-3456-7890' }
+        alamat: { type: string, nullable: true, maxLength: 500 }
+        instagram: { type: string, nullable: true, maxLength: 255 }
+        youtube: { type: string, nullable: true, maxLength: 255 }
+        tiktok: { type: string, nullable: true, maxLength: 255 }
+        facebook: { type: string, nullable: true, maxLength: 255 }
+
+    ProfilProdiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Data berhasil diambil
+        data:
+          $ref: '#/components/schemas/ProfilProdi'
     Berita:
       type: object
       properties:

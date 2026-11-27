@@ -275,7 +275,7 @@
         semua:     null,   // tab Semua memakai URL sesuai jenis tiap baris
         dosen:     @json(route('admin.kegiatan.dosen.detail.show', ['id' => '__ID__'])),
         mahasiswa: @json(route('admin.kegiatan.mahasiswa.detail.show', ['id' => '__ID__'])),
-        prodi:     null   // detail kegiatan prodi menyusul (Fase C)
+        prodi:     @json(route('admin.kegiatan.prodi.detail.show', ['id' => '__ID__']))
     };
     var URL_DELETE = {
         semua:     null,

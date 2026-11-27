@@ -17,8 +17,8 @@ class DashboardController extends Controller
         $role = $user?->role?->nama_role ?? ($user?->dosen ? 'Dosen' : 'Mahasiswa');
         $labelIdentitas = $user?->dosen && ! $user?->mahasiswa ? 'NIP' : 'NIM';
         $nomorIdentitas = $user?->mahasiswa?->nim
-            ?? ($user?->dosen ? $user->dosen->nip : config('mahasiswa.nim'));
-        $angkatan = $user?->mahasiswa?->tahun_masuk ?? config('mahasiswa.angkatan');
+            ?? ($user?->dosen ? $user->dosen->nip : ($user ? '—' : config('mahasiswa.nim')));
+        $angkatan = $user?->mahasiswa?->tahun_masuk ?? ($user ? '—' : config('mahasiswa.angkatan'));
         $statusAkun = $user ? ($user->status ? 'Aktif' : 'Nonaktif') : config('mahasiswa.status');
 
         if (! $user) {
@@ -59,8 +59,9 @@ class DashboardController extends Controller
             'pengajuanRoute' => $user->dosen ? 'pengajuan.dosen' : 'pengajuan.index',
             'totalPengajuan' => (clone $pengajuan)->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count(),
             'totalKegiatan' => (clone $query)->count(),
-            'totalPrestasi' => Prestasi::whereHas('kegiatan', fn ($q) => $q->untukUser($user)->denganTanggal()
-                ->whereBetween('tanggal_mulai', [$semesterStart->toDateString(), $semesterStart->copy()->addMonths(6)->subDay()->toDateString()]))->count(),
+            'totalPrestasi' => Prestasi::query()->untukUser($user)
+                ->whereBetween('tanggal_mulai', [$semesterStart->toDateString(), $semesterStart->copy()->addMonths(6)->subDay()->toDateString()])
+                ->count(),
             'pengajuanTerbaru' => $pengajuan->with('statusTerkini')->latest('created_at')->orderByDesc('id_kegiatan')->limit(5)->get(),
         ]);
     }

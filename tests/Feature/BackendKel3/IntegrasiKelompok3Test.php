@@ -7,6 +7,7 @@ use App\Models\Berita;
 use App\Models\DetailKegiatan;
 use App\Models\Dosen;
 use App\Models\Kegiatan;
+use App\Models\Prestasi;
 use App\Models\Timeline;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,6 +49,32 @@ class IntegrasiKelompok3Test extends TestCase
     private function tambahStatus(Kegiatan $k, string $status, int $minutes = 0): void
     {
         Timeline::create(['id_kegiatan' => $k->getKey(), 'status' => $status, 'tanggal_status' => now()->addMinutes($minutes)]);
+    }
+
+    public function test_login_pengajuan_review_admin_kaprodi_sampai_unduh_surat(): void
+    {
+        $token = $this->postJson('/api/v1/login', [
+            'email' => $this->owner->email, 'password' => 'password', 'device_name' => 'integrasi',
+        ])->assertOk()->json('data.token');
+        $id = $this->withToken($token)->postJson('/api/v1/dosen/penelitian', [
+            'id_kategori' => $this->category, 'nama_kegiatan' => 'Riset untuk surat',
+        ])->assertCreated()->json('data.id_kegiatan');
+        $url = "/api/v1/dosen/pengajuan/$id";
+        $this->postJson("$url/dokumen", ['link_dokumen' => 'https://example.org/proposal.pdf'])->assertCreated();
+        $this->postJson("$url/ajukan")->assertCreated()->assertJsonPath('data.status', 'diajukan');
+        foreach (['admin' => 'direview', 'kaprodi' => 'diterima'] as $role => $status) {
+            $reviewer = User::create([
+                'id_role' => DB::table('roles')->insertGetId(['nama_role' => $role], 'id_role'),
+                'email' => "$role@test.local", 'password' => 'password', 'status' => true,
+            ]);
+            $this->travel(1)->minutes();
+            $this->actingAs($reviewer, 'sanctum')->postJson("/api/v1/$role/pengajuan/$id/keputusan", [
+                'aksi' => 'setujui', 'nomor_sk' => 'SK/Integrasi/1', 'tanggal_sk' => now()->toDateString(),
+            ])->assertOk()->assertJsonPath('data.status', $status);
+        }
+        $pdf = $this->actingAs($this->owner, 'sanctum')->get("$url/surat/pdf-final")
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
     }
 
     public function test_semua_modul_baru_memerlukan_dosen_aktif(): void
@@ -166,6 +193,37 @@ class IntegrasiKelompok3Test extends TestCase
         $this->get('/dosen/dashboard')->assertOk();
     }
 
+    public function test_form_berita_dosen_menyimpan_dan_mengajukan_ulang_id_yang_sama(): void
+    {
+        $this->actingAs($this->owner, 'web');
+        $base = '/api/v1/dosen/berita';
+        $prestasi = Prestasi::create([
+            'id_user' => $this->owner->getKey(), 'created_by' => $this->owner->getKey(),
+            'penyelenggara' => 'Prodi', 'lokasi' => 'Semarang', 'tingkat_kejuaraan' => 'nasional',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'bentuk_partisipasi' => 'individu',
+            'nama_lomba' => 'Lomba Riset', 'jenis_prestasi' => 'akademik', 'capaian' => 'Juara 1',
+        ]);
+        $this->getJson("$base/opsi")->assertOk()->assertJsonPath('data.prestasi.0.id_prestasi', $prestasi->getKey());
+        $form = ['judul' => 'Draf riset', 'isi' => '', 'status' => 'draft', 'id_prestasi' => $prestasi->getKey()];
+        $id = $this->post($base, $form, ['Accept' => 'application/json'])->assertCreated()->json('data.id_berita');
+        $url = "$base/$id";
+        $this->get("/berita/$id/edit")->assertOk()->assertSee("formBerita($id)", false);
+        $form = array_merge($form, ['_method' => 'PATCH', 'isi' => 'Isi berita baru', 'judul' => 'Judul baru']);
+        $this->post($url, $form)->assertOk();
+        $this->getJson($url)->assertOk()->assertJsonPath('data.judul_berita', 'Judul baru')->assertJsonPath('data.isi_berita', 'Isi berita baru');
+        $form['status'] = 'diajukan';
+        $this->post($url, $form)->assertOk();
+        $admin = User::factory()->create(['status' => true, 'id_role' => DB::table('roles')->insertGetId(['nama_role' => 'admin'], 'id_role')]);
+        $this->actingAs($admin, 'sanctum')->patchJson("/api/v1/berita/$id/tinjau", ['aksi' => 'revisi', 'catatan_revisi' => 'Perjelas capaian'])->assertOk();
+        app('auth')->forgetGuards();
+        $this->actingAs($this->owner, 'web')->getJson($url)->assertOk()->assertJsonPath('data.catatan_revisi', 'Perjelas capaian');
+        $form['isi'] = 'Capaian telah diperjelas';
+        $this->post($url, $form)->assertOk();
+        $this->getJson($url)->assertOk()->assertJsonPath('data.status', 'diajukan')->assertJsonPath('data.isi_berita', $form['isi']);
+        $this->assertDatabaseCount('berita', 1);
+        $this->assertDatabaseHas('berita', ['id_berita' => $id, 'id_prestasi' => $prestasi->getKey(), 'tanggal_publish' => null]);
+    }
+
     public function test_berita_draft_dapat_diubah_dan_diajukan_tanpa_menerbitkan_sendiri(): void
     {
         $this->actingAs($this->owner, 'sanctum');
@@ -179,5 +237,12 @@ class IntegrasiKelompok3Test extends TestCase
         $this->actingAs($this->owner, 'sanctum')->patchJson($url, ['status' => 'diajukan'])->assertOk();
         $this->patchJson($url, ['judul_berita' => 'Ubah sesudah kirim'])->assertForbidden();
         $this->assertNull(Berita::findOrFail($id)->tanggal_publish);
+        $admin = User::factory()->create(['status' => true, 'id_role' => DB::table('roles')->insertGetId(['nama_role' => 'admin'], 'id_role')]);
+        $review = "/api/v1/berita/$id/tinjau";
+        $this->actingAs($admin, 'sanctum')->patchJson($review, ['aksi' => 'revisi', 'catatan_revisi' => 'Perjelas judul'])->assertOk();
+        $this->actingAs($this->owner, 'sanctum')->getJson($url)->assertOk()->assertJsonPath('data.status', 'direvisi');
+        $this->patchJson($url, ['status' => 'diajukan', 'judul_berita' => 'Judul diperjelas'])->assertOk();
+        $this->actingAs($admin, 'sanctum')->patchJson($review, ['aksi' => 'terima'])->assertOk();
+        $this->actingAs($this->owner, 'sanctum')->getJson($url)->assertOk()->assertJsonPath('data.status', 'publish');
     }
 }

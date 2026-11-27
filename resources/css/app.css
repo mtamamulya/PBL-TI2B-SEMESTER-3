@@ -30,7 +30,7 @@ input, select, textarea, button {
     main p.text-2xl  { font-size: 1.125rem; line-height: 1.75rem; }
 }
 
-html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+html, body { overflow-x: clip; overscroll-behavior-x: none; }
 /* Kunci tinggi layar & scroll khusus layout Dosen agar sidebar dan header tetap diam */
 html:has(body.dosen-shell),
 body.dosen-shell {
@@ -48,6 +48,26 @@ body.dosen-shell [data-frontend-navigation] {
 }
 
 body.dosen-shell .frontend-main {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+html:has(body.mahasiswa-shell),
+body.mahasiswa-shell {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-shell] {
+    height: 100%;
+    overflow: hidden;
+}
+
+body.mahasiswa-shell [data-frontend-navigation] {
+    height: 100%;
+}
+
+body.mahasiswa-shell .frontend-main {
     min-height: 0;
     overflow-y: auto;
 }

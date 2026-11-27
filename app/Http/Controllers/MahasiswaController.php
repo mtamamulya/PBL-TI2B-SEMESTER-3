@@ -2,17 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel1\Kurikulum\KurikulumAngkatan;
 use App\BackendKel2\Akademik\PeriodeAkademik;
+use App\BackendKel2\Dashboard\ContohDashboardMahasiswa;
 use App\BackendKel2\Dashboard\DashboardController as BackendDashboardController;
 use App\BackendKel2\MataKuliah\MataKuliahController as BackendMataKuliahController;
 use App\BackendKel2\Prestasi\PrestasiController as BackendPrestasiController;
 use App\Models\Kegiatan;
+use App\Models\Mahasiswa;
+use App\Models\Prestasi;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use App\Models\AnggotaKegiatan;
+use App\Models\JenisDokumen;
 
 class MahasiswaController extends Controller
 {
@@ -87,25 +95,25 @@ class MahasiswaController extends Controller
                 : $row['tahun'] === $periodeAktif['tahun'] && $row['semester'] === $periodeAktif['semester'];
         });
 
-        $prodiId = $mahasiswa
-            ? DB::table('enrollment_mahasiswa_tingkat_kelas as emtk')
-                ->join('enrollment_tingkat_kelas as etk', 'etk.id_enrollment_tingkat_kelas', '=', 'emtk.id_enrollment_tingkat_kelas')
-                ->join('tahun_akademik as ta', 'ta.id_tahun_akademik', '=', 'etk.id_tahun_akademik')
-                ->where('emtk.id_mahasiswa', $mahasiswa->getKey())
-                ->orderByDesc('ta.status')
-                ->orderByDesc('ta.id_tahun_akademik')
-                ->value('etk.id_prodi')
-            : null;
+        $penempatan = $this->penempatanMahasiswa($mahasiswa);
+        $prodiId = $penempatan?->id_prodi;
         $prodiId = $prodiId ?? ($enrollment->first()['id_prodi'] ?? null);
 
-        $kurikulumAktif = $prodiId
-            ? DB::table('kurikulum')->where('id_prodi', $prodiId)->where('status', true)->orderByDesc('id_kurikulum')->value('id_kurikulum')
+        $kurikulumAktif = $prodiId && $mahasiswa
+            ? KurikulumAngkatan::idUntukAngkatan((int) $mahasiswa->tahun_masuk, (int) $prodiId)
             : null;
         $sksTotal = $kurikulumAktif
             ? (int) DB::table('mata_kuliah')->where('id_kurikulum', $kurikulumAktif)->sum(DB::raw('sks_teori + sks_praktik'))
             : 0;
 
         $semua = $enrollment->map(fn ($row) => collect($row)->only(['mk', 'dosen', 'tingkat', 'semester', 'tahun'])->all())->values();
+        $contoh = app()->environment(['local', 'testing']) && $request->boolean('contoh')
+            ? ContohDashboardMahasiswa::data()
+            : null;
+        if ($contoh) {
+            $semua = collect($contoh['mata_kuliah']);
+        }
+
         $filter = [
             'q' => trim((string) $request->query('q')),
             'semester' => (string) $request->query('semester'),
@@ -142,6 +150,10 @@ class MahasiswaController extends Controller
             'dokumen_siap' => $data['dokumen_siap'],
         ];
 
+        if ($contoh) {
+            $ringkasan = $contoh['ringkasan'];
+        }
+
         return view('mahasiswa.mahasiswa.dashboard-mhs', [
             'nama' => $mahasiswa?->nama ?? $user->email,
             'ringkasan' => $ringkasan,
@@ -163,6 +175,23 @@ class MahasiswaController extends Controller
         ];
     }
 
+    private function penempatanMahasiswa(?Mahasiswa $mahasiswa): ?object
+    {
+        if (! $mahasiswa) {
+            return null;
+        }
+
+        return DB::table('enrollment_mahasiswa_tingkat_kelas as emtk')
+            ->join('enrollment_tingkat_kelas as etk', 'etk.id_enrollment_tingkat_kelas', '=', 'emtk.id_enrollment_tingkat_kelas')
+            ->join('tahun_akademik as ta', 'ta.id_tahun_akademik', '=', 'etk.id_tahun_akademik')
+            ->join('prodi as p', 'p.id_prodi', '=', 'etk.id_prodi')
+            ->where('emtk.id_mahasiswa', $mahasiswa->getKey())
+            ->orderByDesc('ta.status')
+            ->orderByDesc('ta.id_tahun_akademik')
+            ->select(['p.id_prodi', 'p.kode_prodi', 'p.nama_prodi'])
+            ->first();
+    }
+
     public function mataKuliah(Request $request, string $tab = 'berjalan')
     {
         abort_unless(in_array($tab, ['semua', 'berjalan', 'katalog', 'riwayat'], true), 404);
@@ -175,78 +204,131 @@ class MahasiswaController extends Controller
             'tahun' => (string) $request->query('tahun'),
         ];
 
-        $angkatan = (string) ($request->user()?->angkatan ?? config('mahasiswa.angkatan', '2024'));
-        $backend = app(BackendMataKuliahController::class);
+        $user = $request->user();
+        $mahasiswa = $user?->mahasiswa;
+        $penempatan = $this->penempatanMahasiswa($mahasiswa);
+        $kodeProdi = $penempatan?->kode_prodi;
+        $tahunMasuk = null;
 
-        $mapItem = function (array $item, string $defaultTahun = '2026/2027'): array {
-            $sks = isset($item['sks'])
-                ? (int) $item['sks']
-                : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
+        if ($user) {
+            $tahunMasuk = DB::table('mahasiswa')
+                ->where('id_user', $user->id_user ?? $user->id)
+                ->value('tahun_masuk');
+        }
 
-            $semesterRaw = $item['periode'] ?? $item['jenis_semester'] ?? $item['semester'] ?? 'Ganjil';
-            $periode = is_numeric($semesterRaw)
-                ? (((int) $semesterRaw % 2 === 1) ? 'Ganjil' : 'Genap')
-                : ucfirst(strtolower((string) $semesterRaw));
-
-            $tingkat = (int) ($item['tingkat'] ?? (is_numeric($semesterRaw) ? ceil(((int) $semesterRaw) / 2) : 1));
-
-            return [
-                'mk' => (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-'),
-                'dosen' => (string) ($item['dosen_pengampu'] ?? $item['dosen'] ?? $item['nama_dosen'] ?? '-'),
-                'tingkat' => max(1, min(4, $tingkat)),
-                'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
-                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahun),
-                'sks' => $sks > 0 ? $sks : null,
-            ];
-        };
-
-        $apiRequest = Request::create('/api/v1/mahasiswa', 'GET', array_filter([
-            'angkatan' => $angkatan,
-            'semester' => $filter['semester'] ?: null,
-            'tingkat' => $filter['tingkat'] ?: null,
-            'tahun_akademik' => $filter['tahun'] ?: null,
-            'q' => $filter['q'] ?: null,
-            'per_page' => 200,
-            'page' => 1,
-        ], fn ($v) => $v !== null));
+        $angkatan = (string) ($tahunMasuk ?: config('mahasiswa.angkatan', '2024'));
 
         $periodeAktif = class_exists(PeriodeAkademik::class)
             ? PeriodeAkademik::sekarang()
             : null;
 
         $tahunAktifLabel = $periodeAktif ? $periodeAktif->label() : '2026/2027 Ganjil';
-        $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : config('mahasiswa.semester', 5);
+        $semesterKe = $periodeAktif ? $periodeAktif->semesterKe($angkatan) : (int) config('mahasiswa.semester', 5);
         $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? '2026/2027';
 
-        $rows = collect();
+        $mapItem = function (array $item, string $defaultTahunLabel) use ($defaultTahun): array {
+            $sks = isset($item['sks'])
+                ? (int) $item['sks']
+                : ((int) ($item['sks_teori'] ?? 0) + (int) ($item['sks_praktik'] ?? 0));
+
+            $semesterAngka = isset($item['semester']) && is_numeric($item['semester'])
+                ? (int) $item['semester']
+                : null;
+
+            $semesterRaw = $item['periode'] ?? $item['jenis_semester'] ?? ($semesterAngka ?? 'Ganjil');
+            $periode = is_numeric($semesterRaw)
+                ? (((int) $semesterRaw % 2 === 1) ? 'Ganjil' : 'Genap')
+                : ucfirst(strtolower((string) $semesterRaw));
+
+            $tingkat = (int) ($item['tingkat'] ?? ($semesterAngka ? ceil($semesterAngka / 2) : 1));
+            $kodeMk = trim((string) ($item['kode_mk'] ?? ''));
+            $namaMk = (string) ($item['nama_mk'] ?? $item['nama_matakuliah'] ?? $item['nama'] ?? $item['mk'] ?? '-');
+
+            return [
+                'kode_mk' => $kodeMk,
+                'mk' => $kodeMk !== '' ? "{$kodeMk} - {$namaMk}" : $namaMk,
+                'semester_ke' => $semesterAngka,
+                'tingkat' => max(1, min(4, $tingkat)),
+                'periode' => in_array($periode, ['Ganjil', 'Genap'], true) ? $periode : 'Ganjil',
+                'tahun' => (string) ($item['tahun_akademik'] ?? $item['tahun'] ?? $defaultTahunLabel ?: $defaultTahun),
+                'sks' => $sks > 0 ? $sks : null,
+            ];
+        };
+
+        $fetchMataKuliahApi = function (array $params): array {
+            $apiClientClass = 'App\\Services\\ApiClient';
+            $apiExceptionClass = 'App\\Exceptions\\ApiException';
+
+            if (class_exists($apiClientClass)) {
+                try {
+                    $hasil = $apiClientClass::publik()->get('/mata-kuliah', $params);
+
+                    return is_array($hasil['data'] ?? null) ? $hasil['data'] : [];
+                } catch (\Throwable $e) {
+                    if (class_exists($apiExceptionClass) && $e instanceof $apiExceptionClass) {
+                        return [];
+                    }
+
+                    throw $e;
+                }
+            }
+
+            $response = Http::acceptJson()->timeout(10)
+                ->get('http://127.0.0.1:8001/api/v1/mata-kuliah', $params);
+
+            if (! $response->successful()) {
+                return [];
+            }
+
+            $data = $response->json('data');
+
+            return is_array($data) ? $data : [];
+        };
+
         $berjalan = collect();
         $arsip = collect();
         $katalog = collect();
+        $pesanApi = null;
 
-        try {
+        if ($angkatan !== null && filled($kodeProdi)) {
             if ($tab === 'berjalan') {
-                $res = $backend->semesterBerjalan($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $tahunAktifLabel = $res['periode_akademik'] ?? $tahunAktifLabel;
-                    $defaultTahun = explode(' ', $tahunAktifLabel)[0] ?? $defaultTahun;
-                    $berjalan = collect($res['data_mata_kuliah'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $berjalan;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'kode_prodi' => $kodeProdi,
+                    'semester' => $semesterKe,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $berjalan = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->values();
             } elseif ($tab === 'katalog') {
-                $res = $backend->katalogMataKuliah($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $katalog = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $katalog;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'kode_prodi' => $kodeProdi,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $katalog = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->values();
             } else {
-                $res = $backend->riwayatAkademik($apiRequest)->getData(true);
-                if (($res['status'] ?? '') === 'success') {
-                    $arsip = collect($res['data'] ?? [])->map(fn ($item) => $mapItem($item, $defaultTahun))->values();
-                    $rows = $arsip;
-                }
+                $rawItems = $fetchMataKuliahApi(array_filter([
+                    'angkatan' => $angkatan,
+                    'kode_prodi' => $kodeProdi,
+                    'q' => $filter['q'] ?: null,
+                    'per_page' => 100,
+                ], fn ($v) => $v !== null));
+
+                $arsip = collect($rawItems)
+                    ->map(fn ($item) => $mapItem((array) $item, $tahunAktifLabel))
+                    ->filter(fn ($r) => $r['semester_ke'] !== null && $r['semester_ke'] < $semesterKe)
+                    ->values();
             }
-        } catch (\Throwable $e) {
-            // Jika API belum tersedia atau gagal, biarkan data kosong tanpa mengisi data tiruan
+        } else {
+            $pesanApi = 'Data angkatan atau program studi belum tersedia pada akun mahasiswa.';
         }
 
         // Filter sisi server (memastikan pencarian & dropdown tetap akurat)
@@ -262,7 +344,7 @@ class MahasiswaController extends Controller
         };
 
         $tahunList = $rows->pluck('tahun')
-            ->merge([$defaultTahun])
+            ->merge([$tahunAktifLabel, $defaultTahun])
             ->filter()
             ->unique()
             ->sortDesc()
@@ -272,18 +354,20 @@ class MahasiswaController extends Controller
         $pesanKosong = $rows->isEmpty() ? 'Belum ada data untuk ditampilkan' : null;
 
         return view('mahasiswa.mahasiswa.mata-kuliah', [
-            'nama' => config('mahasiswa.nama'),
-            'profil' => ['nim' => config('mahasiswa.nim'), 'prodi' => config('mahasiswa.prodi')],
+            'nama' => $mahasiswa?->nama ?? $user?->email ?? 'Mahasiswa',
+            'profil' => [
+                'nim' => $mahasiswa?->nim ?? '—',
+                'prodi' => $penempatan?->nama_prodi ?? '—',
+            ],
             'tab' => $tab,
             'rows' => $rows,
             'pesanKosong' => $pesanKosong,
+            'pesanApi' => $pesanApi,
             'filter' => $filter,
             'tahunList' => $tahunList,
             'ringkasan' => [
                 'tahun_akademik' => $tahunAktifLabel,
                 'semester_ke' => $semesterKe,
-                'sks_tempuh' => 84,
-                'sks_total' => 144,
                 'sks_diambil' => $berjalan->sum('sks'),
                 'jumlah_berjalan' => $berjalan->count(),
             ],
@@ -292,127 +376,182 @@ class MahasiswaController extends Controller
 
     public function prestasi(Request $request)
     {
-        $backend = app(BackendPrestasiController::class);
-        $semua = collect();
+        $user = $request->user();
+        $mahasiswa = $user?->mahasiswa;
+        $penempatan = $this->penempatanMahasiswa($mahasiswa);
+        $prestasi = Prestasi::query()
+            ->untukUser($user)
+            ->with(['kegiatan', 'buktiPrestasi.jenisDokumen', 'creator.mahasiswa', 'creator.dosen'])
+            ->latest('id_prestasi')
+            ->get()
+            ->map(function (Prestasi $record) use ($user): array {
+                $tanggal = $record->tanggal_mulai;
+                $pembuat = $record->creator?->mahasiswa?->nama
+                    ?? $record->creator?->dosen?->nama
+                    ?? $record->creator?->email
+                    ?? '—';
 
-        try {
-            $res = $backend->index($request)->getData(true);
-            if (($res['status'] ?? '') === 'success') {
-                $semua = collect($res['data'] ?? []);
-            }
-        } catch (\Throwable $e) {
-            // Biarkan kosong jika gagal memuat data
-        }
-
-        $filter = [
-            'q' => trim((string) $request->query('q')),
-            'tingkat' => (string) $request->query('tingkat'),
-            'jenis' => (string) $request->query('jenis'),
-            'tahun' => (string) $request->query('tahun'),
-        ];
-
-        $rows = $semua->filter(function ($r) use ($filter) {
-            $teks = ($r['nama'] ?? '').' '.($r['penyelenggara'] ?? '').' '.($r['kegiatan'] ?? '');
-
-            return ($filter['q'] === '' || mb_stripos($teks, $filter['q']) !== false)
-                && ($filter['tingkat'] === '' || ($r['tingkat'] ?? '') === $filter['tingkat'])
-                && ($filter['jenis'] === '' || ($r['jenis'] ?? '') === $filter['jenis'])
-                && ($filter['tahun'] === '' || ($r['tahun'] ?? '') === $filter['tahun']);
-        })->values();
+                return [
+                    'id' => (int) $record->getKey(),
+                    'nama' => $record->nama_lomba,
+                    'kategori' => $record->bidang_lomba ?: ($record->form_data['kategori'] ?? 'Lainnya'),
+                    'bentuk' => ucfirst($record->bentuk_partisipasi),
+                    'capaian' => $record->capaian,
+                    'tingkat' => ucwords($record->tingkat_kejuaraan),
+                    'jenis' => $record->jenis_prestasi === 'non-akademik' ? 'Nonakademik' : 'Akademik',
+                    'penyelenggara' => $record->penyelenggara,
+                    'tanggal' => $tanggal?->format('d/m/Y') ?? '—',
+                    'tahun' => $tanggal?->year ?? '—',
+                    'kegiatan' => $record->kegiatan?->nama_kegiatan ?? 'Tidak terkait',
+                    'bukti' => $record->buktiPrestasi->map(fn ($bukti) => [
+                        'id' => (int) $bukti->getKey(),
+                        'jenis' => $bukti->jenisDokumen?->nama_jenis_dokumen ?? 'Dokumen bukti',
+                        'nama' => $bukti->nama_file,
+                        'url' => $bukti->link,
+                    ])->all(),
+                    'ditag' => (int) $record->id_user !== (int) $user?->getKey(),
+                    'pembuat' => $pembuat,
+                    'bisaUbah' => (int) $record->created_by === (int) $user?->getKey(),
+                ];
+            })->values();
 
         return view('mahasiswa.mahasiswa.prestasi', [
-            'nama' => $request->user()?->mahasiswa?->nama ?? $request->user()?->email ?? config('mahasiswa.nama'),
-            'profil' => ['nim' => config('mahasiswa.nim'), 'prodi' => config('mahasiswa.prodi')],
-            'rows' => $rows,
-            'total' => $semua->count(),
-            'filter' => $filter,
-            'tingkatList' => ['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
-            'jenisList' => ['Akademik', 'Nonakademik'],
-            'tahunList' => $semua->pluck('tahun')->filter()->unique()->sortDesc()->values()->all(),
-            'ringkasan' => [
-                'total' => $semua->count(),
-                'akademik' => $semua->where('jenis', 'Akademik')->count(),
-                'nonakademik' => $semua->where('jenis', 'Nonakademik')->count(),
-                'akademik_ket' => 'Teknologi rekayasa komputer',
-                'nonakademik_ket' => 'Desain dan kreativitas',
+            'nama' => $mahasiswa?->nama ?? $user?->email ?? 'Mahasiswa',
+            'profil' => [
+                'nim' => $mahasiswa?->nim ?? '—',
+                'prodi' => $penempatan?->nama_prodi ?? '—',
             ],
+            'prestasi' => $prestasi,
+            'total' => $prestasi->count(),
+            'akademik' => $prestasi->where('jenis', 'Akademik')->count(),
+            'nonakademik' => $prestasi->where('jenis', 'Nonakademik')->count(),
+            'tingkatList' => ['Internal', 'Regional', 'Nasional', 'Internasional'],
+            'jenisList' => ['Akademik', 'Nonakademik'],
+            'tahunList' => $prestasi->pluck('tahun')->filter()->unique()->sortDesc()->values()->all(),
         ]);
     }
 
-    public function prestasiTambah()
+    public function profil(Request $request)
     {
-        $kegiatanList = Kegiatan::untukPrestasi(request()->user())
+        $user = $request->user();
+        $mahasiswa = $user?->mahasiswa;
+        $penempatan = $this->penempatanMahasiswa($mahasiswa);
+
+        return view('mahasiswa.mahasiswa.profil', [
+            'nama' => $mahasiswa?->nama ?? $user?->email ?? 'Mahasiswa',
+            'angkatan' => $mahasiswa?->tahun_masuk ?? '—',
+            'email' => $user?->email ?? '—',
+            'nim' => $mahasiswa?->nim ?? '—',
+            'prodi' => $penempatan?->nama_prodi ?? '—',
+            'status' => $mahasiswa?->status_mahasiswa ?? ($user?->status ? 'Aktif' : 'Nonaktif'),
+        ]);
+    }
+
+    public function prestasiTambah(Request $request)
+    {
+        $user = $request->user();
+        $mahasiswa = $user?->mahasiswa;
+        $penempatan = $this->penempatanMahasiswa($mahasiswa);
+        $kegiatanList = Kegiatan::untukPrestasi($user)
             ->with(['kategori', 'detail.isianKategori'])->orderBy('nama_kegiatan')->get()
             ->map(fn (Kegiatan $activity) => [
                 'id' => $activity->getKey(),
-                'label' => $activity->nama_kegiatan.' • '.$activity->kategori->nama_kategori.' (#'.$activity->getKey().')',
+                'label' => $activity->nama_kegiatan.' • '.($activity->kategori?->nama_kategori ?? 'Kegiatan').' (#'.$activity->getKey().')',
                 'nama' => $activity->nama_kegiatan,
                 'penyelenggara' => $activity->nilaiIsian('penyelenggara') ?? '',
             ]);
 
         return view('mahasiswa.mahasiswa.prestasi-tambah', [
-            'nama' => config('mahasiswa.nama'),
-            'profil' => ['nim' => config('mahasiswa.nim'), 'prodi' => config('mahasiswa.prodi')],
-            'tingkatList' => ['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
+            'nama' => $mahasiswa?->nama ?? $user?->email ?? 'Mahasiswa',
+            'profil' => [
+                'nim' => $mahasiswa?->nim ?? '—',
+                'prodi' => $penempatan?->nama_prodi ?? '—',
+            ],
+            'tingkatList' => ['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'],
             'jenisList' => ['Akademik', 'Nonakademik'],
             'jenisDokList' => ['Sertifikat', 'Dokumentasi kegiatan'],
-            'daftarMahasiswa' => ['Ivan Sigit Santoso', 'Anisa Aulia Nurusyifa', config('mahasiswa.nama'), 'Dewi Lestari', 'Fajar Nugroho', 'Rizky Pratama', 'Salsabila Putri'],
-            'peranList' => ['Ketua', 'Anggota'],
+            'daftarMahasiswa' => DB::table('mahasiswa')
+                ->where('id_user', '<>', $user?->getKey())
+                ->orderBy('nama')
+                ->pluck('nama')
+                ->all(),
+            'peranList' => ['Anggota'],
             'kegiatanList' => $kegiatanList,
         ]);
     }
 
     public function prestasiSimpan(Request $request)
     {
-        return app(BackendPrestasiController::class)->simpan($request);
+        $data = $this->validasiPrestasi($request);
+        $this->simpanPrestasi($data, $request->user());
+
+        return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil disimpan.');
     }
 
-    public function prestasiEdit(string $prestasi)
+    public function prestasiEdit(Request $request, string $prestasi)
     {
-        $data = [
-            'id' => $prestasi,
-            'sumber' => 'sebelumnya',
-            'kegiatan' => 'Lomba inovasi IoT 2026 • Lomba',
-            'nama_lomba' => 'Lomba Inovasi Internet of Things',
-            'penyelenggara' => 'Forum Inovasi Teknologi',
-            'lokasi' => 'Semarang',
-            'dosen' => 'Tahan Prahara',
-            'tingkat' => 'Nasional',
-            'capaian' => 'Juara 2',
-            'jenis' => 'Akademik',
-            'kategori' => 'Teknologi',
-            'tanggal_mulai' => '2026-09-22',
-            'tanggal_selesai' => '2026-09-24',
-            'bentuk' => 'Tim',
-            'deskripsi' => 'Mengembangkan sistem pemantauan berbasis IoT untuk lomba tingkat nasional.',
-            'anggota' => [
-                ['nama' => 'Ivan Sigit Santoso',    'peran' => 'Anggota'],
-                ['nama' => 'Anisa Aulia Nurusyifa', 'peran' => 'Anggota'],
-            ],
-            'dokumen' => [
-                ['id' => 11, 'jenis' => 'Sertifikat',    'nama' => 'sertifikat-iot.pdf', 'ukuran' => '1,2 MB', 'url' => null],
-                ['id' => 12, 'jenis' => 'Dokumentasi kegiatan', 'nama' => 'foto-iot.jpg', 'ukuran' => '2,4 MB', 'url' => null],
-            ],
-        ];
+        $record = Prestasi::query()
+            ->where('created_by', $request->user()->getKey())
+            ->with(['kegiatan.kategori', 'buktiPrestasi.jenisDokumen'])
+            ->findOrFail($prestasi);
+        $formData = is_array($record->form_data) ? $record->form_data : [];
+        $activity = $record->kegiatan;
 
-        return $this->prestasiTambah()->with('prestasi', $data);
+        $data = array_merge($formData, [
+            'id' => (int) $record->getKey(),
+            'sumber' => $record->id_kegiatan ? 'sebelumnya' : 'mandiri',
+            'id_kegiatan' => $record->id_kegiatan,
+            'kegiatan' => $activity
+                ? $activity->nama_kegiatan.' • '.($activity->kategori?->nama_kategori ?? 'Kegiatan').' (#'.$activity->getKey().')'
+                : '',
+            'nama_lomba' => $record->nama_lomba,
+            'penyelenggara' => $record->penyelenggara,
+            'lokasi' => $record->lokasi,
+            'dosen' => $record->dosen_pembimbing,
+            'tingkat' => ucwords($record->tingkat_kejuaraan),
+            'capaian' => $record->capaian,
+            'jenis' => $record->jenis_prestasi === 'non-akademik' ? 'Nonakademik' : 'Akademik',
+            'kategori' => $record->bidang_lomba ?? '',
+            'tanggal_mulai' => $record->tanggal_mulai?->toDateString(),
+            'tanggal_selesai' => $record->tanggal_selesai?->toDateString(),
+            'bentuk' => ucfirst($record->bentuk_partisipasi),
+            'deskripsi' => $record->deskripsi ?? '',
+            'dokumen' => $record->buktiPrestasi->map(fn ($bukti) => [
+                'id' => (int) $bukti->getKey(),
+                'jenis' => $bukti->jenisDokumen?->nama_jenis_dokumen ?? 'Dokumen bukti',
+                'nama' => $bukti->nama_file,
+                'ukuran' => '',
+                'url' => $bukti->link,
+            ])->all(),
+        ]);
+
+        return $this->prestasiTambah($request)->with('prestasi', $data);
     }
 
     public function prestasiUpdate(Request $request, string $prestasi)
     {
-        $data = $this->validasiPrestasi($request);
+        $record = Prestasi::query()
+            ->where('created_by', $request->user()->getKey())
+            ->findOrFail($prestasi);
+        $data = $this->validasiPrestasi($request, $record);
+        $this->simpanPrestasi($data, $request->user(), $record);
 
         return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil diperbarui.');
     }
 
-    public function prestasiHapus(string $prestasi)
+    public function prestasiHapus(Request $request, string $prestasi)
     {
+        $record = Prestasi::query()
+            ->where('created_by', $request->user()->getKey())
+            ->findOrFail($prestasi);
+        $record->delete();
+
         return redirect()->route('mahasiswa.prestasi')->with('status', 'Prestasi berhasil dihapus.');
     }
 
-    private function validasiPrestasi(Request $request): array
+    private function validasiPrestasi(Request $request, ?Prestasi $record = null): array
     {
-        $tingkat = ['Internal', 'Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'];
+        $tingkat = ['Kabupaten/Kota', 'Provinsi', 'Nasional', 'Internasional'];
         $jenisDok = ['Sertifikat', 'Dokumentasi kegiatan'];
 
         $validator = Validator::make($request->all(), [
@@ -430,9 +569,9 @@ class MahasiswaController extends Controller
             'tanggal_mulai' => ['required', 'date'],
             'tanggal_selesai' => ['required', 'date', 'after_or_equal:tanggal_mulai'],
             'bentuk' => ['required', Rule::in(['Individu', 'Tim'])],
-            'anggota' => ['exclude_unless:bentuk,Tim', 'required', 'array', 'min:1'],
+            'anggota' => ['exclude_unless:bentuk,Tim', 'exclude_unless:sumber,mandiri', 'required', 'array', 'min:1'],
             'anggota.*.nama' => ['required', 'string', 'max:150'],
-            'anggota.*.peran' => ['required', 'string', 'max:100'],
+            'anggota.*.peran' => ['required', Rule::in(['Anggota'])],
             'deskripsi' => ['nullable', 'string', 'max:1000'],
             'dokumen' => ['nullable', 'array', 'max:5'],
             'dokumen.*' => ['array:url,jenis'],
@@ -460,6 +599,8 @@ class MahasiswaController extends Controller
             'dokumen.*.jenis' => ['nullable', Rule::in($jenisDok)],
             'dokumen_pertahankan' => ['nullable', 'array', 'max:5'],
             'dokumen_pertahankan.*' => ['integer'],
+            'dokumen_pertahankan' => ['nullable', 'array', 'max:5'],
+            'dokumen_pertahankan.*' => ['integer'],
             'dokumen_hapus' => ['nullable', 'array'],
             'dokumen_hapus.*' => ['integer'],
         ], [
@@ -480,13 +621,33 @@ class MahasiswaController extends Controller
             'dokumen.*.url' => 'Tautan bukti', 'dokumen.*.jenis' => 'Jenis dokumen',
         ]);
 
-        $validator->after(function ($validator) use ($request) {
+        $validator->after(function ($validator) use ($request, $record) {
             if ($request->input('sumber') === 'sebelumnya' && ! $validator->errors()->has('id_kegiatan')
                 && ! Kegiatan::untukPrestasi($request->user())->whereKey($request->integer('id_kegiatan'))->exists()) {
                 $validator->errors()->add('kegiatan', 'Pilih kegiatan yang sudah diterima dan Anda ikuti.');
             }
+
+            if ($request->input('sumber') === 'mandiri' && $request->input('bentuk') === 'Tim') {
+                $anggota = collect($request->input('anggota', []));
+                $namaAnggota = $anggota->pluck('nama')->map(fn ($nama) => mb_strtolower(trim((string) $nama)));
+                if ($namaAnggota->contains(mb_strtolower((string) $request->user()?->mahasiswa?->nama))
+                    || $namaAnggota->duplicates()->isNotEmpty()) {
+                    $validator->errors()->add('anggota', 'Nama anggota tidak boleh sama atau berulang.');
+                }
+
+                foreach ($anggota as $index => $anggotaData) {
+                    $jumlahMahasiswa = DB::table('mahasiswa')
+                        ->whereRaw('LOWER(nama) = ?', [mb_strtolower(trim((string) ($anggotaData['nama'] ?? '')))])
+                        ->count();
+                    if ($jumlahMahasiswa !== 1) {
+                        $validator->errors()->add("anggota.$index.nama", 'Pilih nama mahasiswa yang terdaftar dan tidak ambigu.');
+                    }
+                }
+            }
+
             $dokumenList = $request->input('dokumen', []);
             $jumlahDokumenBaru = 0;
+            $tautan = [];
             if (is_array($dokumenList)) {
                 foreach ($dokumenList as $index => $dokumen) {
                     if (! is_array($dokumen)) {
@@ -495,9 +656,9 @@ class MahasiswaController extends Controller
 
                     $punyaTaitan = filled($dokumen['url'] ?? null);
                     $punyaJenis = filled($dokumen['jenis'] ?? null);
-
                     if ($punyaTaitan && $punyaJenis) {
                         $jumlahDokumenBaru++;
+                        $tautan[] = strtolower($dokumen['url']);
                     }
 
                     if ($punyaTaitan !== $punyaJenis) {
@@ -510,12 +671,110 @@ class MahasiswaController extends Controller
             }
 
             $dokumenDipertahankan = $request->input('dokumen_pertahankan', []);
-            $jumlahDipertahankan = is_array($dokumenDipertahankan) ? count($dokumenDipertahankan) : 0;
+            $dokumenDipertahankan = is_array($dokumenDipertahankan) ? array_unique($dokumenDipertahankan) : [];
+            if ($record && $dokumenDipertahankan !== []) {
+                $dokumenLama = $record->buktiPrestasi()
+                    ->whereIn('id_bukti_prestasi', $dokumenDipertahankan)
+                    ->get(['id_bukti_prestasi', 'link']);
+                if ($dokumenLama->count() !== count($dokumenDipertahankan)) {
+                    $validator->errors()->add('dokumen_pertahankan', 'Dokumen yang dipertahankan tidak valid.');
+                }
+                $tautan = array_merge($tautan, $dokumenLama->pluck('link')->map(fn ($link) => strtolower($link))->all());
+            } elseif (! $record && $dokumenDipertahankan !== []) {
+                $validator->errors()->add('dokumen_pertahankan', 'Dokumen lama tidak dapat digunakan untuk prestasi baru.');
+            }
+
+            if (count($tautan) !== count(array_unique($tautan))) {
+                $validator->errors()->add('dokumen', 'Tautan dokumen tidak boleh duplikat.');
+            }
+
+            $jumlahDipertahankan = count($dokumenDipertahankan);
             if ($jumlahDokumenBaru + $jumlahDipertahankan === 0) {
                 $validator->errors()->add('dokumen', 'Tambahkan minimal satu tautan bukti prestasi.');
+            } elseif ($jumlahDokumenBaru + $jumlahDipertahankan > 5) {
+                $validator->errors()->add('dokumen', 'Maksimal 5 dokumen.');
             }
         });
 
         return $validator->validate();
+    }
+
+    private function simpanPrestasi(array $data, User $user, ?Prestasi $record = null): void
+    {
+        $formData = Arr::only($data, [
+            'sumber', 'kegiatan', 'nama_lomba', 'penyelenggara', 'lokasi',
+            'dosen', 'tingkat', 'capaian', 'jenis', 'kategori',
+            'tanggal_mulai', 'tanggal_selesai', 'bentuk', 'anggota', 'deskripsi',
+        ]);
+        if ($data['sumber'] !== 'mandiri' || $data['bentuk'] !== 'Tim') {
+            unset($formData['anggota']);
+        }
+
+        $attributes = [
+            'id_user' => $record?->id_user ?? $user->getKey(),
+            'created_by' => $record?->created_by ?? $user->getKey(),
+            'id_kegiatan' => $data['sumber'] === 'sebelumnya' ? $data['id_kegiatan'] : null,
+            'capaian' => $data['capaian'],
+            'jenis_prestasi' => $data['jenis'] === 'Akademik' ? 'akademik' : 'non-akademik',
+            'bidang_lomba' => $data['kategori'] ?? null,
+            'nama_lomba' => $data['nama_lomba'],
+            'penyelenggara' => $data['penyelenggara'],
+            'lokasi' => $data['lokasi'],
+            'dosen_pembimbing' => $data['dosen'] ?? null,
+            'tingkat_kejuaraan' => strtolower($data['tingkat']),
+            'tanggal_mulai' => $data['tanggal_mulai'],
+            'tanggal_selesai' => $data['tanggal_selesai'],
+            'bentuk_partisipasi' => strtolower($data['bentuk']),
+            'deskripsi' => $data['deskripsi'] ?? null,
+            'form_data' => $formData,
+        ];
+        $dokumenDipertahankan = $data['dokumen_pertahankan'] ?? [];
+
+        DB::transaction(function () use ($data, $attributes, $record, $dokumenDipertahankan) {
+            if ($record) {
+                $record->update($attributes);
+                $record->buktiPrestasi()
+                    ->whereNotIn('id_bukti_prestasi', $dokumenDipertahankan)
+                    ->delete();
+            } else {
+                $record = Prestasi::create($attributes);
+            }
+
+            if ($data['sumber'] === 'mandiri' && $data['bentuk'] === 'Tim') {
+                $daftarAnggota = collect($data['anggota'])
+                    ->map(function (array $anggota) {
+                        $idUser = DB::table('mahasiswa')
+                            ->whereRaw('LOWER(nama) = ?', [mb_strtolower(trim($anggota['nama']))])
+                            ->value('id_user');
+
+                        return ['id_user' => (int) $idUser, 'peran' => 'anggota'];
+                    })
+                    ->push(['id_user' => (int) $record->id_user, 'peran' => 'ketua'])
+                    ->all();
+
+                AnggotaKegiatan::simpanDaftar($record, $daftarAnggota);
+            } else {
+                DB::table('anggota_kegiatan')->where('id_prestasi', $record->getKey())->delete();
+            }
+
+            foreach ($data['dokumen'] ?? [] as $dokumen) {
+                if (blank($dokumen['url'] ?? null) || blank($dokumen['jenis'] ?? null)) {
+                    continue;
+                }
+
+                $jenis = JenisDokumen::firstOrCreate([
+                    'nama_jenis_dokumen' => $dokumen['jenis'],
+                ]);
+                $record->buktiPrestasi()->create([
+                    'id_jenis_dokumen' => $jenis->getKey(),
+                    'link' => $dokumen['url'],
+                    'nama_file' => mb_substr(
+                        basename(parse_url($dokumen['url'], PHP_URL_PATH) ?? '') ?: $dokumen['jenis'],
+                        0,
+                        255
+                    ),
+                ]);
+            }
+        });
     }
 }

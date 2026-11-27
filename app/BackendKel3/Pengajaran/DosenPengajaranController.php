@@ -116,6 +116,8 @@ class DosenPengajaranController extends Controller
                         'prodi' => $item->enrollmentTingkatKelas->prodi->jenjang.' '.$item->enrollmentTingkatKelas->prodi->nama_prodi,
                         'rombel' => (string) $item->id_enrollment_tingkat_kelas,
                         'matkul' => (string) $item->id_enrollment_mk,
+                        'id_mk' => (string) $item->enrollmentMataKuliah->id_mk,
+                        'id_kurikulum' => (string) ($item->enrollmentMataKuliah->mataKuliah->id_kurikulum ?? ''),
                     ],
                 ],
             ]);
@@ -186,7 +188,7 @@ class DosenPengajaranController extends Controller
     {
         $data = $request->validate([
             'id_enrollment_tingkat_kelas' => ['required', 'integer', 'exists:enrollment_tingkat_kelas,id_enrollment_tingkat_kelas'],
-            'id_enrollment_mk' => ['required', 'integer', 'exists:enrollment_mata_kuliah,id_enrollment_mk'],
+            'id_mk' => ['required', 'integer', 'exists:mata_kuliah,id_mk'],
             'dokumen' => ['nullable', 'array'],
             'dokumen.*.nama' => ['required', 'string', 'max:255'],
             'dokumen.*.id_jenis_dokumen' => ['required', 'integer', 'exists:jenis_dokumen,id_jenis_dokumen'],
@@ -194,8 +196,8 @@ class DosenPengajaranController extends Controller
         ], [
             'id_enrollment_tingkat_kelas.required' => 'Kelas wajib dipilih.',
             'id_enrollment_tingkat_kelas.exists' => 'Kelas yang dipilih tidak ditemukan.',
-            'id_enrollment_mk.required' => 'Mata kuliah wajib dipilih.',
-            'id_enrollment_mk.exists' => 'Mata kuliah yang dipilih tidak ditemukan.',
+            'id_mk.required' => 'Mata kuliah wajib dipilih.',
+            'id_mk.exists' => 'Mata kuliah yang dipilih tidak ditemukan.',
             'dokumen.*.nama.required' => 'Nama dokumen wajib diisi.',
             'dokumen.*.id_jenis_dokumen.required' => 'Jenis dokumen wajib dipilih.',
             'dokumen.*.id_jenis_dokumen.exists' => 'Jenis dokumen tidak valid.',
@@ -204,12 +206,16 @@ class DosenPengajaranController extends Controller
         ]);
 
         $rombel = EnrollmentTingkatKelas::findOrFail($data['id_enrollment_tingkat_kelas']);
-        $mataKuliah = EnrollmentMataKuliah::findOrFail($data['id_enrollment_mk']);
 
-        if ((int) $rombel->id_tahun_akademik !== (int) $mataKuliah->id_tahun_akademik) {
-            throw ValidationException::withMessages([
-                'id_enrollment_mk' => 'Mata kuliah ini tidak ditawarkan pada tahun akademik kelas yang dipilih.',
-            ]);
+        $mataKuliah = EnrollmentMataKuliah::where('id_mk', $data['id_mk'])
+            ->where('id_tahun_akademik', $rombel->id_tahun_akademik)
+            ->first();
+
+        if (! $mataKuliah) {
+            $mataKuliah = new EnrollmentMataKuliah;
+            $mataKuliah->id_mk = $data['id_mk'];
+            $mataKuliah->id_tahun_akademik = $rombel->id_tahun_akademik;
+            $mataKuliah->save();
         }
 
         $sudahAda = EnrollmentKelasMataKuliah::query()
@@ -220,11 +226,13 @@ class DosenPengajaranController extends Controller
 
         if ($sudahAda) {
             throw ValidationException::withMessages([
-                'id_enrollment_mk' => (int) $sudahAda->id_dosen === $idDosen
+                'id_mk' => (int) $sudahAda->id_dosen === $idDosen
                     ? 'Anda sudah mengampu mata kuliah ini di kelas tersebut.'
                     : 'Mata kuliah ini di kelas tersebut sudah diampu dosen lain.',
             ]);
         }
+
+        $data['id_enrollment_mk'] = $mataKuliah->getKey();
 
         return $data;
     }

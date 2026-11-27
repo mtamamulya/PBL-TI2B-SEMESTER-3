@@ -20,6 +20,16 @@ class DashboardController extends Controller
         return ApiResponse::ok($this->dataMahasiswa($user), 'Ringkasan dashboard mahasiswa berhasil diambil.');
     }
 
+    public function contohMahasiswa()
+    {
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        return ApiResponse::ok(
+            ContohDashboardMahasiswa::data(),
+            'Data contoh dashboard mahasiswa berhasil diambil.'
+        );
+    }
+
     public function dataMahasiswa(User $user): array
     {
         $activities = Kegiatan::query()->untukUser($user)

@@ -4,24 +4,16 @@
 
 @section('content')
 
-@php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    // type: pengajuan | tim | sistem.   g: kelompok waktu (Hari ini | Kemarin | Lebih lama).
-    // href: tujuan saat notifikasi diklik. '#' = belum ada halamannya.
-    $notifikasi = [
-        ['id' => 1, 'g' => 'Hari ini',   'type' => 'pengajuan', 'title' => 'Pengajuan diterima',               'body' => 'Penelitian "Pengembangan Sistem Monitoring Berbasis IoT" telah diterima oleh admin.',                              'time' => '09.12',       'unread' => true,  'href' => '#'],
-        ['id' => 2, 'g' => 'Hari ini',   'type' => 'pengajuan', 'title' => 'Pengajuan perlu direvisi',         'body' => 'Pengabdian "Pelatihan Literasi Digital UMKM" dikembalikan dengan catatan: lengkapi nomor SK dan mitra.',          'time' => '08.40',       'unread' => true,  'href' => '#'],
-        ['id' => 3, 'g' => 'Hari ini',   'type' => 'tim',       'title' => 'Anda ditambahkan sebagai anggota', 'body' => 'Wiktasari menambahkan Anda sebagai anggota penelitian "Analisis Citra Satelit untuk Pemetaan Lahan".',            'time' => '07.55',       'unread' => true,  'href' => '#'],
-        ['id' => 4, 'g' => 'Kemarin',    'type' => 'pengajuan', 'title' => 'Pengajuan sedang direview',        'body' => 'Pengajuan penelitian "Model Prediksi Beban Listrik" mulai ditinjau oleh admin.',                                 'time' => '16.20',       'unread' => false, 'href' => '#'],
-        ['id' => 5, 'g' => 'Kemarin',    'type' => 'pengajuan', 'title' => 'Pengajuan ditolak',                'body' => 'Pengabdian "Penyuluhan Sanitasi Desa" ditolak. Lihat alasan penolakan pada detail pengajuan.',                   'time' => '10.05',       'unread' => false, 'href' => '#'],
-        ['id' => 6, 'g' => 'Kemarin',    'type' => 'sistem',    'title' => 'Kata sandi berhasil diubah',       'body' => 'Kata sandi akun Anda diubah dari halaman profil. Jika bukan Anda, segera hubungi admin.',                         'time' => '08.31',       'unread' => false, 'href' => route('profil')],
-        ['id' => 7, 'g' => 'Lebih lama', 'type' => 'pengajuan', 'title' => 'Kegiatan ditandai selesai',        'body' => 'Penelitian "Sistem Absensi Wajah" ditandai selesai. Dokumen laporan akhir sudah tersimpan.',                      'time' => '12 Okt 2026', 'unread' => false, 'href' => '#'],
-        ['id' => 8, 'g' => 'Lebih lama', 'type' => 'sistem',    'title' => 'Pengingat pembaruan data',         'body' => 'Periksa kembali riwayat pangkat dan golongan Anda sebelum akhir semester.',                                      'time' => '9 Okt 2026',  'unread' => false, 'href' => route('profil')],
-    ];
-@endphp
+    @php
+        // Alamat untuk menyimpan status "dibaca" ke server (supaya tidak hilang saat halaman dimuat ulang).
+        $konfig = [
+            'csrf' => csrf_token(),
+            'urlBaca' => url('/notifikasi/__ID__/baca'),
+            'urlSemua' => url('/notifikasi/baca-semua'),
+        ];
+    @endphp
 
-    {{-- Seluruh halaman memakai satu data Alpine: filter, daftar, dan status dibaca --}}
-    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi))">
+    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi ?? []), @js($konfig))">
 
         {{-- Judul + tombol --}}
         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -57,7 +49,7 @@
                     <ul class="overflow-hidden rounded-lg bg-white shadow-sm">
                         <template x-for="n in g.item" :key="n.id">
                             <li class="border-t border-gray-200 first:border-t-0">
-                                <a :href="n.href" x-on:click="n.href === '#' && $event.preventDefault(); baca(n)"
+                                <a :href="n.href" x-on:click="buka(n, $event)"
                                    :class="n.unread ? 'bg-blue-50' : 'bg-white'"
                                    class="flex items-start gap-3.5 px-5 py-4 hover:bg-blue-50/60">
                                     {{-- ikon sesuai jenis --}}
@@ -109,7 +101,7 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('notifikasi', (daftar) => ({
+        Alpine.data('notifikasi', (daftar, konfig) => ({
             daftar: daftar,
             filter: 'semua',
 
@@ -143,8 +135,44 @@
                     .filter(g => g.item.length > 0);
             },
 
-            baca(n) { n.unread = false; },
-            tandaiSemua() { this.daftar.forEach(n => { n.unread = false; }); },
+            // Kirim ke server. keepalive supaya permintaan tetap jalan walau halaman langsung berpindah ke detail.
+            kirim(url) {
+                return fetch(url, {
+                    method: 'POST',
+                    keepalive: true,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRF-TOKEN': konfig.csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+            },
+
+            async buka(n, event) {
+                const navigasiBiasa = !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
+                if (n.href === '#' || navigasiBiasa) event.preventDefault();
+                if (n.unread) {
+                    try {
+                        const response = await this.kirim(konfig.urlBaca.replace('__ID__', n.id));
+                        if (response.ok) n.unread = false;
+                    } catch {
+                        // Biarkan notifikasi belum dibaca jika penyimpanan gagal.
+                    }
+                }
+                if (navigasiBiasa && n.href !== '#') window.location.assign(n.href);
+            },
+
+            async tandaiSemua() {
+                const belum = this.daftar.filter(n => n.unread);
+                belum.forEach(n => { n.unread = false; });
+                try {
+                    const r = await this.kirim(konfig.urlSemua);
+                    if (!r.ok) throw new Error('gagal');
+                } catch (e) {
+                    belum.forEach(n => { n.unread = true; }); // batalkan bila server gagal menyimpan
+                }
+            },
         }));
     });
 </script>
