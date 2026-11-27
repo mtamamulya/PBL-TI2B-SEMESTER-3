@@ -591,7 +591,7 @@
                     Informasi mengenai program studi, persyaratan, dan tahapan pendaftaran dapat Anda pelajari terlebih
                     dahulu sebelum mengajukan pendaftaran sebagai mahasiswa baru.
                 </p>
-                <a href="https://pmb.polines.ac.id"
+                <a href="https://pmb.polines.ac.id" target="_blank"
                     class="mt-1 inline-flex items-center gap-1.5 rounded-md bg-[#0442AC] px-4 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-blue-800 md:text-xs">
                     Daftar Sekarang <x-icon name="arrow-right" :size="14" :stroke="2.5" />
                 </a>
