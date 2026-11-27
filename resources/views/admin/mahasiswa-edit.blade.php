@@ -25,7 +25,15 @@
 <main class="flex flex-col gap-8 px-4 py-8 lg:px-6">
     <div class="flex flex-col gap-2">
         <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Edit Mahasiswa</h1>
-        <div class="text-lg font-medium text-[#A8A8A8] lg:text-2xl lg:leading-[30px] lg:tracking-[-0.15px]">Dashboard / Data Mahasiswa / Detail / Edit</div>
+        <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-lg font-medium text-[#A8A8A8] lg:text-2xl lg:leading-[30px] lg:tracking-[-0.15px]">
+            <a href="{{ \Illuminate\Support\Facades\Route::has('admin.dashboard') ? route('admin.dashboard', [], false) : '/admin/dashboard' }}" class="transition-colors hover:text-[#2277FF]">Dashboard</a>
+            <span>/</span>
+            <a href="{{ route('admin.mahasiswa', [], false) }}" class="transition-colors hover:text-[#2277FF]">Data Mahasiswa</a>
+            <span>/</span>
+            <a href="{{ route('admin.mahasiswa.show', ['id' => $mhsId], false) }}" class="transition-colors hover:text-[#2277FF]">Detail</a>
+            <span>/</span>
+            <span>Edit</span>
+        </nav>   
     </div>
 
     @if ($errors->any())

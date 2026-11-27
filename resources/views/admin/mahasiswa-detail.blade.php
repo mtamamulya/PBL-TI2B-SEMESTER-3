@@ -31,7 +31,13 @@
     <div class="flex flex-wrap items-center gap-2">
         <div class="flex min-w-[240px] flex-1 flex-col gap-2">
             <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Detail Mahasiswa</h1>
-            <div class="text-2xl font-medium leading-[30px] tracking-[-0.15px] text-[#A8A8A8]">Dashboard / Mahasiswa / Detail</div>
+            <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-2xl font-medium leading-[30px] tracking-[-0.15px] text-[#A8A8A8]">
+                <a href="{{ \Illuminate\Support\Facades\Route::has('admin.dashboard') ? route('admin.dashboard', [], false) : '/admin/dashboard' }}" class="transition-colors hover:text-[#2277FF]">Dashboard</a>
+                <span>/</span>
+                <a href="{{ route('admin.mahasiswa', [], false) }}" class="transition-colors hover:text-[#2277FF]">Data Mahasiswa</a>
+                <span>/</span>
+                <span>Detail</span>
+            </nav>       
         </div>
         <a href="{{ route('admin.mahasiswa', [], false) }}" class="flex items-center justify-center gap-1 rounded-md bg-[#CDDEF9] px-4 py-2 text-lg font-medium tracking-[-0.18px] text-[#2277FF] shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6" /></svg>
