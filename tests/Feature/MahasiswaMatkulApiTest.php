@@ -15,7 +15,6 @@ class MahasiswaMatkulApiTest extends TestCase
     {
         parent::setUp();
 
-        // Memalsukan respons API luar (Kelompok 1)
         Http::fake([
             '*' => Http::response([
                 'status' => 'success',
@@ -47,6 +46,7 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'data',
                 'meta',
             ]);
@@ -60,11 +60,12 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
+                'semester',
                 'periode_akademik',
                 'summary',
                 'data_mata_kuliah',
                 'meta',
-                'dosen_pengampu',
             ]);
     }
 
@@ -76,10 +77,10 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'periode_aktif',
                 'data',
                 'meta',
-                'dosen_pengampu',
             ]);
     }
 }

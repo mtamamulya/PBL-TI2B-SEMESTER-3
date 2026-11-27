@@ -355,7 +355,7 @@ class MahasiswaController extends Controller
         };
 
         $tahunList = $rows->pluck('tahun')
-            ->merge([$tahunAktifLabel, $defaultTahun])
+            ->merge([$tahunAktifLabel])
             ->filter()
             ->unique()
             ->sortDesc()
