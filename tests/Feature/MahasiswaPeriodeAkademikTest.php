@@ -62,10 +62,12 @@ class MahasiswaPeriodeAkademikTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
+                'semester',
                 'periode_akademik',
                 'summary',
                 'data_mata_kuliah',
-                'dosen_pengampu',
+                'meta',
             ]);
     }
 
@@ -79,9 +81,10 @@ class MahasiswaPeriodeAkademikTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'periode_aktif',
                 'data',
-                'dosen_pengampu',
+                'meta',
             ]);
     }
 }
