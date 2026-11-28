@@ -7,7 +7,7 @@ use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class KategoriKegiatanController extends Controller
+class AdminKategoriKegiatanController extends Controller
 {
     private const JENIS_FORM = ['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'];
 

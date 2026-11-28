@@ -11,14 +11,16 @@ use Illuminate\Support\Carbon;
 /**
  * Query + format baris "Data Kegiatan" admin/kaprodi.
  * Aturan: hanya kegiatan yang status TERAKHIR di timeline = 'diterima'.
- * Jenis ditentukan role pembuat: 3 = dosen, 4 = mahasiswa, 1/2 = prodi.
+ * Untuk kegiatan yang dicatat Admin/Kaprodi, jenis mengikuti kategori.
  */
 class KegiatanAdminQuery
 {
     public const ROLE_JENIS = ['prodi' => [1, 2], 'dosen' => [3], 'mahasiswa' => [4]];
 
+    private const KATEGORI_PENCATAT = ['dosen' => 'Kegiatan Dosen', 'mahasiswa' => 'Kegiatan Mahasiswa'];
+
     private const RELASI = [
-        'kategori',
+        'kategori.jenisKegiatan',
         'user.dosen',
         'user.mahasiswa',
         'detail.isianKategori',
@@ -29,11 +31,24 @@ class KegiatanAdminQuery
     {
         return Kegiatan::with(self::RELASI)
             ->whereHas('statusTerkini', fn ($s) => $s->where('status', 'diterima'))
-            ->when(isset(self::ROLE_JENIS[$jenis]), fn (Builder $b) => $b->whereHas(
-                'user', fn ($u) => $u->whereIn('id_role', self::ROLE_JENIS[$jenis])
-            ))
+            ->when(isset(self::ROLE_JENIS[$jenis]), fn (Builder $b) => self::filterJenis($b, $jenis))
             ->when($idKategori, fn (Builder $b) => $b->where('id_kategori', $idKategori))
             ->when($q, fn (Builder $b) => $b->where('nama_kegiatan', 'like', '%'.addcslashes($q, '%_\\').'%'));
+    }
+
+    private static function filterJenis(Builder $query, string $jenis): Builder
+    {
+        $pencatat = fn (Builder $u) => $u->whereIn('id_role', self::ROLE_JENIS['prodi']);
+
+        if ($jenis === 'prodi') {
+            return $query->whereHas('user', $pencatat)
+                ->whereDoesntHave('kategori.jenisKegiatan', fn (Builder $k) => $k->whereIn('nama_jenis_kegiatan', array_values(self::KATEGORI_PENCATAT)));
+        }
+
+        return $query->where(fn (Builder $b) => $b
+            ->whereHas('user', fn (Builder $u) => $u->whereIn('id_role', self::ROLE_JENIS[$jenis]))
+            ->orWhere(fn (Builder $b) => $b->whereHas('user', $pencatat)
+                ->whereHas('kategori.jenisKegiatan', fn (Builder $k) => $k->where('nama_jenis_kegiatan', self::KATEGORI_PENCATAT[$jenis]))));
     }
 
     public static function jenisDariRole(?int $role): string
@@ -74,9 +89,13 @@ class KegiatanAdminQuery
         /** @var User|null $user */
         $user = $k->user;
         $jenis = self::jenisDariRole($user?->id_role);
+        $pencatat = in_array((int) $user?->id_role, self::ROLE_JENIS['prodi'], true);
+        if ($pencatat) {
+            $jenis = array_search($k->kategori?->jenisKegiatan?->nama_jenis_kegiatan, self::KATEGORI_PENCATAT, true) ?: 'prodi';
+        }
         $tanggal = $k->tanggal_mulai ?? $k->statusTerkini?->tanggal_status;
 
-        $pengaju = $jenis === 'prodi'
+        $pengaju = $pencatat
             ? ($user?->email ?? '-')
             : ($user?->dosen?->nama ?? $user?->mahasiswa?->nama ?? $user?->email ?? '-');
 
@@ -87,6 +106,7 @@ class KegiatanAdminQuery
             'id_kategori' => $k->id_kategori,
             'kategori' => $k->kategori?->nama_kategori ?? '-',
             'pengaju' => $pengaju,
+            'dicatat_tanpa_pemilik' => $pencatat && $jenis !== 'prodi',
             'tanggal' => $tanggal ? $tanggal->copy()->locale('id')->translatedFormat('j F Y') : '-',
             'raw_date' => $tanggal?->format('Y-m-d') ?? '',
             'tahun' => $tanggal ? (int) $tanggal->format('Y') : '',

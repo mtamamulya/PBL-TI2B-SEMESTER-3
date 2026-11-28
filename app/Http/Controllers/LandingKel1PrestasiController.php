@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Prestasi;
 
-class PrestasiController extends Controller
+class LandingKel1PrestasiController extends Controller
 {
     public function index()
     {

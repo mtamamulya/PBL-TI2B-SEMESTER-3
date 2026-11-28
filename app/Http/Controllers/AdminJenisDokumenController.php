@@ -7,7 +7,7 @@ use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class JenisDokumenController extends Controller
+class AdminJenisDokumenController extends Controller
 {
     public function index()
     {

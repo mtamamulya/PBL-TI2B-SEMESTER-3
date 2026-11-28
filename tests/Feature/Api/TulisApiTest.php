@@ -23,6 +23,11 @@ class TulisApiTest extends TestCase
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        Prodi::query()->create([
+            'kode_prodi' => 'PRODI-UJI',
+            'nama_prodi' => 'Prodi Uji',
+            'jenjang' => 'D4',
+        ]);
         Storage::fake('public');
     }
 

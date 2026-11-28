@@ -200,6 +200,25 @@ class KegiatanWebTest extends TestCase
             ->assertViewHas('d', fn ($d) => $d['judul'] === 'Hackathon' && $d['jenis'] === 'Kegiatan mahasiswa');
     }
 
+    public function test_detail_tanpa_pemilik_menampilkan_pencatat_dengan_daftar_anggota_kosong(): void
+    {
+        Http::fake([
+            '*/admin/kegiatan/12' => Http::response($this->detail([
+                'dicatat_tanpa_pemilik' => true, 'pengaju' => 'admin@test.local', 'anggota' => [],
+            ])),
+            '*/admin/kegiatan/9' => Http::response($this->detail([
+                'jenis' => 'mahasiswa', 'dicatat_tanpa_pemilik' => true, 'pengaju' => 'kaprodi@test.local', 'anggota' => [],
+            ])),
+        ]);
+
+        $this->admin()->get(route('admin.kegiatan.dosen.detail.show', 12))
+            ->assertOk()->assertSeeText('Pencatat')->assertSeeText('Tidak ada anggota.')
+            ->assertViewHas('d', fn ($d) => $d['info']['Pencatat'] === 'admin@test.local' && $d['anggota'] === []);
+        $this->kaprodi()->get(route('kaprodi.kegiatan.mahasiswa.show', 9))
+            ->assertOk()->assertSeeText('Pencatat')->assertSeeText('Tidak ada anggota.')
+            ->assertViewHas('d', fn ($d) => $d['pengaju'] === 'kaprodi@test.local' && $d['anggota'] === []);
+    }
+
     public function test_detail_is_404_when_api_says_so(): void
     {
         Http::fake(['*/admin/kegiatan/999' => Http::response(['success' => false, 'message' => 'Kegiatan tidak ditemukan.', 'errors' => []], 404)]);

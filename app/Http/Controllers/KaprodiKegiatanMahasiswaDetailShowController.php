@@ -65,6 +65,7 @@ class KaprodiKegiatanMahasiswaDetailShowController extends Controller
 
     private function susunDetail(array $row): array
     {
+        $pencatat = $row['dicatat_tanpa_pemilik'] ?? false;
         $pengaju = $this->teks($row, 'pengaju');
         $tanggal = $this->teks($row, 'tanggal');
         $status = $this->teks($row, 'status', 'Disetujui');
@@ -129,12 +130,13 @@ class KaprodiKegiatanMahasiswaDetailShowController extends Controller
             'judul' => $this->teks($row, 'nama'),
             'status' => $status,
             'pengaju' => $pengaju,
+            'label_pengaju' => $pencatat ? 'Pencatat' : 'Pengaju',
             'kategori' => $this->teks($row, 'kategori'),
             'jenis' => 'Kegiatan mahasiswa',
             'penyelenggara' => $penyelenggara,
             'tanggal' => $tanggal,
             'tambahan' => $tambahan,
-            'anggota' => $anggota ?: [['nama' => $pengaju, 'status' => 'Pengaju']],
+            'anggota' => $anggota || $pencatat ? $anggota : [['nama' => $pengaju, 'status' => 'Pengaju']],
             'dokumen' => $dokumen,
             'riwayat' => $riwayat ?: ["Diajukan oleh {$pengaju}, {$tanggal}", "Status saat ini: {$status}"],
         ];

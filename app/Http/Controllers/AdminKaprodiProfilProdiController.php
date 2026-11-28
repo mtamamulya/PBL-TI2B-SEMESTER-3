@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Validator;
  * MODE DUMMY (hanya untuk pengembangan tanpa API): PROFIL_DUMMY=true di .env.
  * Data dummy disimpan di session. Bawaannya mati; tidak pernah aktif saat tes.
  */
-class ProfilProdiController extends Controller
+class AdminKaprodiProfilProdiController extends Controller
 {
     private const SESSION = 'profil_prodi_dummy';
 

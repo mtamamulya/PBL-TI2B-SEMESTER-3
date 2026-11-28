@@ -6,7 +6,7 @@ use App\Repositories\MataKuliahRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class MataKuliahController extends Controller
+class LandingKel1MataKuliahController extends Controller
 {
     public function __construct(private MataKuliahRepository $repo) {}
 

@@ -21,9 +21,7 @@ use Throwable;
 /**
  * Menyimpan kegiatan baru dari admin/kaprodi: langsung berstatus 'diterima' (tanpa proses pengajuan).
  *
- * Pemilik kegiatan (kegiatan.id_user) menentukan tab:
- *   Kegiatan Prodi     -> akun admin/kaprodi yang membuat (pengaju = email akun itu)
- *   Kegiatan Dosen dan Mahasiswa -> pemilik yang dipilih (peran ketua)
+ * Pemilik yang dipilih menjadi ketua. Jika kosong, id_user menyimpan akun pencatat.
  */
 class KegiatanAdminSimpan
 {
@@ -92,13 +90,15 @@ class KegiatanAdminSimpan
                     throw ValidationException::withMessages(['id_kategori' => 'Pilih kategori yang tersedia untuk Langsung kegiatan.']);
                 }
                 if ($dinamis) {
-                    $pemilik = $this->pemilikDariForm($jenis, $d['pemilik'] ?? null, $pembuat);
+                    $ketua = $this->pemilikDariForm($jenis, $d['pemilik'] ?? null);
+                    $pemilik = $ketua ?? (int) $pembuat->getKey();
                     $dokumen = [];
                     [$fields, $jawaban, $peserta] = IsianKegiatanAdmin::validasi($kategori, $d['detail'] ?? []);
-                    $anggota = $jenis === 'Kegiatan Prodi' ? $peserta : array_values(array_unique([$pemilik, ...$peserta]));
+                    $anggota = $ketua === null ? $peserta : array_values(array_unique([$ketua, ...$peserta]));
                 } else {
                     $anggota = $this->anggota($d['anggota']);
                     $pemilik = $this->pemilik($jenis, $anggota, $pembuat);
+                    $ketua = $pemilik;
                     $dokumen = $this->dokumen($d['dokumen'] ?? []);
                 }
                 $k = Kegiatan::query()->create([
@@ -157,7 +157,7 @@ class KegiatanAdminSimpan
                     AnggotaKegiatan::query()->create([
                         'id_kegiatan' => $k->id_kegiatan,
                         'id_user' => $idUser,
-                        'peran' => $idUser === $pemilik ? 'ketua' : 'anggota',
+                        'peran' => $idUser === $ketua ? 'ketua' : 'anggota',
                     ]);
                 }
 
@@ -235,14 +235,14 @@ class KegiatanAdminSimpan
         return array_values(array_unique($users));
     }
 
-    private function pemilikDariForm(string $jenis, ?string $kandidat, User $pembuat): int
+    private function pemilikDariForm(string $jenis, ?string $kandidat): ?int
     {
-        if ($jenis === 'Kegiatan Prodi') {
-            return (int) $pembuat->getKey();
+        if ($jenis === 'Kegiatan Prodi' || $kandidat === null || $kandidat === '') {
+            return null;
         }
 
         $tipe = $jenis === 'Kegiatan Dosen' ? 'dosen' : 'mahasiswa';
-        if (! str_starts_with(strtolower($kandidat ?? ''), $tipe.':')) {
+        if (! str_starts_with(strtolower($kandidat), $tipe.':')) {
             throw ValidationException::withMessages(['pemilik' => "Pilih $tipe sebagai pemilik kegiatan."]);
         }
 

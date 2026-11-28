@@ -6,7 +6,7 @@ use App\Support\ApiClient;
 use App\Support\ApiException;
 use Illuminate\Support\Str;
 
-class AkreditasiController extends Controller
+class LandingKel1AkreditasiController extends Controller
 {
     /** Halaman publik: menampilkan PDF akreditasi yang sedang aktif (diambil dari API). */
     public function index()

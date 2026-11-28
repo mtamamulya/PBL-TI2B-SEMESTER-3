@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
  * Data dummy disimpan di session sehingga tambah/ubah/hapus terasa nyata.
  * Hapus baris SKIM_DUMMY dari .env setelah API Virgi masuk.
  */
-class SkimController extends Controller
+class AdminKaprodiSkimController extends Controller
 {
     public function index(Request $request)
     {

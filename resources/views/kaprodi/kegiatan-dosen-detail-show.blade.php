@@ -18,7 +18,7 @@
     $badge = $statusTone[$d['status']] ?? 'border-[#E4E4E7] bg-[#F2F2F7] text-[#55555C]';
 
     $info = [
-        'Pengaju'       => $d['pengaju'],
+        $d['label_pengaju'] => $d['pengaju'],
         'Kategori'      => $d['kategori'],
         'Jenis'         => $d['jenis'],
         'Penyelenggara' => $d['penyelenggara'],

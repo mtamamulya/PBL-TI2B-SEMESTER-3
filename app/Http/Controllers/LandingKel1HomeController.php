@@ -7,7 +7,7 @@ use App\Repositories\DosenStore;
 use App\Support\ApiClient;
 use Illuminate\Support\Str;
 
-class HomeController extends Controller
+class LandingKel1HomeController extends Controller
 {
     public function __construct(private DosenStore $dosenStore) {}
 

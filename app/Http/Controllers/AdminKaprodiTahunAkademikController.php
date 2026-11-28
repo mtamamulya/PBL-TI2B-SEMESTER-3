@@ -7,7 +7,7 @@ use App\Support\ApiException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
-class TahunAkademikController extends Controller
+class AdminKaprodiTahunAkademikController extends Controller
 {
     public function index(Request $request)
     {

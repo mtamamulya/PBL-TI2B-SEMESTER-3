@@ -10,7 +10,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-class PublicBeritaController extends Controller
+class LandingKel1BeritaController extends Controller
 {
     // Halaman daftar berita: /kabar (tujuan tombol "Muat lebih banyak")
     public function index(Request $request)

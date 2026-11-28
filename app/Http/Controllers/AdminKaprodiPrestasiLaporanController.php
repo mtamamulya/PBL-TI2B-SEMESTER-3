@@ -4,22 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Support\ApiClient;
 use App\Support\ApiException;
-use App\Support\Laporan\LaporanKegiatan;
+use App\Support\Laporan\LaporanPrestasi;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Unduh laporan data kegiatan semua / dosen / mahasiswa / prodi (PDF atau Excel) per kurun waktu tahun.
- * Dipakai admin (/admin/kegiatan/{dosen|mahasiswa|prodi|semua}/laporan) DAN kaprodi (/kaprodi/...).
- * Sumber data: API GET /admin/kegiatan (semua halaman), sama dengan halaman daftar, jadi angkanya selalu cocok.
- * API hanya mengembalikan kegiatan yang sudah disetujui, jadi status laporan selalu "Disetujui".
+ * Unduh laporan data prestasi semua / dosen / mahasiswa (PDF atau Excel) per kurun waktu tahun.
+ * Dipakai admin (/admin/prestasi/{semua|dosen|mahasiswa}/laporan) DAN kaprodi (/kaprodi/...).
+ * Sumber data: API GET /admin/prestasi/rekap (semua halaman). Tahun mengikuti tanggal selesai prestasi.
  *
  * Parameter GET: dari (tahun), sampai (tahun), format (pdf | xlsx).
  */
-class KegiatanLaporanController extends Controller
+class AdminKaprodiPrestasiLaporanController extends Controller
 {
-    private const STATUS = 'Disetujui';
-
     /** Batas pengaman jumlah halaman yang diambil (200 baris per halaman). */
     private const MAKS_HALAMAN = 50;
 
@@ -33,18 +30,13 @@ class KegiatanLaporanController extends Controller
         return $this->unduh($request, 'mahasiswa');
     }
 
-    public function prodi(Request $request): Response
-    {
-        return $this->unduh($request, 'prodi');
-    }
-
     public function semua(Request $request): Response
     {
         return $this->unduh($request, 'semua');
     }
 
     /**
-     * Ambil SEMUA halaman /admin/kegiatan (opsional per jenis) dan ubah ke bentuk baris yang dipakai LaporanKegiatan::susun().
+     * Ambil SEMUA halaman /admin/prestasi/rekap (opsional per jenis) dan ubah ke bentuk baris LaporanPrestasi::susun().
      *
      * @return array<int, array<string, mixed>>
      */
@@ -59,7 +51,7 @@ class KegiatanLaporanController extends Controller
         $halaman = 1;
 
         do {
-            $hasil = ApiClient::pengguna()->get('/admin/kegiatan', $query + ['page' => $halaman]);
+            $hasil = ApiClient::pengguna()->get('/admin/prestasi/rekap', $query + ['page' => $halaman]);
 
             foreach ($hasil['data'] ?? [] as $r) {
                 if (is_array($r)) {
@@ -74,26 +66,20 @@ class KegiatanLaporanController extends Controller
         return $baris;
     }
 
-    /** Samakan baris API dengan kolom yang dibaca LaporanKegiatan (dosen / pengaju / penanggung_jawab / pelaku). */
+    /** Samakan baris API dengan kolom yang dibaca LaporanPrestasi. */
     private function petakan(array $r): array
     {
-        $pengaju = (string) ($r['pengaju'] ?? '-');
-
         return [
             'nama' => $r['nama'] ?? '-',
             'kategori' => $r['kategori'] ?? '-',
-            'jenis' => ucfirst((string) ($r['jenis'] ?? '')),
-            'pelaku' => $pengaju,
-            'dosen' => $pengaju,
-            'pengaju' => $pengaju,
-            'penanggung_jawab' => $pengaju,
+            'tipe' => $r['tipe'] ?? '-',
+            'pemilik' => $r['pemilik_prestasi'] ?? '-',
+            'tingkat' => $r['tingkat'] ?? '',
+            'capaian' => $r['capaian'] ?? '',
             'tanggal' => $r['tanggal'] ?? '-',
             'tanggal_iso' => (string) ($r['raw_date'] ?? ''),
             'tahun' => (int) ($r['tahun'] ?? 0), // 0 = tanpa tanggal; tidak ikut laporan per tahun
             'semester' => $r['semester'] ?? '',
-            'status' => self::STATUS,
-            'tingkat' => $r['tingkat'] ?? '',
-            'kelas' => $r['kelas'] ?? '',
         ];
     }
 
@@ -107,10 +93,10 @@ class KegiatanLaporanController extends Controller
             if (in_array($e->getStatusCode(), [401, 403], true)) {
                 throw $e;
             }
-            \Log::error('Gagal memuat data laporan kegiatan: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
+            \Log::error('Gagal memuat data laporan prestasi: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
 
             return redirect()
-                ->route($kaprodi ? 'kaprodi.kegiatan.index' : 'admin.kegiatan.index')
+                ->route($kaprodi ? 'kaprodi.prestasi' : 'admin.prestasi')
                 ->with('error', 'Laporan gagal dibuat: '.$e->getMessage());
         }
 
@@ -128,13 +114,13 @@ class KegiatanLaporanController extends Controller
 
         $format = $request->query('format') === 'xlsx' ? 'xlsx' : 'pdf';
 
-        $laporan = LaporanKegiatan::susun($jenis, $rows, $dari, $sampai, self::STATUS);
+        $laporan = LaporanPrestasi::susun($jenis, $rows, $dari, $sampai);
         $oleh = (string) session($kaprodi ? 'kaprodi.nama' : 'admin.nama', $kaprodi ? 'Kaprodi' : 'Admin');
         $waktu = now()->setTimezone('Asia/Jakarta')->locale('id')->translatedFormat('j F Y, H:i').' WIB';
 
         $isi = $format === 'pdf'
-            ? LaporanKegiatan::pdf($laporan, $oleh, $waktu)
-            : LaporanKegiatan::xlsx($laporan, $oleh, $waktu);
+            ? LaporanPrestasi::pdf($laporan, $oleh, $waktu)
+            : LaporanPrestasi::xlsx($laporan, $oleh, $waktu);
 
         $mime = $format === 'pdf'
             ? 'application/pdf'

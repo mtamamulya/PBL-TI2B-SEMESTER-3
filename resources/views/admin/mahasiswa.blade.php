@@ -1,7 +1,7 @@
 {{--
     resources/views/admin/mahasiswa.blade.php
     Daftar mahasiswa: cari, filter tingkat & status, paginasi.
-    Data dikirim oleh LandingMahasiswaController@index via ApiClient.
+    Data dikirim oleh AdminMahasiswaController@index via ApiClient.
 --}}
 @extends('layouts.admin')
 

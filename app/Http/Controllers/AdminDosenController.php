@@ -6,7 +6,7 @@ use App\Support\ApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
-class DosenController extends Controller
+class AdminDosenController extends Controller
 {
     /**
      * Daftar dosen (memanggil GET /api/v1/dosen via ApiClient).

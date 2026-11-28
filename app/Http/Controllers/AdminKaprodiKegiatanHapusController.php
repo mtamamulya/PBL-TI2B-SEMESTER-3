@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
  * Hapus kegiatan dosen / mahasiswa melalui API DELETE /admin/kegiatan/{id}.
  * Hanya admin yang diizinkan menghapus; kaprodi akan ditolak API (403).
  */
-class KegiatanHapusController extends Controller
+class AdminKaprodiKegiatanHapusController extends Controller
 {
     public function dosen(Request $request, string $id): RedirectResponse
     {
