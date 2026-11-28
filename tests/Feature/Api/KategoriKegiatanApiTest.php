@@ -269,6 +269,26 @@ class KategoriKegiatanApiTest extends TestCase
         $this->assertTrue($tipe->contains('nilai', 'jenis_prestasi'));
     }
 
+    public function test_tipe_anggota_tersedia_untuk_tiga_jenis_langsung_kegiatan(): void
+    {
+        $payload = $this->payload([
+            'isian' => [['input' => 'Anggota Kegiatan', 'jenis_input' => 'anggota_kegiatan', 'wajib' => true]],
+        ]);
+        $this->sebagai()->postJson(self::API, $payload)->assertUnprocessable()->assertJsonValidationErrors('isian.0.jenis_input');
+        $payload['kebutuhan'] = 'kegiatan';
+        unset($payload['id_jenis_kegiatan']);
+        $payload['jenis'] = 'Kegiatan Prodi';
+        $this->sebagai()->postJson(self::API, array_replace($payload, ['nama_kategori' => '']))
+            ->assertUnprocessable()->assertJsonValidationErrors('nama_kategori');
+        $this->assertDatabaseMissing('jenis_kegiatan', ['nama_jenis_kegiatan' => 'Kegiatan Prodi']);
+        foreach (['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'] as $jenis) {
+            $payload['jenis'] = $jenis;
+            $this->sebagai()->postJson(self::API, $payload)->assertCreated()
+                ->assertJsonPath('data.jenis', $jenis)
+                ->assertJsonPath('data.isian.0.jenis_input', 'anggota_kegiatan');
+        }
+    }
+
     // ---------- ubah ----------
 
     public function test_update_syncs_fields_by_id_adding_updating_and_removing(): void

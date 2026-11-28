@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AnggotaKegiatan;
+use App\Models\JenisKegiatan;
 use App\Models\Kegiatan;
 use App\Models\Timeline;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 /** API Data Kegiatan admin & kaprodi: daftar (hanya diterima), detail (anggota, dokumen, riwayat), tambah, hapus. */
@@ -172,6 +174,187 @@ class KegiatanAdminApiTest extends TestCase
         $id = $r->json('data.id');
         $this->assertSame('diterima', Kegiatan::query()->findOrFail($id)->statusTerkini->status);
         $this->getJson('/api/v1/admin/kegiatan?jenis=prodi')->assertJsonCount(1, 'data');
+    }
+
+    public function test_tambah_dinamis_memeriksa_master_terbaru_dan_menyimpan_jawaban_berulang(): void
+    {
+        $lokasi = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Lokasi', 'jenis_input' => 'teks',
+            'aturan' => 'NOT NULL', 'jumlah_isian' => 0,
+        ]);
+        $this->masuk(2);
+        $payload = [
+            'isian_dinamis' => 1,
+            'id_kategori' => $this->kategori,
+            'nama_kegiatan' => 'Kegiatan dinamis',
+        ];
+
+        $this->postJson('/api/v1/admin/kegiatan', $payload)->assertUnprocessable()->assertJsonValidationErrors("detail.$lokasi");
+        $this->postJson('/api/v1/admin/kegiatan', $payload + ['detail' => [999999 => ['Lokasi lain']]])
+            ->assertUnprocessable()->assertJsonValidationErrors('detail');
+        $this->assertDatabaseMissing('kegiatan', ['nama_kegiatan' => 'Kegiatan dinamis']);
+
+        $hasil = $this->postJson('/api/v1/admin/kegiatan', $payload + [
+            "detail[$lokasi][0]" => 'Semarang',
+            "detail[$lokasi][2]" => 'Kendal',
+        ])->assertCreated()->assertJsonPath('data.jenis', 'prodi')->assertJsonPath('peringatan', []);
+        $id = $hasil->json('data.id');
+        foreach (['Semarang', 'Kendal'] as $nilai) {
+            $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'id_isian_kategori' => $lokasi, 'isian' => $nilai]);
+        }
+        $this->assertSame(2, DB::table('detail_kegiatan')->where('id_kegiatan', $id)->count());
+    }
+
+    public function test_tambah_dinamis_menyimpan_berkas_isian(): void
+    {
+        $bukti = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Bukti', 'jenis_input' => 'berkas',
+            'aturan' => 'NOT NULL', 'jumlah_isian' => 1,
+        ]);
+        $this->masuk(1);
+        $payload = ['isian_dinamis' => 1, 'id_kategori' => $this->kategori, 'nama_kegiatan' => 'Kegiatan dengan berkas'];
+        $this->postJson('/api/v1/admin/kegiatan', $payload + ['detail' => [$bukti => ['bukti.pdf']]])
+            ->assertUnprocessable()->assertJsonValidationErrors("detail.$bukti.0");
+
+        $hasil = $this->post('/api/v1/admin/kegiatan', $payload + [
+            'detail' => [$bukti => [UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf')]],
+        ], ['Accept' => 'application/json'])->assertCreated();
+        $path = DB::table('detail_kegiatan')->where('id_kegiatan', $hasil->json('data.id'))
+            ->where('id_isian_kategori', $bukti)->value('isian');
+        Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_form_dinamis_mengikuti_isian_master_dan_mencatat_pemilik_yang_dipilih(): void
+    {
+        $this->masuk(2);
+        $dosen = $this->user(3);
+        $mahasiswa = $this->user(4);
+        $jenis = JenisKegiatan::firstOrCreate(['nama_jenis_kegiatan' => 'Kegiatan Mahasiswa'])->getKey();
+        DB::table('kategori')->where('id_kategori', $this->kategori)->update(['id_jenis_kegiatan' => $jenis]);
+        $fields = [];
+        foreach (['members', 'documents', 'organizer'] as $nama) {
+            $fields[$nama] = DB::table('isian_kategori')->insertGetId([
+                'id_kategori' => $this->kategori, 'input' => $nama, 'jenis_input' => 'teks',
+                'aturan' => $nama === 'organizer' ? 'NULL' : 'NOT NULL', 'jumlah_isian' => 1,
+            ]);
+        }
+        $payload = ['isian_dinamis' => 1, 'id_kategori' => $this->kategori, 'nama_kegiatan' => 'Kegiatan sesuai master'];
+        $endpoint = '/api/v1/admin/kegiatan';
+        $this->postJson($endpoint, $payload + ['pemilik' => 'Dosen:'.$this->idDosen($dosen)])
+            ->assertUnprocessable()->assertJsonValidationErrors('pemilik');
+        $payload['pemilik'] = 'Mahasiswa:'.$this->idMahasiswa($mahasiswa);
+        $this->postJson($endpoint, $payload + ['anggota' => [$payload['pemilik']], 'dokumen' => [['nama' => 'Di luar master']]])
+            ->assertUnprocessable()->assertJsonValidationErrors(['anggota', 'dokumen']);
+        $this->postJson($endpoint, $payload)->assertUnprocessable()->assertJsonValidationErrors("detail.{$fields['members']}");
+        $this->assertDatabaseMissing('kegiatan', ['nama_kegiatan' => $payload['nama_kegiatan']]);
+
+        $detail = [
+            $fields['members'] => ['Anggota uji'],
+            $fields['documents'] => ['Catatan dokumen'],
+            $fields['organizer'] => ['Panitia uji'],
+        ];
+        $id = $this->postJson($endpoint, $payload + ['detail' => $detail])
+            ->assertCreated()->assertJsonPath('data.jenis', 'mahasiswa')->json('data.id');
+        $this->assertDatabaseHas('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $mahasiswa->getKey(), 'peran' => 'ketua']);
+        $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'id_isian_kategori' => $fields['documents'], 'isian' => 'Catatan dokumen']);
+        $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'id_isian_kategori' => $fields['organizer'], 'isian' => 'Panitia uji']);
+        $this->assertDatabaseMissing('dokumen', ['id_kegiatan' => $id]);
+    }
+
+    #[TestWith(['Kegiatan Prodi', 'prodi'])]
+    #[TestWith(['Kegiatan Mahasiswa', 'mahasiswa'])]
+    public function test_peserta_dua_angkatan_dan_peserta_manual_disimpan_tanpa_duplikat(string $jenis, string $tab): void
+    {
+        config(['admin.prodi.kode' => 'TRK-UJI']);
+        $kaprodi = $this->masuk(2);
+        $dosen = $this->user(3);
+        $prodi = DB::table('prodi')->insertGetId(['kode_prodi' => 'TRK-UJI', 'nama_prodi' => 'Prodi Uji', 'jenjang' => 'D4']);
+        $prodiLain = DB::table('prodi')->insertGetId(['kode_prodi' => 'LAIN-UJI', 'nama_prodi' => 'Prodi Lain', 'jenjang' => 'D4']);
+        $tahunAkademik = DB::table('tahun_akademik')->insertGetId(['tahun_akademik' => 'Ganjil 2025/2026']);
+        $rombel = fn ($prodiId) => DB::table('enrollment_tingkat_kelas')->insertGetId([
+            'id_prodi' => $prodiId, 'id_tahun_akademik' => $tahunAkademik,
+            'id_kelas' => DB::table('kelas')->value('id_kelas'), 'id_tingkat' => DB::table('tingkat')->value('id_tingkat'),
+        ]);
+        $kelas = $rombel($prodi);
+        $kelasLain = $rombel($prodiLain);
+        $mahasiswa = function (int $tahun, int $kelas, string $status = 'Aktif'): array {
+            $user = User::create(['id_role' => 4, 'email' => uniqid().'@test.local', 'password' => 'password', 'status' => true]);
+            $id = DB::table('mahasiswa')->insertGetId([
+                'id_user' => $user->getKey(), 'nim' => uniqid(), 'nama' => 'Mahasiswa Uji', 'tahun_masuk' => $tahun, 'status_mahasiswa' => $status,
+            ]);
+            DB::table('enrollment_mahasiswa_tingkat_kelas')->insert([
+                'id_mahasiswa' => $id, 'id_enrollment_tingkat_kelas' => $kelas,
+            ]);
+
+            return [$user->getKey(), $id];
+        };
+        [$angkatan24, $idMahasiswa24] = $mahasiswa(2024, $kelas);
+        [$angkatan25] = $mahasiswa(2025, $kelas);
+        [$manual, $idManual] = $mahasiswa(2026, $kelas);
+        [$cuti] = $mahasiswa(2025, $kelas, 'Cuti');
+        [$lain] = $mahasiswa(2025, $kelasLain);
+        $jenisId = JenisKegiatan::firstOrCreate(['nama_jenis_kegiatan' => $jenis])->getKey();
+        DB::table('kategori')->where('id_kategori', $this->kategori)->update(['id_jenis_kegiatan' => $jenisId]);
+        $field = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Anggota Kegiatan', 'jenis_input' => 'anggota_kegiatan',
+            'aturan' => 'NOT NULL', 'jumlah_isian' => 1,
+        ]);
+        $payload = ['isian_dinamis' => 1, 'id_kategori' => $this->kategori, 'nama_kegiatan' => 'Kuliah tamu uji'];
+        $pemilik = $kaprodi->getKey();
+        $anggota = [$angkatan24, $angkatan25, $manual, $dosen->getKey()];
+        if ($tab === 'mahasiswa') {
+            $payload['pemilik'] = "Mahasiswa:$idMahasiswa24";
+            $pemilik = $angkatan24;
+            $anggota = [$angkatan25, $manual, $dosen->getKey()];
+        }
+        $url = '/api/v1/admin/kegiatan';
+        $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors("detail.$field");
+        $this->postJson($url, $payload + ['detail' => [$field => ['Angkatan:2099']]])
+            ->assertUnprocessable()->assertJsonValidationErrors("detail.$field");
+        $this->postJson($url, $payload + ['detail' => [$field => ['SemuaDosen']]])
+            ->assertUnprocessable()->assertJsonValidationErrors("detail.$field");
+        $id = $this->postJson($url, $payload + ['detail' => [$field => [
+            'Angkatan:2024', 'Angkatan:2025', "Mahasiswa:$idMahasiswa24", "Mahasiswa:$idManual", 'Dosen:'.$this->idDosen($dosen),
+        ]]])->assertCreated()->assertJsonPath('data.jenis', $tab)->json('data.id');
+
+        $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'id_user' => $pemilik]);
+        $this->assertEqualsCanonicalizing($anggota, DB::table('anggota_kegiatan')
+            ->where('id_kegiatan', $id)->where('peran', 'anggota')->pluck('id_user')->all());
+        if ($tab === 'mahasiswa') {
+            $this->assertDatabaseHas('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $pemilik, 'peran' => 'ketua']);
+        }
+        $this->assertDatabaseMissing('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $cuti]);
+        $this->assertDatabaseMissing('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $lain]);
+    }
+
+    public function test_kegiatan_dosen_memilih_semua_dosen_aktif_dan_pemilik_tetap_ketua(): void
+    {
+        $this->masuk(1);
+        $pemilik = $this->user(3);
+        $dosenAktif = User::create(['id_role' => 3, 'email' => 'dosen-aktif@test.local', 'password' => 'password', 'status' => true]);
+        $dosenNonaktif = User::create(['id_role' => 3, 'email' => 'dosen-nonaktif@test.local', 'password' => 'password', 'status' => false]);
+        $idAktif = $this->idDosen($dosenAktif);
+        $this->idDosen($dosenNonaktif);
+        $jenis = JenisKegiatan::firstOrCreate(['nama_jenis_kegiatan' => 'Kegiatan Dosen'])->getKey();
+        DB::table('kategori')->where('id_kategori', $this->kategori)->update(['id_jenis_kegiatan' => $jenis]);
+        $field = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Anggota Kegiatan', 'jenis_input' => 'teks', 'aturan' => 'NOT NULL',
+        ]);
+        $payload = [
+            'isian_dinamis' => 1, 'id_kategori' => $this->kategori, 'nama_kegiatan' => 'Kegiatan dosen uji',
+            'pemilik' => 'Dosen:'.$this->idDosen($pemilik),
+        ];
+        $url = '/api/v1/admin/kegiatan';
+        $this->postJson($url, $payload + ['detail' => [$field => ['Angkatan:2025']]])
+            ->assertUnprocessable()->assertJsonValidationErrors("detail.$field");
+        $id = $this->postJson($url, $payload + ['detail' => [$field => ['SemuaDosen', "Dosen:$idAktif"]]])
+            ->assertCreated()->assertJsonPath('data.jenis', 'dosen')->json('data.id');
+
+        $this->assertEqualsCanonicalizing([
+            [$pemilik->getKey(), 'ketua'],
+            [$dosenAktif->getKey(), 'anggota'],
+        ], DB::table('anggota_kegiatan')->where('id_kegiatan', $id)->get(['id_user', 'peran'])
+            ->map(fn ($row) => [$row->id_user, $row->peran])->all());
     }
 
     public function test_kaprodi_tambah_kegiatan_dosen_pemilik_dosen_pertama(): void

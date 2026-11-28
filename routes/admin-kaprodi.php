@@ -137,6 +137,7 @@ Route::prefix('admin')->middleware(AdminOnly::class)->group(function () {
     // Kegiatan (Menggunakan AdminKegiatanTambahController untuk Create & Store)
     Route::get('/kegiatan', [AdminKegiatanController::class, 'index'])->name('admin.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('admin.kegiatan.create');
+    Route::get('/kegiatan/tambah/kategori/{id}', [AdminKegiatanTambahController::class, 'kategori'])->whereNumber('id')->name('admin.kegiatan.create.kategori');
     Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('admin.kegiatan.store');
     // Nama lama untuk tautan/breadcrumb lama; daftar kegiatan kini satu halaman bertab (sama seperti sisi kaprodi).
     Route::redirect('/kegiatan/dosen', '/admin/kegiatan?tab=dosen')->name('admin.kegiatan.dosen');
@@ -289,6 +290,7 @@ Route::prefix('kaprodi')->middleware(KaprodiOnly::class)->group(function () {
     // Kegiatan gabungan (Dosen | Mahasiswa | Prodi). URL lama dialihkan ke tab yang sesuai.
     Route::get('/kegiatan', [KaprodiKegiatanController::class, 'index'])->name('kaprodi.kegiatan.index');
     Route::get('/kegiatan/tambah', [AdminKegiatanTambahController::class, 'create'])->name('kaprodi.kegiatan.create');
+    Route::get('/kegiatan/tambah/kategori/{id}', [AdminKegiatanTambahController::class, 'kategori'])->whereNumber('id')->name('kaprodi.kegiatan.create.kategori');
     Route::post('/kegiatan', [AdminKegiatanTambahController::class, 'store'])->name('kaprodi.kegiatan.store');
     Route::redirect('/kegiatan/dosen', '/kaprodi/kegiatan?tab=dosen')->name('kaprodi.kegiatan.dosen');
     Route::redirect('/kegiatan/mahasiswa', '/kaprodi/kegiatan?tab=mahasiswa')->name('kaprodi.kegiatan.mahasiswa');

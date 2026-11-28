@@ -49,7 +49,7 @@
                 <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </label>
 
-            <svg class="ml-auto shrink-0" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" /><path d="M9 17v1a3 3 0 0 0 6 0v-1" /></svg>
+            <x-notifikasi-lonceng prefix="kaprodi" />
 
             <div class="shrink-0 pr-4">
                 <x-user-menu :nama="session('kaprodi.nama', 'Kaprodi TRK')" peran="Kaprodi"
@@ -62,6 +62,7 @@
         </div>
     </div>
 
+    @include('layouts.kel_1-success-banner-script')
     @stack('scripts')
 </body>
 </html>

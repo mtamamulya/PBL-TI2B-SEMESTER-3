@@ -132,7 +132,7 @@
     </div>
 
     @if (session('success'))
-        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('success') }}</div>
+        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status" data-success-banner>{{ session('success') }}</div>
     @endif
 
     <div class="flex flex-col gap-8 rounded-lg bg-white p-4 pb-6 shadow-sm">
