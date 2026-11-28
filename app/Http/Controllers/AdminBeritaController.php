@@ -40,7 +40,7 @@ class AdminBeritaController extends Controller
             $rows[] = [
                 'id' => $b['id_berita'],
                 'judul' => $b['judul_berita'],
-                'kegiatan' => $b['nama_kegiatan'] ?? ($b['nama_kategori'] ?? 'Mandiri / Tanpa Kegiatan'),
+                'kegiatan' => ! empty($b['id_prestasi']) ? 'Dari prestasi' : ($b['nama_kegiatan'] ?? ($b['nama_kategori'] ?? 'Mandiri / Tanpa Kegiatan')),
                 'tanggal' => ! empty($b['tanggal_publish']) ? Carbon::parse($b['tanggal_publish'])->locale('id')->translatedFormat('d F Y') : '-',
                 'raw_date' => $b['tanggal_publish'] ?? null,
                 'status' => $this->labelStatus((string) ($b['status'] ?? 'draft')),
@@ -102,7 +102,7 @@ class AdminBeritaController extends Controller
             'judul' => $item['judul_berita'],
             'isi' => $item['isi_berita'],
             'status' => $this->labelStatus((string) ($item['status'] ?? 'draft')),
-            'kegiatan' => $item['nama_kegiatan'] ?? ($item['nama_kategori'] ?? 'Mandiri / Tanpa Kegiatan'),
+            'kegiatan' => ! empty($item['id_prestasi']) ? 'Dari prestasi' : ($item['nama_kegiatan'] ?? ($item['nama_kategori'] ?? 'Mandiri / Tanpa Kegiatan')),
             'tanggal' => $item['tanggal_publish'] ?? null,
             'foto' => $sampulUrl,
             'catatan_revisi' => $item['catatan_revisi'] ?? null,

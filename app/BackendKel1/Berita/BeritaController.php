@@ -146,13 +146,14 @@ class BeritaController extends Controller
             ->limit(5)
             ->get()
             ->map(function (Berita $item) {
+                $pathSampul = $item->sampul ? preg_replace('#^(?:https?://[^/]+)?/storage/#', '', $item->sampul) : null;
                 $eks = $item->sampul ? strtolower(pathinfo($item->sampul, PATHINFO_EXTENSION)) : '';
 
                 return [
                     'id_berita' => $item->id_berita,
                     'judul_berita' => $item->judul_berita,
-                    'sampul' => $item->sampul,
-                    'sampul_url' => $item->sampul ? asset('storage/'.$item->sampul) : null,
+                    'sampul' => $pathSampul,
+                    'sampul_url' => $pathSampul ? asset('storage/'.$pathSampul) : null,
                     'is_gambar' => in_array($eks, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true),
                     'tanggal_publish' => $item->tanggal_publish?->toIso8601String(),
                 ];
@@ -328,6 +329,7 @@ class BeritaController extends Controller
 
     public static function bentuk(Berita $b): array
     {
+        $pathSampul = $b->sampul ? preg_replace('#^(?:https?://[^/]+)?/storage/#', '', $b->sampul) : null;
         $ekstensi = $b->sampul ? strtolower(pathinfo($b->sampul, PATHINFO_EXTENSION)) : '';
         $isGambar = in_array($ekstensi, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
         $gambarKonten = $b->relationLoaded('gambarBerita')
@@ -346,13 +348,14 @@ class BeritaController extends Controller
             'id_berita' => $b->id_berita,
             'id_kegiatan' => $b->id_kegiatan,
             'id_kategori' => $b->id_kategori,
+            'id_prestasi' => $b->id_prestasi,
             'id_user' => $b->id_user,
             'judul_berita' => $b->judul_berita,
             'isi_berita' => $b->isi_berita,
             'status' => $b->status,
             'tanggal_publish' => $b->tanggal_publish?->toIso8601String(),
-            'sampul' => $b->sampul,
-            'sampul_url' => $b->sampul ? asset('storage/'.$b->sampul) : null,
+            'sampul' => $pathSampul,
+            'sampul_url' => $pathSampul ? asset('storage/'.$pathSampul) : null,
             'is_gambar' => $isGambar,
             'catatan_revisi' => $b->catatan_revisi,
             'nama_kegiatan' => $b->kegiatan?->nama_kegiatan,
