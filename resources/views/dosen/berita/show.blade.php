@@ -64,7 +64,7 @@
 
                     {{-- Foto Sampul --}}
                     <template x-if="berita.sampul">
-                        <img :src="berita.sampul" alt="Foto sampul" class="h-56 w-full object-cover rounded-lg">
+                        <img :src="berita.sampul.startsWith('berita/') ? '/storage/' + berita.sampul : berita.sampul" alt="Foto sampul" class="h-56 w-full object-cover rounded-lg">
                     </template>
                     <template x-if="!berita.sampul">
                         <div class="flex h-56 items-center justify-center gap-2 rounded-lg bg-gray-200 text-sm text-gray-600">

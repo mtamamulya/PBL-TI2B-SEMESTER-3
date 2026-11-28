@@ -104,7 +104,7 @@ class BeritaController extends Controller
             'id_kategori' => $validated['id_kategori'] ?? null,
             'judul_berita' => $validated['judul_berita'],
             'isi_berita' => $validated['isi_berita'] ?? '',
-            'sampul' => $pathSampul ? Storage::url($pathSampul) : null,
+            'sampul' => $pathSampul,
             'status' => $validated['status'] ?? 'draft',
             'tanggal_publish' => null,
         ]);
@@ -149,7 +149,7 @@ class BeritaController extends Controller
 
             if ($request->hasFile('sampul')) {
                 $oldPath = $berita->sampul;
-                $validated['sampul'] = Storage::url($request->file('sampul')->store('berita/sampul', 'public'));
+                $validated['sampul'] = $request->file('sampul')->store('berita/sampul', 'public');
                 if ($oldPath) {
                     DB::afterCommit(fn () => Storage::disk('public')->delete(str_replace('/storage/', '', $oldPath)));
                 }
