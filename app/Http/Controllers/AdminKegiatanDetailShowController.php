@@ -76,6 +76,7 @@ class AdminKegiatanDetailShowController extends Controller
     private function susunDetail(array $row, string $jenis): array
     {
         $cfg = self::JENIS[$jenis];
+        $pencatat = $row['dicatat_tanpa_pemilik'] ?? false;
         $pengaju = $this->teks($row, 'pengaju');
         $tanggal = $this->teks($row, 'tanggal');
         $status = $this->teks($row, 'status', 'Disetujui');
@@ -109,7 +110,7 @@ class AdminKegiatanDetailShowController extends Controller
         $tambahan += $isian;
 
         $info = [
-            $cfg['pengaju'] => $pengaju,
+            ($pencatat ? 'Pencatat' : $cfg['pengaju']) => $pengaju,
             'Kategori' => $this->teks($row, 'kategori'),
             'Jenis' => $cfg['label'],
             'Penyelenggara' => $penyelenggara,
@@ -157,7 +158,7 @@ class AdminKegiatanDetailShowController extends Controller
             'tab_label' => $cfg['tab'],
             'rute_daftar' => $cfg['rute'],
             'info' => $info,
-            'anggota' => $anggota ?: [['nama' => $pengaju, 'status' => $jenis === 'prodi' ? 'Penanggung jawab' : 'Pengaju']],
+            'anggota' => $anggota || $pencatat ? $anggota : [['nama' => $pengaju, 'status' => $cfg['pengaju']]],
             'dokumen' => $dokumen,
             'riwayat' => $riwayat ?: ["Diajukan oleh {$pengaju}, {$tanggal}", "Status saat ini: {$status}"],
         ];

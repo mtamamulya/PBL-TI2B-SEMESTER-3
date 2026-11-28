@@ -291,7 +291,7 @@
     };
     
     var CSRF = @json(csrf_token());
-    var PENGAJU = { semua: 'Pengaju / Penanggung Jawab', dosen: 'Pengaju', mahasiswa: 'Pengaju', prodi: 'Penanggung Jawab' };
+    var PENGAJU = { semua: 'Pengaju / Pencatat / Penanggung Jawab', dosen: 'Pengaju / Pencatat', mahasiswa: 'Pengaju / Pencatat', prodi: 'Penanggung Jawab' };
     
     var STATUS = {
         'Disetujui': 'border-[#D6EDB5] bg-[#E6F3D3] text-[#4C7D08]'

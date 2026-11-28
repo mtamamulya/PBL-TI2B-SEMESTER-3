@@ -67,8 +67,9 @@
             </div>
 
             <div id="bagianPemilik" class="hidden space-y-2">
-                <label for="pemilik" class="{{ $label }}">Pemilik kegiatan <span class="{{ $error }}">*</span></label>
-                <select id="pemilik" name="pemilik" class="{{ $field }}" required disabled></select>
+                <label for="pemilik" class="{{ $label }}">Pemilik kegiatan (opsional)</label>
+                <select id="pemilik" name="pemilik" class="{{ $field }}" aria-describedby="pemilik-petunjuk" disabled></select>
+                <p id="pemilik-petunjuk" class="text-sm text-[#6E6E76]">Jika dikosongkan, akun Anda tercatat sebagai pencatat kegiatan.</p>
                 @error('pemilik') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
             </div>
 
@@ -133,7 +134,7 @@
         var pilih = $('pemilik');
         $('bagianPemilik').classList.toggle('hidden', !tipe);
         pilih.disabled = !tipe;
-        pilih.replaceChildren(new Option('Pilih pemilik kegiatan', ''));
+        pilih.replaceChildren(new Option('Tanpa pemilik kegiatan', ''));
         if (!tipe) return;
 
         KANDIDAT.filter(function (kandidat) { return kandidat.tipe === tipe; }).forEach(function (kandidat) {

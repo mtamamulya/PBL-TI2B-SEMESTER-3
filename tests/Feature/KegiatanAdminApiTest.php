@@ -357,6 +357,41 @@ class KegiatanAdminApiTest extends TestCase
             ->map(fn ($row) => [$row->id_user, $row->peran])->all());
     }
 
+    #[TestWith([1, 'Kegiatan Dosen', 'dosen'])]
+    #[TestWith([2, 'Kegiatan Dosen', 'dosen'])]
+    #[TestWith([1, 'Kegiatan Mahasiswa', 'mahasiswa'])]
+    #[TestWith([2, 'Kegiatan Mahasiswa', 'mahasiswa'])]
+    public function test_tanpa_pemilik_akun_pencatat_dan_tab_mengikuti_kategori(int $role, string $jenis, string $tab): void
+    {
+        $pencatat = $this->masuk($role);
+        $peserta = $this->user($tab === 'dosen' ? 3 : 4);
+        $pilihan = $tab === 'dosen' ? 'Dosen:'.$this->idDosen($peserta) : 'Mahasiswa:'.$this->idMahasiswa($peserta);
+        $idJenis = JenisKegiatan::firstOrCreate(['nama_jenis_kegiatan' => $jenis])->getKey();
+        DB::table('kategori')->where('id_kategori', $this->kategori)->update(['id_jenis_kegiatan' => $idJenis]);
+        $field = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Anggota Kegiatan', 'jenis_input' => 'teks', 'aturan' => 'NOT NULL',
+        ]);
+        $url = '/api/v1/admin/kegiatan';
+        $payload = ['isian_dinamis' => 1, 'id_kategori' => $this->kategori, 'nama_kegiatan' => 'Kegiatan tanpa pemilik'];
+
+        $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors("detail.$field");
+
+        $id = $this->postJson($url, $payload + ['detail' => [$field => [$pilihan]]])
+            ->assertCreated()
+            ->assertJsonPath('data.jenis', $tab)
+            ->assertJsonPath('data.dicatat_tanpa_pemilik', true)
+            ->assertJsonPath('data.pengaju', $pencatat->email)
+            ->assertJsonCount(1, 'data.anggota')
+            ->assertJsonPath('data.anggota.0.peran', 'anggota')
+            ->json('data.id');
+
+        $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'id_user' => $pencatat->getKey()]);
+        $this->assertDatabaseMissing('anggota_kegiatan', ['id_kegiatan' => $id, 'id_user' => $pencatat->getKey()]);
+        $this->getJson("$url?jenis=$tab")->assertOk()->assertJsonFragment(['id' => $id, 'jenis' => $tab]);
+        $this->getJson("$url?jenis=prodi")->assertOk()->assertJsonMissing(['id' => $id]);
+        $this->getJson("$url/ringkasan")->assertOk()->assertJsonPath("data.jumlah.$tab", 1);
+    }
+
     public function test_kaprodi_tambah_kegiatan_dosen_pemilik_dosen_pertama(): void
     {
         $this->masuk(2);
