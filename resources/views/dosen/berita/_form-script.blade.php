@@ -142,9 +142,9 @@ document.addEventListener('alpine:init', () => {
                 formData.append('id_kategori', this.sumber === 'mandiri' ? this.kategori : '');
                 if (id) formData.append('_method', 'PATCH');
 
-                const fotoInput = document.querySelector('input[name="foto"]');
+                const fotoInput = document.querySelector('input[name="sampul"]');
                 if (fotoInput && fotoInput.files[0]) {
-                    formData.append('foto', fotoInput.files[0]);
+                    formData.append('sampul', fotoInput.files[0]);
                 }
 
                 await apiBerita(id ? '/' + id : '', 'POST', formData);

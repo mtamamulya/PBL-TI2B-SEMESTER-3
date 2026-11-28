@@ -16,6 +16,7 @@ class BeritaRequest extends FormRequest
         }
         if (! $this->hasFile('sampul') && $this->hasFile('foto')) {
             $this->files->set('sampul', $this->file('foto'));
+            $this->convertedFiles = null;
         }
         if (! $this->has('status') && $this->input('intent') === 'submit') {
             $this->merge(['status' => 'diajukan']);

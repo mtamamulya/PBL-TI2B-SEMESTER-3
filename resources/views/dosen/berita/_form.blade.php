@@ -153,7 +153,7 @@ $chevron      = '<svg class="pointer-events-none absolute top-1/2 right-3.5 size
             <div class="flex flex-col gap-2 p-3.5">
                 <span class="{{ $labelClass }}">File</span>
                 <label class="relative flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-brand bg-white px-4 py-5 text-center hover:bg-blue-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
-                    <input type="file" name="foto" class="sr-only" accept=".jpg,.jpeg,.png,.webp"
+                    <input type="file" name="sampul" class="sr-only" accept=".jpg,.jpeg,.png,.webp"
                            x-on:change="pilihFile($event)">
                     <span class="flex items-center gap-2 text-[13px] font-medium text-brand">
                         <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 7.97M12 20v-8M9 15l3-3 3 3"/></svg>
