@@ -93,11 +93,26 @@ class IntegrasiKelompok3Test extends TestCase
         ])->assertCreated()->json('data.id_kegiatan');
         $this->assertDatabaseHas('kegiatan', ['id_kegiatan' => $id, 'id_user' => $this->owner->getKey()]);
         $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'id_isian_kategori' => $this->field, 'isian' => '2026-11-20']);
-        $this->getJson('/api/v1/dosen/penelitian/'.$id)->assertOk()->assertJsonPath('data.tanggal_mulai', '2026-11-20');
+        $this->getJson('/api/v1/dosen/penelitian/'.$id)->assertOk()
+            ->assertJsonPath('data.tanggal_mulai', '2026-11-20')
+            ->assertJsonPath('data.status', 'draft');
         $this->patchJson('/api/v1/dosen/penelitian/'.$id, ['nama_kegiatan' => 'Riset diubah', 'tanggal_mulai' => '2026-11-21'])->assertOk();
-        $this->getJson('/api/v1/dosen/penelitian?per_page=0')->assertOk()->assertJsonPath('data.0.tanggal_mulai', '2026-11-21');
+        $this->getJson('/api/v1/dosen/penelitian?per_page=0')->assertUnprocessable();
         $this->deleteJson('/api/v1/dosen/penelitian/'.$id)->assertOk();
         $this->assertDatabaseMissing('kegiatan', ['id_kegiatan' => $id]);
+    }
+
+    public function test_definisi_isian_kategori_penelitian_dapat_dimuat_untuk_form(): void
+    {
+        DB::table('isian_kategori')->where('id_isian_kategori', $this->field)->update(['aturan' => 'NOT NULL']);
+
+        $this->actingAs($this->owner, 'sanctum')
+            ->getJson('/api/v1/dosen/kategori/'.$this->category.'/isian')
+            ->assertOk()
+            ->assertJsonPath('data.kategori.id_kategori', $this->category)
+            ->assertJsonPath('data.isian.0.id_isian_kategori', $this->field)
+            ->assertJsonPath('data.isian.0.input', 'tanggal_mulai')
+            ->assertJsonPath('data.isian.0.wajib', true);
     }
 
     public function test_penelitian_menolak_kategori_pengabdian_dan_akses_silang(): void
@@ -111,6 +126,86 @@ class IntegrasiKelompok3Test extends TestCase
             'id_kategori' => $this->category, 'nama_kegiatan' => 'Salah modul',
         ])->assertUnprocessable();
         $this->getJson('/api/v1/dosen/pengabdian/'.$k->getKey())->assertNotFound();
+    }
+
+    public function test_penelitian_menolak_isian_kategori_lain_tanpa_menyimpan_data_parsial(): void
+    {
+        $jenis = DB::table('jenis_kegiatan')->where('nama_jenis_kegiatan', 'Kegiatan Dosen')->value('id_jenis_kegiatan');
+        $kategoriLain = DB::table('kategori')->insertGetId([
+            'id_jenis_kegiatan' => $jenis,
+            'nama_kategori' => 'Pengabdian',
+            'isi_surat' => 'Surat pengabdian',
+        ], 'id_kategori');
+        $isianLain = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $kategoriLain,
+            'input' => 'mitra',
+            'jenis_input' => 'teks',
+            'jumlah_isian' => 1,
+        ], 'id_isian_kategori');
+
+        $this->actingAs($this->owner, 'sanctum')->postJson('/api/v1/dosen/penelitian', [
+            'id_kategori' => $this->category,
+            'nama_kegiatan' => 'Riset dengan isian salah',
+            'detail' => [['id_isian_kategori' => $isianLain, 'isian' => 'Mitra']],
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseCount('kegiatan', 0);
+        $this->assertDatabaseCount('detail_kegiatan', 0);
+    }
+
+    public function test_penelitian_mendukung_filter_tahun_status_dan_validasi_filter(): void
+    {
+        $draft = $this->activity();
+        DetailKegiatan::create([
+            'id_kegiatan' => $draft->getKey(),
+            'id_isian_kategori' => $this->field,
+            'isian' => '2026-11-20',
+        ]);
+
+        $diajukan = $this->activity();
+        DetailKegiatan::create([
+            'id_kegiatan' => $diajukan->getKey(),
+            'id_isian_kategori' => $this->field,
+            'isian' => '2025-11-20',
+        ]);
+        $this->tambahStatus($diajukan, 'diajukan');
+
+        $this->actingAs($this->owner, 'sanctum');
+        $this->getJson('/api/v1/dosen/penelitian?tahun=2026&status=draft')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id_kegiatan', $draft->getKey())
+            ->assertJsonPath('data.0.status', 'draft');
+        $this->getJson('/api/v1/dosen/penelitian?tahun=2025&status=diajukan')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', 'diajukan');
+        $this->getJson('/api/v1/dosen/penelitian?tahun=invalid')->assertUnprocessable();
+        $this->getJson('/api/v1/dosen/penelitian?status=review')->assertUnprocessable();
+    }
+
+    public function test_pengajuan_menolak_isian_wajib_yang_belum_lengkap(): void
+    {
+        DB::table('isian_kategori')
+            ->where('id_isian_kategori', $this->field)
+            ->update(['aturan' => 'NOT NULL']);
+        $k = $this->activity();
+
+        $this->actingAs($this->owner, 'sanctum');
+        $this->postJson('/api/v1/dosen/pengajuan/'.$k->getKey().'/ajukan')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['isian.tanggal_mulai']);
+
+        DetailKegiatan::create([
+            'id_kegiatan' => $k->getKey(),
+            'id_isian_kategori' => $this->field,
+            'isian' => '2026-11-20',
+        ]);
+        $this->postJson('/api/v1/dosen/kegiatan/'.$k->getKey().'/dokumen', [
+            'file_path' => 'https://example.test/proposal.pdf',
+        ])->assertCreated();
+        $this->postJson('/api/v1/dosen/pengajuan/'.$k->getKey().'/ajukan')
+            ->assertCreated();
     }
 
     public function test_payload_form_lama_memakai_kategori_dan_lampiran_yang_sama(): void

@@ -38,8 +38,47 @@ abstract class KegiatanRisetController extends Controller
     {
         $uid = $request->user()->getKey();
 
+        $statusValid = ['draft', 'diajukan', 'direview', 'direvisi', 'ditolak', 'diterima', 'selesai'];
+        $v = Validator::make($request->all(), [
+            'q' => ['nullable', 'string', 'max:255'],
+            'tahun' => ['nullable', 'integer', 'between:1900,2100'],
+            'status' => ['nullable', 'string', Rule::in($statusValid)],
+            'per_page' => ['nullable', 'integer', 'between:1,100'],
+        ]);
+        if ($v->fails()) {
+            return $this->gagal('Validasi gagal', 422, $v->errors()->toArray());
+        }
+
+        $tahun = $request->filled('tahun') ? (int) $request->input('tahun') : null;
+        $status = $request->filled('status') ? mb_strtolower(trim((string) $request->input('status'))) : null;
+
         $p = $this->dapatDiakses($uid)
             ->when($request->filled('q'), fn ($q) => $q->where('nama_kegiatan', 'like', '%'.$request->input('q').'%'))
+            ->when($tahun !== null, function ($q) use ($tahun) {
+                $q->where(function ($tahunQuery) use ($tahun) {
+                    $tahunQuery->whereExists(function ($sub) use ($tahun) {
+                        $sub->select(DB::raw(1))
+                            ->from('detail_kegiatan as dt')
+                            ->join('isian_kategori as ik', 'ik.id_isian_kategori', '=', 'dt.id_isian_kategori')
+                            ->whereColumn('dt.id_kegiatan', 'kegiatan.id_kegiatan')
+                            ->where('ik.input', 'tanggal_mulai')
+                            ->whereRaw('SUBSTR(COALESCE(dt.isian, \'\'), 1, 4) = ?', [(string) $tahun]);
+                    });
+                    if (Schema::hasColumn('kegiatan', 'tanggal_mulai')) {
+                        $tahunQuery->orWhereBetween('tanggal_mulai', [
+                            sprintf('%04d-01-01', $tahun),
+                            sprintf('%04d-12-31', $tahun),
+                        ]);
+                    }
+                });
+            })
+            ->when($status !== null, function ($q) use ($status) {
+                if ($status === 'draft') {
+                    $q->whereDoesntHave('timeline');
+                } else {
+                    $q->whereHas('statusTerkini', fn ($timeline) => $timeline->where('status', $status));
+                }
+            })
             ->orderByDesc('id_kegiatan')
             ->paginate(max(1, min((int) $request->input('per_page', 15), 100)));
 
@@ -51,7 +90,7 @@ abstract class KegiatanRisetController extends Controller
             'tanggal_mulai' => $this->tgl($this->attr($k, 'tanggal_mulai')),
             'tanggal_selesai' => $this->tgl($this->attr($k, 'tanggal_selesai')),
             'peran' => (int) $k->id_user === (int) $uid ? 'ketua' : 'anggota',
-            'status' => $status[$k->id_kegiatan] ?? null,
+            'status' => $status[$k->id_kegiatan] ?? 'draft',
         ])->values()->all();
 
         return ApiResponse::paginated($p, $items);
@@ -431,7 +470,7 @@ abstract class KegiatanRisetController extends Controller
             'tanggal_mulai' => $this->tgl($this->attr($k, 'tanggal_mulai')),
             'tanggal_selesai' => $this->tgl($this->attr($k, 'tanggal_selesai')),
             'id_kegiatan_sebelumnya' => $this->attr($k, 'id_kegiatan_sebelumnya'),
-            'status' => $this->statusTerkini([$id])[$id] ?? null,
+            'status' => $this->statusTerkini([$id])[$id] ?? 'draft',
             // jawaban dinamis, termasuk mitra bila ada. Isian yang boleh berulang muncul sebagai beberapa baris.
             'detail' => DB::table('detail_kegiatan as d')
                 ->join('isian_kategori as i', 'i.id_isian_kategori', '=', 'd.id_isian_kategori')
