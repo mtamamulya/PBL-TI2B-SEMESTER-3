@@ -45,10 +45,15 @@
         <table class="w-full min-w-[900px] table-fixed border-collapse text-sm">
             <thead>
                 <tr class="bg-gray-100 text-left">
-                    <th scope="col" class="w-[28%] border-b border-gray-300 p-0 font-medium px-2.5 py-3">Judul Berita</th>
-                    <th scope="col" class="w-1/5 border-b border-gray-300 p-0 font-medium px-2.5 py-3">Kategori</th>
-                    <th scope="col" class="w-1/5 border-b border-gray-300 p-0 font-medium px-2.5 py-3">Tanggal Diajukan</th>
-                    <th scope="col" class="w-1/6 border-b border-gray-300 p-0 font-medium px-2.5 py-3">Status</th>
+                    @foreach (['judul' => ['Judul Berita', 'w-[28%]'], 'kategori' => ['Kategori', 'w-1/5'], 'tanggal' => ['Tanggal Diajukan', 'w-1/5'], 'status' => ['Status', 'w-1/6']] as $kolom => [$label, $lebar])
+                        <th scope="col" class="{{ $lebar }} border-b border-gray-300 px-2.5 py-3 font-medium"
+                            :aria-sort="urut === '{{ $kolom }}' ? (arah === 'asc' ? 'ascending' : 'descending') : 'none'">
+                            <button type="button" x-on:click="urutkan('{{ $kolom }}')">
+                                {{ $label }}
+                                <span aria-hidden="true" x-text="urut === '{{ $kolom }}' ? (arah === 'asc' ? '↑' : '↓') : '↕'"></span>
+                            </button>
+                        </th>
+                    @endforeach
                     <th scope="col" class="border-b border-gray-300 px-2.5 py-3 font-medium">Aksi</th>
                 </tr>
             </thead>
@@ -88,17 +93,17 @@
 
     {{-- Pagination --}}
     <nav aria-label="Halaman" x-show="totalHalaman > 1" class="flex items-center justify-center gap-2.5 pt-1 pb-4">
-        <button type="button" x-on:click="ke(halamanAktif - 1)" :disabled="halamanAktif === 1" aria-label="Halaman sebelumnya"
+        <button type="button" x-on:click="ke(halaman - 1)" :disabled="halaman === 1" aria-label="Halaman sebelumnya"
                 class="flex size-8 cursor-pointer items-center justify-center rounded border border-brand bg-brand text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <template x-for="n in totalHalaman" :key="n">
             <button type="button" x-on:click="ke(n)" x-text="n"
-                    :aria-label="`Halaman ${n}`" :aria-current="n === halamanAktif ? 'page' : null"
-                    :class="n === halamanAktif ? 'border-brand bg-white text-brand' : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50'"
+                    :aria-label="`Halaman ${n}`" :aria-current="n === halaman ? 'page' : null"
+                    :class="n === halaman ? 'border-brand bg-white text-brand' : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50'"
                     class="flex size-8 cursor-pointer items-center justify-center rounded border text-sm font-semibold"></button>
         </template>
-        <button type="button" x-on:click="ke(halamanAktif + 1)" :disabled="halamanAktif === totalHalaman" aria-label="Halaman berikutnya"
+        <button type="button" x-on:click="ke(halaman + 1)" :disabled="halaman === totalHalaman" aria-label="Halaman berikutnya"
                 class="flex size-8 cursor-pointer items-center justify-center rounded border border-brand bg-blue-100 text-brand hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
         </button>
@@ -115,6 +120,9 @@ document.addEventListener('alpine:init', () => {
         tab: ['Semua', 'Draft', 'Diajukan', 'Direvisi', 'Dipublikasikan', 'Ditolak'],
         aktif: 'Semua',
         halaman: 1,
+        urut: 'tanggal',
+        arah: 'desc',
+        permintaan: 0,
         loading: false,
         totalHalaman: 1,
         total: 0,
@@ -130,22 +138,31 @@ document.addEventListener('alpine:init', () => {
             await this.muatData();
         },
 
+        urutkan(kolom) {
+            this.arah = this.urut === kolom && this.arah === 'asc' ? 'desc' : 'asc';
+            this.urut = kolom;
+            this.halaman = 1;
+            return this.muatData();
+        },
+
         async muatData() {
+            const nomor = ++this.permintaan;
             this.loading = true;
             try {
-                const params = new URLSearchParams();
+                const params = new URLSearchParams({urut: this.urut, arah: this.arah});
                 if (this.aktif !== 'Semua') params.append('status', this.aktif.toLowerCase());
                 if (this.cari) params.append('search', this.cari);
                 params.append('page', this.halaman);
 
                 const { data, meta } = await apiBerita(`?${params.toString()}`);
+                if (nomor !== this.permintaan) return;
                 this.daftar = data.map(beritaUntukTampilan);
                 this.totalHalaman = meta.last_page;
                 this.total = meta.total;
             } catch (e) {
                 console.error('Gagal memuat data:', e);
             } finally {
-                this.loading = false;
+                if (nomor === this.permintaan) this.loading = false;
             }
         },
 

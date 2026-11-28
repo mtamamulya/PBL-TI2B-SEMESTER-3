@@ -21,8 +21,9 @@
 
     $kandidat = [];
     foreach ((auth()->user()?->dosen ? ['mahasiswa' => 'Mahasiswa', 'dosen' => 'Dosen'] : []) as $tabel => $peran) {
-        foreach (DB::table($tabel)->whereNotNull('id_user')->pluck('nama') as $nama) {
-            $kandidat[$nama] = $peran;
+        foreach (DB::table($tabel)->whereNotNull('id_user')->get(['id_user', 'nama']) as $akun) {
+            $kandidat[] = ['id_user' => $akun->id_user, 'nama' => $akun->nama, 'status' => $peran,
+                'label' => $akun->nama.' ('.$peran.' #'.$akun->id_user.')'];
         }
     }
     $pengaju = auth()->user()?->dosen?->nama ?? auth()->user()?->email ?? 'Pengaju';
@@ -52,6 +53,9 @@
           method="POST" action="#" enctype="multipart/form-data"
           class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
         @csrf
+        <ul x-show="pesanValidasi.length" x-cloak role="alert" class="list-disc rounded-md bg-red-50 py-2 pl-8 text-sm text-red-800">
+            <template x-for="(pesan, i) in pesanValidasi" :key="i"><li x-text="pesan"></li></template>
+        </ul>
 
         {{-- 1. INFORMASI KEGIATAN --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-info">
@@ -136,20 +140,15 @@
                            x-on:keydown.enter.prevent="tambah()"
                            placeholder="Cari dosen atau mahasiswa..." class="{{ $inputClass }} pl-10">
                     <datalist id="daftar-kandidat">
-                        @foreach ($kandidat as $nama => $status)
-                            <option value="{{ $nama }}">{{ $status }}</option>
+                        @foreach ($kandidat as $akun)
+                            <option value="{{ $akun['label'] }}"></option>
                         @endforeach
                     </datalist>
                 </div>
 
                 <div class="relative w-full sm:w-44">
                     <label for="status-anggota" class="sr-only">Status anggota</label>
-                    <select id="status-anggota" x-model="status" class="{{ $selectClass }}">
-                        <option value="">Pilih status</option>
-                        <option>Dosen</option>
-                        <option>Mahasiswa</option>
-                    </select>
-                    {!! $chevron !!}
+                    <input id="status-anggota" :value="calon?.status || ''" readonly placeholder="Status anggota" class="{{ $inputClass }}">
                 </div>
 
                 <button type="button" x-on:click="tambah()"
@@ -173,13 +172,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="(a, i) in anggota" :key="a.nama">
+                        <template x-for="(a, i) in anggota" :key="a.id_user">
                             <tr class="border-t border-gray-300">
                                 <td class="px-2.5 py-2.5">
                                     <span x-text="a.nama"></span>
                                     {{-- data yang dikirim ke backend --}}
-                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][nama]`" :value="a.nama">
-                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][status]`" :value="a.status">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][id_user]`" :value="a.id_user">
                                 </td>
                                 <td class="px-2.5 py-2.5" x-text="a.status"></td>
                                 <td class="px-2.5 py-1.5">
@@ -324,40 +322,30 @@
 
             // Anggota: akun yang login (pengaju) selalu ada dan terkunci. Anggota lain kosong di awal.
             anggota: [
-                { nama: pengaju, status: kandidat[pengaju] || 'Dosen', kunci: true },
+                { id_user: @js(auth()->id()), nama: pengaju, status: 'Dosen', kunci: true },
             ],
             cari: '',
-            status: '',
+            get calon() { return kandidat.find(a => a.label === this.cari.trim()); },
             errorAnggota: '',
 
-            // Kalau nama yang diketik ada di daftar, status otomatis terisi (masih bisa diubah)
             init() {
                 // Ganti kategori = isian tambahan kategori lain dikosongkan
                 this.muatKategori();
                 this.$watch('kategoriId', () => { this.nilai = {}; });
-                this.$watch('cari', v => {
-                    const nama = Object.keys(kandidat).find(n => n.toLowerCase() === v.trim().toLowerCase());
-                    if (nama) this.status = kandidat[nama];
-                });
             },
 
             tambah() {
-                const nama = this.cari.trim();
-                if (!nama) {
-                    this.errorAnggota = 'Ketik nama dosen atau mahasiswa terlebih dahulu.';
+                const calon = this.calon;
+                if (!calon) {
+                    this.errorAnggota = 'Pilih akun dari daftar dosen atau mahasiswa.';
                     return;
                 }
-                if (!this.status) {
-                    this.errorAnggota = 'Pilih status anggota (Dosen atau Mahasiswa) terlebih dahulu.';
-                    return;
-                }
-                if (this.anggota.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
+                if (this.anggota.some(a => Number(a.id_user) === Number(calon.id_user))) {
                     this.errorAnggota = 'Anggota ini sudah ada di daftar.';
                     return;
                 }
-                this.anggota.push({ nama, status: this.status, kunci: false });
+                this.anggota.push({ ...calon, kunci: false });
                 this.cari = '';
-                this.status = '';
                 this.errorAnggota = '';
             },
             hapus(i) { this.anggota.splice(i, 1); },
@@ -372,6 +360,7 @@
             },
             hapusDokumen(i) { this.dokumen.splice(i, 1); },
 
+            pesanValidasi: [],
             sedangMenyimpan: false,
             async simpan() {
                 if (this.sedangMenyimpan) return;
@@ -387,6 +376,7 @@
                 }
                 const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
 
+                this.pesanValidasi = [];
                 this.sedangMenyimpan = true;
                 try {
                     if (!['Penelitian', 'Pengabdian'].includes(this.kategori)) {
@@ -404,7 +394,15 @@
                     const result = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(result.message || 'Terjadi kesalahan validasi saat menyimpan.');
+                        if (response.status === 422) {
+                            this.pesanValidasi = Object.entries(result.errors || {}).flatMap(([kolom, pesan]) => {
+                                const label = kolom.split('.').map(bagian =>
+                                    /^\d+$/.test(bagian) ? Number(bagian) + 1 : bagian.replaceAll('_', ' ')
+                                ).join(' ');
+                                return [].concat(pesan).map(teks => label + ': ' + teks);
+                            });
+                        }
+                        throw new Error(this.pesanValidasi[0] || result.message || 'Terjadi kesalahan validasi saat menyimpan.');
                     }
 
                     window.location.assign(@js(url('/pengajuan/dosen')) + '/' + result.data.id_kegiatan);

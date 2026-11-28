@@ -17,7 +17,7 @@ class BeritaController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $data = Berita::where('id_user', $user->id_user)
+        $query = Berita::where('berita.id_user', $user->id_user)
             ->with(['kegiatan.kategori', 'kategori'])
             ->when($request->filled('status'), function ($q) use ($request) {
                 $status = $request->input('status');
@@ -32,8 +32,25 @@ class BeritaController extends Controller
                 $q->where(fn ($rows) => $rows->where('judul_berita', 'like', $term)
                     ->orWhereHas('kategori', fn ($category) => $category->where('nama_kategori', 'like', $term))
                     ->orWhereHas('kegiatan.kategori', fn ($category) => $category->where('nama_kategori', 'like', $term)));
-            })
-            ->orderByDesc('created_at')->orderByDesc('id_berita')
+            });
+
+        $arah = $request->input('arah') === 'asc' ? 'asc' : 'desc';
+        $kolom = $request->input('urut');
+        if ($kolom === 'kategori') {
+            $query->select('berita.*')
+                ->leftJoin('kategori as langsung', 'langsung.id_kategori', '=', 'berita.id_kategori')
+                ->leftJoin('kegiatan as sumber', 'sumber.id_kegiatan', '=', 'berita.id_kegiatan')
+                ->leftJoin('kategori as terkait', 'terkait.id_kategori', '=', 'sumber.id_kategori')
+                ->orderByRaw("COALESCE(langsung.nama_kategori, terkait.nama_kategori, CASE WHEN berita.id_prestasi IS NULL THEN 'Mandiri' ELSE 'Prestasi' END) ".$arah);
+        } elseif ($kolom === 'status') {
+            $query->orderByRaw("CASE berita.status WHEN 'publish' THEN 'dipublikasikan' WHEN 'revisi' THEN 'direvisi' ELSE berita.status END ".$arah);
+        } elseif ($kolom === 'judul') {
+            $query->orderBy('judul_berita', $arah);
+        } else {
+            $query->orderBy('berita.created_at', $kolom === 'tanggal' ? $arah : 'desc');
+        }
+
+        $data = $query->orderByDesc('berita.id_berita')
             ->paginate(max(1, min(100, $request->integer('per_page', 10))));
 
         return response()->json([
