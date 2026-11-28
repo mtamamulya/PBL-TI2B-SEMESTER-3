@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
  * FASE 1 (sekarang): MODE DUMMY. Data dari App\Support\NotifikasiStaf, status "dibaca" di session.
  * FASE 3: cabang non-dummy diisi panggilan ke API notifikasi Kelompok 1 (dibuat di Fase 2).
  */
-class NotifikasiStafController extends Controller
+class AdminKaprodiNotifikasiController extends Controller
 {
     public function index(Request $request)
     {

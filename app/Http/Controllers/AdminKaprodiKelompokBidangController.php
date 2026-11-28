@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
-class KelompokBidangController extends Controller
+class AdminKaprodiKelompokBidangController extends Controller
 {
     public function index(Request $request): View
     {

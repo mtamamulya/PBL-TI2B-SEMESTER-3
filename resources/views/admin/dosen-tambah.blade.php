@@ -1,6 +1,6 @@
 {{--
     resources/views/admin/dosen-tambah.blade.php
-    Form tambah dosen -> POST /admin/dosen (DosenController@store). Tanpa "Status akun" (akun baru otomatis aktif).
+    Form tambah dosen -> POST /admin/dosen (AdminDosenController@store). Tanpa "Status akun" (akun baru otomatis aktif).
     Nilai terisi ulang otomatis (old) bila validasi gagal.
 --}}
 @extends('layouts.admin')

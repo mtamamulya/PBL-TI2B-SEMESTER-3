@@ -1,7 +1,7 @@
 {{--
     resources/views/admin/dosen-detail.blade.php
     Detail dosen. Tab Aktivitas (Penelitian / Pengabdian / Pengajaran / Kegiatan) berganti tanpa
-    memuat ulang halaman. Data dikirim DosenController@show (via ApiClient).
+    memuat ulang halaman. Data dikirim AdminDosenController@show (via ApiClient).
 --}}
 @extends('layouts.admin')
 

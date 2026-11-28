@@ -1,6 +1,6 @@
 {{--
     resources/views/admin/dosen-edit.blade.php
-    Form edit dosen -> PUT /admin/dosen/{id} (DosenController@update via ApiClient).
+    Form edit dosen -> PUT /admin/dosen/{id} (AdminDosenController@update via ApiClient).
     Nilai terisi ulang otomatis (old) bila validasi gagal.
 --}}
 @extends('layouts.admin')

@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-class LandingDashboardController extends Controller
+class AdminDashboardController extends Controller
 {
     public function index()
     {

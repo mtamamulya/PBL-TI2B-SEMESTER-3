@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Repositories\KegiatanData;
 
-class KegiatanMahasiswaController extends Controller
+class AdminKegiatanMahasiswaController extends Controller
 {
     public function __construct(private KegiatanData $data) {}
 

@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\AdminAkreditasiController;
 use App\Http\Controllers\AdminMataKuliahController;
-use App\Http\Controllers\AkreditasiController;
+use App\Http\Controllers\LandingKel1AkreditasiController;
 use App\Http\Controllers\KaprodiMataKuliahController;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -153,13 +153,13 @@ class MataKuliahAkreditasiWebApiTest extends TestCase
     {
         Http::fake(['*/akreditasi/aktif' => Http::response(['success' => false, 'message' => 'Belum ada', 'errors' => []], 404)]);
 
-        $this->get(action([AkreditasiController::class, 'index']))->assertOk()->assertViewHas('pdfUrl', null);
+        $this->get(action([LandingKel1AkreditasiController::class, 'index']))->assertOk()->assertViewHas('pdfUrl', null);
     }
 
     public function test_halaman_publik_akreditasi_503_bila_api_mati(): void
     {
         Http::fake(fn () => throw new ConnectionException('mati'));
 
-        $this->get(action([AkreditasiController::class, 'index']))->assertStatus(503);
+        $this->get(action([LandingKel1AkreditasiController::class, 'index']))->assertStatus(503);
     }
 }

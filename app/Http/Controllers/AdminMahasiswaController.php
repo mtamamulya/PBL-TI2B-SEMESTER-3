@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-class LandingMahasiswaController extends Controller
+class AdminMahasiswaController extends Controller
 {
     public const STATUS_OPSI = [
         'Aktif',

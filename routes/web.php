@@ -6,7 +6,7 @@ use App\BackendKel3\Dashboard\DosenDashboardController;
 use App\BackendKel3\Dashboard\NotifikasiController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DosenPengabdianController;
-use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LandingKel1HomeController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\MahasiswaController;
 use App\Http\Controllers\PengajuanController;
@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Landing Page TRK
-Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/', [LandingKel1HomeController::class, 'index'])->name('home');
 
 $redirectByRole = static function (string $dosen, string $mahasiswa) {
     return static function (Request $request, ?string $id = null) use ($dosen, $mahasiswa) {

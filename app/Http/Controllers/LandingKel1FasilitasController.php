@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 
-class FasilitasController extends Controller
+class LandingKel1FasilitasController extends Controller
 {
     /** /fasilitas atau /fasilitas?f=2 (nomor urut fasilitas yang tampil pertama, mulai 0). */
     public function index(Request $request)

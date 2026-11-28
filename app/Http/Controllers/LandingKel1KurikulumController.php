@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Repositories\KurikulumRepository;
 use Illuminate\Http\Request;
 
-class KurikulumController extends Controller
+class LandingKel1KurikulumController extends Controller
 {
     public function __construct(private KurikulumRepository $repo) {}
 
