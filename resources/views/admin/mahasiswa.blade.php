@@ -159,7 +159,7 @@
     </div>
 
     @if (session('status'))
-        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('status') }}</div>
+        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status" data-success-banner>{{ session('status') }}</div>
     @endif
     @if (session('error') || $errors->any())
         <div class="mt-4 rounded-md border border-[#FFD9D9] bg-[#FFEDED] px-4 py-3 text-sm text-[#E5484D]" role="alert">

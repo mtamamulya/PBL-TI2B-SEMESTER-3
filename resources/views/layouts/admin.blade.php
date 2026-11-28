@@ -64,6 +64,7 @@
         </div>
     </div>
 
+    @include('layouts.kel_1-success-banner-script')
     @stack('scripts')
 </body>
 </html>

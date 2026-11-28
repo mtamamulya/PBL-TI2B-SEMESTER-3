@@ -117,7 +117,7 @@
     .modal-btn-hapus:disabled { opacity: .7; cursor: not-allowed; }
 </style>
 
-<div class="px-6 pb-8 pt-4 md:px-8">
+<div class="px-6 pb-8 pt-4 md:px-8" data-clear-category-status>
     <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Kategori Kegiatan</h1>
 
     {{-- Breadcrumb --}}
@@ -138,9 +138,9 @@
         <div class="mt-4 rounded-md border border-[#FAA8A8] bg-[#FBCBCB] px-4 py-3 text-sm text-[#B00000]" role="alert">{{ session('error') }}</div>
     @endif
 
-    @if (request('status'))
-        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">
-            Kategori kegiatan berhasil {{ request('status') === 'diperbarui' ? 'diperbarui' : 'ditambahkan' }}.
+    @if (in_array(request()->query('status'), ['ditambahkan', 'diperbarui'], true))
+        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status" data-success-banner>
+            Kategori kegiatan berhasil {{ request()->query('status') }}.
         </div>
     @endif
 
@@ -206,7 +206,7 @@
     const URL_EDIT   = @json(route('admin.kegiatan.kategori-kegiatan.edit', ['id' => '__ID__']));
     const URL_DELETE = @json(route('admin.kegiatan.kategori-kegiatan.destroy', ['id' => '__ID__']));
     const CSRF = @json(csrf_token());
-    const STATUS = @json(request('status'));   // 'ditambahkan' | 'diperbarui' | null
+    const STATUS = @json(request()->query('status'));   // 'ditambahkan' | 'diperbarui' | null
 
     const rows = @json($rows);
     let idHapus = null;

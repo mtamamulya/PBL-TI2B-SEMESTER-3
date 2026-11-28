@@ -50,7 +50,7 @@
 
 <div class="flex flex-col gap-9">
     @if (session('status'))
-        <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700" role="status">
+        <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700" role="status" data-success-banner>
             {{ session('status') }}
         </div>
     @endif
