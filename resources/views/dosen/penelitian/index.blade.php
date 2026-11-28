@@ -155,8 +155,7 @@
 @push('scripts')
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('penelitian', () => ({
-        ...tabelData({
+    Alpine.data('penelitian', () => tabelData({
             daftar: [],
             cari: '',
             f: { tahun: '', dana: '' },
@@ -168,7 +167,6 @@ document.addEventListener('alpine:init', () => {
                     (this.f.dana === '' || (k.dana || '') === this.f.dana)
                 );
             },
-        }, { perHalaman: 5, kunci: {} }),
         memuat: true,
         errorMsg: '',
         async muatData() {
@@ -206,7 +204,7 @@ document.addEventListener('alpine:init', () => {
                 this.memuat = false;
             }
         },
-    }));
+    }, { perHalaman: 5, kunci: {} }));
 });
 </script>
 @endpush

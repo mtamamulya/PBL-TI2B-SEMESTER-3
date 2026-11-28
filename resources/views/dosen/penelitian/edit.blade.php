@@ -445,6 +445,7 @@
                 this.tersimpan = false;
                 this.errorMsg = '';
 
+                const nominal = nilai => String(nilai || 0).replace(/\D/g, '') || '0';
                 const payload = {
                     nama_kegiatan: this.judul,
                     lokasi: this.lokasi,
@@ -458,10 +459,10 @@
                         tahun_anggaran: this.tahunAnggaran,
                         tahun_pelaksanaan_ke: this.tahunKe,
                         lama_kegiatan: this.lama,
-                        dana_dikti: this.dana.dana_dikti,
-                        dana_perguruan_tinggi: this.dana.dana_perguruan_tinggi,
-                        dana_institusi_lain: this.dana.dana_institusi_lain,
-                        in_kind: this.dana.in_kind,
+                        dana_dikti: nominal(this.dana.dana_dikti),
+                        dana_perguruan_tinggi: nominal(this.dana.dana_perguruan_tinggi),
+                        dana_institusi_lain: nominal(this.dana.dana_institusi_lain),
+                        in_kind: nominal(this.dana.in_kind),
                         mitra: this.mitra,
                     },
                     anggota: this.anggota.map(a => ({

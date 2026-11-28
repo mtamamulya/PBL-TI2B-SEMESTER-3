@@ -186,7 +186,7 @@ abstract class KegiatanRisetController extends Controller
         $aturan = $this->aturan();
         $aturan['nama_kegiatan'] = ['sometimes', 'required', 'string', 'max:255'];
 
-        $v = Validator::make($this->masukan($request), $aturan);
+        $v = Validator::make($this->masukan($request, (int) $k->id_kategori), $aturan);
         if ($v->fails()) {
             return $this->gagal('Validasi gagal', 422, $v->errors()->toArray());
         }
@@ -462,6 +462,8 @@ abstract class KegiatanRisetController extends Controller
             'id_kegiatan' => $id,
             'id_kategori' => (int) $k->id_kategori,
             'id_skim' => $k->id_skim,
+            'skim' => $k->skim?->nama_skim,
+            'kelompok_bidang' => $k->kelompokBidang?->nama_kelompok_bidang,
             'id_kelompok_bidang' => $k->id_kelompok_bidang,
             'kategori' => DB::table('kategori')->where('id_kategori', $k->id_kategori)->value('nama_kategori'),
             'nama_kegiatan' => $k->nama_kegiatan,
@@ -496,7 +498,7 @@ abstract class KegiatanRisetController extends Controller
     }
 
     /** Peran anggota disamakan ke huruf kecil (model hanya menerima "ketua" dan "anggota"). */
-    private function masukan(Request $request): array
+    private function masukan(Request $request, ?int $kategoriTersimpan = null): array
     {
         $in = $request->all();
         if (! isset($in['id_kategori']) && isset($in['kategori']) && $request->isMethod('post')) {
@@ -508,9 +510,10 @@ abstract class KegiatanRisetController extends Controller
             }
             $in['id_kategori'] = $categories->first();
         }
+        $idKategori = $kategoriTersimpan ?? $in['id_kategori'] ?? null;
         $legacy = $in['detail'] ?? [];
         if (is_array($legacy) && ! array_is_list($legacy)) {
-            $fields = DB::table('isian_kategori')->where('id_kategori', $in['id_kategori'] ?? 0)->get()->keyBy('input');
+            $fields = DB::table('isian_kategori')->where('id_kategori', $idKategori)->get()->keyBy('input');
             $in['detail'] = [];
             foreach (['skim' => ['skim', 'nama_skim', 'id_skim'], 'kelompok_bidang' => ['kelompok_bidang', 'nama_kelompok_bidang', 'id_kelompok_bidang']] as $key => [$table, $name, $pk]) {
                 if (! empty($legacy[$key])) {
@@ -556,7 +559,6 @@ abstract class KegiatanRisetController extends Controller
                 $in['anggota'][$i]['id_user'] = $users->first();
             }
         }
-        $idKategori = $in['id_kategori'] ?? Kegiatan::whereKey($request->route('id') ?? $request->route('penelitian'))->value('id_kategori');
         $details = $in['detail'] ?? [];
         if (is_array($details) && array_is_list($details) && $idKategori) {
             $provided = array_column($details, 'id_isian_kategori');
