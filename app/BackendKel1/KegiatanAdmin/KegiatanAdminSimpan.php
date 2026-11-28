@@ -23,8 +23,7 @@ use Throwable;
  *
  * Pemilik kegiatan (kegiatan.id_user) menentukan tab:
  *   Kegiatan Prodi     -> akun admin/kaprodi yang membuat (pengaju = email akun itu)
- *   Kegiatan Dosen     -> dosen pertama pada daftar anggota (peran ketua)
- *   Kegiatan Mahasiswa -> mahasiswa pertama pada daftar anggota (peran ketua)
+ *   Kegiatan Dosen dan Mahasiswa -> pemilik yang dipilih (peran ketua)
  */
 class KegiatanAdminSimpan
 {
@@ -53,6 +52,14 @@ class KegiatanAdminSimpan
     {
         return [
             'nama_kegiatan' => ['required', 'string', 'max:255'],
+        ] + ($dinamis ? [
+            'id_kategori' => ['required', 'integer'],
+            'pemilik' => ['nullable', 'string', 'regex:/^(dosen|mahasiswa):\d+$/i'],
+            'anggota' => ['prohibited'],
+            'dokumen' => ['prohibited'],
+            'detail' => ['sometimes', 'array'],
+            'detail.*' => ['array'],
+        ] : [
             'anggota' => ['required', 'array', 'min:1'],
             'anggota.*' => ['required', 'string', 'regex:/^(dosen|mahasiswa):\d+$/i'],
             'dokumen' => ['nullable', 'array'],
@@ -62,11 +69,6 @@ class KegiatanAdminSimpan
             'dokumen.*.id_jenis_dokumen' => ['nullable', 'integer'],
             'dokumen.*.keterangan' => ['nullable', 'string', 'max:500'],
             'dokumen.*.tautan' => ['nullable', 'url', 'max:255'],
-        ] + ($dinamis ? [
-            'id_kategori' => ['required', 'integer'],
-            'detail' => ['sometimes', 'array'],
-            'detail.*' => ['array'],
-        ] : [
             'jenis_kegiatan' => ['required', 'in:'.implode(',', self::JENIS)],
             'id_kategori' => ['nullable', 'integer', 'required_without:kategori'],
             'kategori' => ['nullable', 'string', 'max:100', 'required_without:id_kategori'],
@@ -89,11 +91,15 @@ class KegiatanAdminSimpan
                 if ($dinamis && ($kategori->kebutuhan !== 'kegiatan' || ! in_array($jenis, self::JENIS, true))) {
                     throw ValidationException::withMessages(['id_kategori' => 'Pilih kategori yang tersedia untuk Langsung kegiatan.']);
                 }
-                $anggota = $this->anggota((array) $d['anggota']);
-                $pemilik = $this->pemilik($jenis, $anggota, $pembuat);
-                $dokumen = $this->dokumen((array) ($d['dokumen'] ?? []));
                 if ($dinamis) {
-                    [$fields, $jawaban] = IsianKegiatanAdmin::validasi($kategori, $d['detail'] ?? []);
+                    $pemilik = $this->pemilikDariForm($jenis, $d['pemilik'] ?? null, $pembuat);
+                    $dokumen = [];
+                    [$fields, $jawaban, $peserta] = IsianKegiatanAdmin::validasi($kategori, $d['detail'] ?? []);
+                    $anggota = $jenis === 'Kegiatan Prodi' ? $peserta : array_values(array_unique([$pemilik, ...$peserta]));
+                } else {
+                    $anggota = $this->anggota($d['anggota']);
+                    $pemilik = $this->pemilik($jenis, $anggota, $pembuat);
+                    $dokumen = $this->dokumen($d['dokumen'] ?? []);
                 }
                 $k = Kegiatan::query()->create([
                     'id_kategori' => $kategori->id_kategori,
@@ -206,7 +212,7 @@ class KegiatanAdminSimpan
      *
      * @return int[]
      */
-    private function anggota(array $daftar): array
+    private function anggota(array $daftar, string $kolom = 'anggota'): array
     {
         $users = [];
         $galat = [];
@@ -223,10 +229,29 @@ class KegiatanAdminSimpan
             $users[] = (int) $idUser;
         }
         if ($galat) {
-            throw ValidationException::withMessages(['anggota' => $galat]);
+            throw ValidationException::withMessages([$kolom => $galat]);
         }
 
         return array_values(array_unique($users));
+    }
+
+    private function pemilikDariForm(string $jenis, ?string $kandidat, User $pembuat): int
+    {
+        if ($jenis === 'Kegiatan Prodi') {
+            return (int) $pembuat->getKey();
+        }
+
+        $tipe = $jenis === 'Kegiatan Dosen' ? 'dosen' : 'mahasiswa';
+        if (! str_starts_with(strtolower($kandidat ?? ''), $tipe.':')) {
+            throw ValidationException::withMessages(['pemilik' => "Pilih $tipe sebagai pemilik kegiatan."]);
+        }
+
+        $pemilik = $this->anggota([$kandidat], 'pemilik')[0];
+        if (! User::query()->whereKey($pemilik)->where('id_role', $tipe === 'dosen' ? 3 : 4)->exists()) {
+            throw ValidationException::withMessages(['pemilik' => 'Pemilik tidak sesuai dengan jenis kegiatan.']);
+        }
+
+        return $pemilik;
     }
 
     /** @param  int[]  $anggota */

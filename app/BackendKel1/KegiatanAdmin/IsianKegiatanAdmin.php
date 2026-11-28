@@ -12,20 +12,6 @@ use Illuminate\Validation\ValidationException;
 
 final class IsianKegiatanAdmin
 {
-    public static function tanpaPadanan(array $fields): array
-    {
-        $penyelenggara = collect($fields)->firstWhere('input', 'penyelenggara');
-        if (($penyelenggara['jenis_input'] ?? null) !== 'teks' || (int) $penyelenggara['jumlah_isian'] !== 1) {
-            return $fields;
-        }
-
-        // Kedua nama tersimpan di sebagian kategori lama. Pertahankan ID lama untuk jawaban historis.
-        return array_values(array_filter($fields, fn ($field) => ! (
-            $field['input'] === 'organizer' && $field['jenis_input'] === 'teks'
-            && ! $field['wajib'] && (int) $field['jumlah_isian'] === 1
-        )));
-    }
-
     /** Opsi untuk isian pilihan yang sudah ada sebelum tipe pilihan baku diperkenalkan. */
     public static function pilihanLama(string $nama, string $tipe): ?array
     {
@@ -52,8 +38,7 @@ final class IsianKegiatanAdmin
                 'jenis_input' => $field->jenis_input,
                 'wajib' => strtoupper(trim((string) $field->aturan)) === 'NOT NULL',
                 'jumlah_isian' => $field->jumlah_isian,
-            ])->all();
-        $fields = collect(self::tanpaPadanan($fields))->keyBy('id');
+            ])->keyBy('id');
 
         $rules = [];
         $attributes = [];
@@ -64,13 +49,19 @@ final class IsianKegiatanAdmin
             $jawaban[$id] = array_filter($baris, fn ($value) => $value !== null && $value !== '');
         }
 
+        $jenis = $kategori->jenisKegiatan?->nama_jenis_kegiatan ?? '';
+        $isianPeserta = $fields->filter(fn (array $field) => PesertaKegiatan::isian($jenis, $field));
         foreach ($fields as $id => $field) {
             $key = "detail.$id";
             $rules[$key] = [$field['wajib'] ? 'required' : 'sometimes', 'array'];
-            if ($field['jumlah_isian'] > 0) {
+            if ($isianPeserta->has($id)) {
+                $rules["$key.*"] = ['required', 'string', 'max:30', PesertaKegiatan::FORMAT];
+            } else {
+                $rules["$key.*"] = ['required', ...self::aturanNilai($field)];
+            }
+            if (! $isianPeserta->has($id) && $field['jumlah_isian'] > 0) {
                 $rules[$key][] = 'max:'.$field['jumlah_isian'];
             }
-            $rules["$key.*"] = ['required', ...self::aturanNilai($field)];
             $attributes[$key] = $attributes["$key.*"] = $field['input'];
         }
 
@@ -84,7 +75,17 @@ final class IsianKegiatanAdmin
             throw ValidationException::withMessages(["detail.$akhir" => 'Tanggal selesai tidak boleh sebelum tanggal mulai.']);
         }
 
-        return [$fields, $jawaban];
+        $peserta = [];
+        foreach ($isianPeserta as $id => $field) {
+            if (empty($jawaban[$id])) {
+                continue;
+            }
+            [$idPeserta, $ringkasan] = PesertaKegiatan::pilih($jenis, $jawaban[$id], "detail.$id");
+            $peserta = array_merge($peserta, $idPeserta);
+            $jawaban[$id] = [$ringkasan];
+        }
+
+        return [$fields, $jawaban, array_values(array_unique($peserta))];
     }
 
     private static function aturanNilai(array $field): array

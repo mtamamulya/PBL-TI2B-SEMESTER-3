@@ -289,6 +289,20 @@ class KegiatanWebTest extends TestCase
 
     // ---------- tambah kegiatan ----------
 
+    public function test_dropdown_master_admin_hanya_memuat_tiga_jenis_kegiatan(): void
+    {
+        Http::fake([
+            '*/jenis-kegiatan' => Http::response(['data' => array_map(
+                fn ($nama) => ['nama_jenis_kegiatan' => $nama],
+                ['Kegiatan Mahasiswa', 'Kegiatan Prodi & Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'],
+            )]),
+            '*/tipe-isian' => Http::response(['data' => []]),
+        ]);
+
+        $this->admin()->get(route('admin.kegiatan.kategori-kegiatan.create'))->assertOk()
+            ->assertViewHas('jenis', ['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi']);
+    }
+
     private function form(array $ganti = []): array
     {
         return array_replace([
@@ -366,13 +380,14 @@ class KegiatanWebTest extends TestCase
             'id_kategori' => 3,
             'isian_dinamis' => 1,
             'nama_kegiatan' => 'Kegiatan dinamis',
-            'anggota' => ['Dosen:1'],
+            'pemilik' => 'Dosen:1',
             'detail' => [42 => ['Jawaban pertama', 'Jawaban kedua']],
         ])->assertRedirect(route('kaprodi.kegiatan.create'))
             ->assertSessionHasErrors('detail.43')
             ->assertSessionHasInput('detail.42.1', 'Jawaban kedua');
 
         Http::assertSent(fn (Request $request) => $request['isian_dinamis'] === 1
+            && $request['pemilik'] === 'Dosen:1'
             && $request['detail[42][0]'] === 'Jawaban pertama'
             && $request['detail[42][1]'] === 'Jawaban kedua');
     }
@@ -385,7 +400,6 @@ class KegiatanWebTest extends TestCase
             'id_kategori' => 3,
             'isian_dinamis' => 1,
             'nama_kegiatan' => 'Kegiatan dengan lampiran',
-            'anggota' => ['Dosen:1'],
             'detail' => [
                 42 => ['Semarang'],
                 43 => [UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf')],

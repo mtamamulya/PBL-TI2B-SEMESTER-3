@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 
 class KategoriKegiatanController extends Controller
 {
+    private const JENIS_FORM = ['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'];
+
     public function index()
     {
         try {
@@ -41,24 +43,11 @@ class KategoriKegiatanController extends Controller
 
     public function create()
     {
-        try {
-            $jenis = $this->daftarJenis();
-            $apiError = null;
-        } catch (ApiException $e) {
-            if ($e->getStatusCode() === 401) {
-                throw $e;
-            }
-
-            \Log::error('Gagal memuat form tambah kategori: '.$e->getMessage().' (Code: '.$e->getStatusCode().')');
-            $jenis = [];
-            $apiError = $e->getMessage().' (Status: '.$e->getStatusCode().')';
-        }
-
         return view('admin.kategori-kegiatan-form', [
             'row' => null,
-            'jenis' => $jenis,
+            'jenis' => self::JENIS_FORM,
             'tipeIsian' => $this->daftarTipeIsian(),
-            'apiError' => $apiError,
+            'apiError' => null,
         ]);
     }
 
@@ -67,7 +56,6 @@ class KategoriKegiatanController extends Controller
         try {
             $res = ApiClient::pengguna()->get('/kategori-kegiatan/'.$id);
             $item = $this->bentukBaris($res['data'] ?? []);
-            $jenis = $this->daftarJenis();
             $apiError = null;
         } catch (ApiException $e) {
             if ($e->getStatusCode() === 401) {
@@ -83,7 +71,7 @@ class KategoriKegiatanController extends Controller
 
         return view('admin.kategori-kegiatan-form', [
             'row' => $item,
-            'jenis' => $jenis,
+            'jenis' => self::JENIS_FORM,
             'tipeIsian' => $this->daftarTipeIsian(),
             'apiError' => $apiError,
         ]);

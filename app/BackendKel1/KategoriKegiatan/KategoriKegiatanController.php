@@ -2,6 +2,8 @@
 
 namespace App\BackendKel1\KategoriKegiatan;
 
+use App\BackendKel1\KegiatanAdmin\KegiatanAdminSimpan;
+use App\BackendKel1\KegiatanAdmin\PesertaKegiatan;
 use App\Http\Controllers\Controller;
 use App\Models\IsianKategori;
 use App\Models\JenisKegiatan;
@@ -86,10 +88,9 @@ class KategoriKegiatanController extends Controller
             return $this->dilarang();
         }
 
-        $data = $this->validasi($request);
-
         try {
-            $k = DB::transaction(function () use ($data) {
+            $k = DB::transaction(function () use ($request) {
+                $data = $this->validasi($request);
                 $k = Kategori::create(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'lampiran_peserta', 'kebutuhan']));
 
                 if (isset($data['isian'])) {
@@ -116,10 +117,9 @@ class KategoriKegiatanController extends Controller
             return ApiResponse::gagal('Kategori kegiatan tidak ditemukan');
         }
 
-        $data = $this->validasi($request, $id);
-
         try {
-            DB::transaction(function () use ($k, $data) {
+            DB::transaction(function () use ($k, $request) {
+                $data = $this->validasi($request, $k->getKey());
                 $k->update(Arr::only($data, ['id_jenis_kegiatan', 'nama_kategori', 'deskripsi', 'isi_surat', 'lampiran_peserta', 'kebutuhan']));
 
                 // `isian` tidak dikirim = daftar isian dibiarkan. Dikirim (walau kosong) = diganti sesuai kiriman.
@@ -231,15 +231,21 @@ class KategoriKegiatanController extends Controller
             $request->merge(['isi_surat' => $request->input('template_surat')]);
         }
 
-        // Jenis boleh dikirim sebagai nama ("Kegiatan Mahasiswa") atau sebagai id_jenis_kegiatan.
-        if (! $request->filled('id_jenis_kegiatan') && $request->filled('jenis')) {
-            $idJenis = JenisKegiatan::query()
-                ->where('nama_jenis_kegiatan', $request->input('jenis'))
-                ->value('id_jenis_kegiatan');
+        // Form admin memakai tiga jenis tetap. Daftarkan jenis yang belum tersedia di transaksi yang sama.
+        if (! $request->filled('id_jenis_kegiatan') && is_string($namaJenis = $request->input('jenis'))) {
+            $idJenis = in_array($namaJenis, KegiatanAdminSimpan::JENIS, true)
+                ? JenisKegiatan::firstOrCreate(['nama_jenis_kegiatan' => $namaJenis])->getKey()
+                : JenisKegiatan::query()->where('nama_jenis_kegiatan', $namaJenis)->value('id_jenis_kegiatan');
 
             if ($idJenis) {
                 $request->merge(['id_jenis_kegiatan' => $idJenis]);
             }
+        }
+
+        $tipeIsian = PilihanBaku::semuaJenis();
+        if ($request->input('kebutuhan') === 'kegiatan' && JenisKegiatan::query()
+            ->whereKey($request->integer('id_jenis_kegiatan'))->whereIn('nama_jenis_kegiatan', KegiatanAdminSimpan::JENIS)->exists()) {
+            $tipeIsian[] = PesertaKegiatan::TIPE;
         }
 
         $data = $request->validate([
@@ -257,7 +263,7 @@ class KategoriKegiatanController extends Controller
             'isian' => ['nullable', 'array', 'max:'.self::MAKS_ISIAN],
             'isian.*.id_isian_kategori' => ['nullable', 'integer'],
             'isian.*.input' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
-            'isian.*.jenis_input' => ['required', Rule::in(PilihanBaku::semuaJenis())],
+            'isian.*.jenis_input' => ['required', Rule::in($tipeIsian)],
             'isian.*.wajib' => ['nullable', 'boolean'],
             'isian.*.jumlah_isian' => ['nullable', 'boolean'],
         ], [

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\BackendKel1\KegiatanAdmin\IsianKegiatanAdmin;
+use App\BackendKel1\KegiatanAdmin\PesertaKegiatan;
 use App\Support\ApiClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -13,10 +14,10 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Halaman "Tambah Kegiatan" (admin DAN kaprodi, dibedakan dari nama route): informasi kegiatan, anggota (dosen/mahasiswa), unggah dokumen.
+ * Halaman "Tambah Kegiatan" Admin dan Kaprodi. Isian dan unggahan mengikuti master kategori.
  *
  * - Kategori: dari API GET /kategori-kegiatan (kategori buatan admin), form mengirim id_kategori.
- * - Kandidat anggota: dari tabel dosen / mahasiswa (key "Dosen:{id_dosen}" / "Mahasiswa:{id_mahasiswa}", sesuai kontrak API).
+ * - Pemilik kegiatan dosen/mahasiswa dipilih dari tabel dosen atau mahasiswa.
  * - Simpan: POST /admin/kegiatan lewat ApiClient. Sengaja TANPA try/catch: 422 kembali ke form (ApiException::render),
  *   401 ke login, 403/503 tampil sebagai halaman galat, jadi API yang mati tidak tersembunyi.
  */
@@ -38,8 +39,6 @@ class AdminKegiatanTambahController extends Controller
     {
         return view('admin.kegiatan-tambah', [
             'kategori' => $this->daftarKategori(),
-            'jenisKegiatan' => self::JENIS_KEGIATAN,
-            'jenisDokumen' => self::JENIS_DOKUMEN,
             'kandidat' => $this->kandidat(),
         ]);
     }
@@ -49,8 +48,11 @@ class AdminKegiatanTambahController extends Controller
         $kategori = ApiClient::pengguna()->get('/kategori-kegiatan/'.$id)['data'] ?? [];
         abort_unless(($kategori['kebutuhan'] ?? null) === 'kegiatan', 404);
 
-        $isian = IsianKegiatanAdmin::tanpaPadanan($kategori['isian']);
+        $isian = $kategori['isian'];
         foreach ($isian as &$field) {
+            if (PesertaKegiatan::isian($kategori['jenis'] ?? '', $field)) {
+                $field['jenis_input'] = PesertaKegiatan::TIPE;
+            }
             $field['pilihan'] ??= IsianKegiatanAdmin::pilihanLama($field['input'], $field['jenis_input']);
         }
 
@@ -64,6 +66,13 @@ class AdminKegiatanTambahController extends Controller
         $data = $request->validate([
             'id_kategori' => ['required', 'integer'],
             'nama_kegiatan' => ['required', 'string', 'max:200'],
+        ] + ($dinamis ? [
+            'pemilik' => ['nullable', 'string', 'regex:/^(Dosen|Mahasiswa):\d+$/'],
+            'anggota' => ['prohibited'],
+            'dokumen' => ['prohibited'],
+            'detail' => ['sometimes', 'array'],
+            'detail.*' => ['array'],
+        ] : [
             'anggota' => ['required', 'array', 'min:1'],
             'anggota.*' => ['required', 'regex:/^(Dosen|Mahasiswa):\d+$/'],
             'dokumen' => ['nullable', 'array'],
@@ -72,10 +81,6 @@ class AdminKegiatanTambahController extends Controller
             'dokumen.*.jenis' => ['nullable', 'required_with:dokumen.*.file', Rule::in(self::JENIS_DOKUMEN)],
             'dokumen.*.keterangan' => ['nullable', 'string', 'max:500'],
             'dokumen.*.tautan' => ['nullable', 'url', 'max:255'],
-        ] + ($dinamis ? [
-            'detail' => ['sometimes', 'array'],
-            'detail.*' => ['array'],
-        ] : [
             'jenis_kegiatan' => ['required', Rule::in(self::JENIS_KEGIATAN)],
             'penyelenggara' => ['required', 'string', 'max:150'],
             'tanggal_mulai' => ['required', 'date'],
@@ -91,6 +96,9 @@ class AdminKegiatanTambahController extends Controller
             'tanggal_selesai.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
             'anggota.required' => 'Tambahkan minimal satu anggota kegiatan.',
             'anggota.min' => 'Tambahkan minimal satu anggota kegiatan.',
+            'anggota.prohibited' => 'Isi bagian anggota sesuai isian kategori yang tampil.',
+            'dokumen.prohibited' => 'Isi dokumen lewat isian kategori yang tampil.',
+            'pemilik.regex' => 'Pemilik kegiatan tidak valid.',
             'dokumen.*.file.mimes' => 'Format file harus pdf, jpg, jpeg, png, doc, docx, xls, xlsx, atau txt.',
             'dokumen.*.file.max' => 'Ukuran file maksimal 5 MB.',
             'dokumen.*.nama.required_with' => 'Nama dokumen wajib diisi bila ada file.',
@@ -106,6 +114,9 @@ class AdminKegiatanTambahController extends Controller
         $berkas = [];
         if ($dinamis) {
             $kirim['isian_dinamis'] = 1;
+            if (isset($data['pemilik'])) {
+                $kirim['pemilik'] = $data['pemilik'];
+            }
             foreach ($data['detail'] ?? [] as $idIsian => $jawaban) {
                 foreach ($jawaban as $baris => $nilai) {
                     // Kunci numerik juga menjaga konstruksi nama field multipart tetap konsisten.
@@ -125,32 +136,31 @@ class AdminKegiatanTambahController extends Controller
             }
         } else {
             $kirim += array_intersect_key($data, array_flip(['jenis_kegiatan', 'penyelenggara', 'tanggal_mulai', 'tanggal_selesai']));
-        }
-
-        // Urutan anggota penting: dosen/mahasiswa PERTAMA menjadi pemilik (ketua) kegiatan dosen/mahasiswa.
-        foreach (array_values($data['anggota']) as $i => $a) {
-            $kirim["anggota[$i]"] = $a;
-        }
-
-        $n = 0;
-        foreach ($request->input('dokumen', []) as $i => $dok) {
-            $file = $request->file("dokumen.$i.file");
-
-            if (! $file && empty($dok['tautan']) && empty($dok['nama'])) {
-                continue; // kartu dokumen kosong
+            // Pertahankan bentuk kiriman untuk pemanggil form lama.
+            foreach (array_values($data['anggota']) as $i => $a) {
+                $kirim["anggota[$i]"] = $a;
             }
 
-            foreach (['nama', 'jenis', 'keterangan', 'tautan'] as $f) {
-                if (! empty($dok[$f])) {
-                    $kirim["dokumen[$n][$f]"] = $dok[$f];
+            $n = 0;
+            foreach ($request->input('dokumen', []) as $i => $dok) {
+                $file = $request->file("dokumen.$i.file");
+
+                if (! $file && empty($dok['tautan']) && empty($dok['nama'])) {
+                    continue;
                 }
-            }
 
-            if ($file) {
-                $berkas["dokumen[$n][file]"] = $file;
-            }
+                foreach (['nama', 'jenis', 'keterangan', 'tautan'] as $f) {
+                    if (! empty($dok[$f])) {
+                        $kirim["dokumen[$n][$f]"] = $dok[$f];
+                    }
+                }
 
-            $n++;
+                if ($file) {
+                    $berkas["dokumen[$n][file]"] = $file;
+                }
+
+                $n++;
+            }
         }
 
         $hasil = ApiClient::pengguna()->post('/admin/kegiatan', $kirim, $berkas);
@@ -191,7 +201,7 @@ class AdminKegiatanTambahController extends Controller
     }
 
     /**
-     * Kandidat anggota untuk kolom cari: dosen dan mahasiswa dari database, key = "Tipe:id" memakai id tabel.
+     * Kandidat pemilik, dengan key "Tipe:id" memakai ID profil.
      *
      * @return array<int, array{key:string, nama:string, tipe:string}>
      */
@@ -199,12 +209,19 @@ class AdminKegiatanTambahController extends Controller
     {
         $kandidat = [];
 
-        foreach (DB::table('dosen')->orderBy('nama')->get(['id_dosen', 'nama']) as $r) {
-            $kandidat[] = ['key' => 'Dosen:'.$r->id_dosen, 'nama' => (string) $r->nama, 'tipe' => 'Dosen'];
+        foreach (DB::table('dosen as d')->join('users as u', 'u.id_user', '=', 'd.id_user')
+            ->orderBy('d.nama')->get(['d.id_dosen', 'd.nama', 'd.nip as identitas', 'u.status', 'u.id_role']) as $r) {
+            $kandidat[] = ['key' => 'Dosen:'.$r->id_dosen, 'nama' => $r->nama, 'tipe' => 'Dosen', 'identitas' => $r->identitas, 'aktif' => (bool) $r->status && (int) $r->id_role === 3];
         }
 
-        foreach (DB::table('mahasiswa')->orderBy('nama')->get(['id_mahasiswa', 'nama']) as $r) {
-            $kandidat[] = ['key' => 'Mahasiswa:'.$r->id_mahasiswa, 'nama' => (string) $r->nama, 'tipe' => 'Mahasiswa'];
+        $angkatan = PesertaKegiatan::mahasiswaAngkatan()->pluck('m.tahun_masuk', 'm.id_mahasiswa');
+        foreach (DB::table('mahasiswa as m')->join('users as u', 'u.id_user', '=', 'm.id_user')
+            ->orderBy('m.nama')->get(['m.id_mahasiswa', 'm.nama', 'm.nim as identitas', 'm.status_mahasiswa', 'u.status', 'u.id_role']) as $r) {
+            $kandidat[] = [
+                'key' => 'Mahasiswa:'.$r->id_mahasiswa, 'nama' => $r->nama, 'tipe' => 'Mahasiswa', 'identitas' => $r->identitas,
+                'aktif' => (bool) $r->status && (int) $r->id_role === 4 && $r->status_mahasiswa === 'Aktif',
+                'angkatan' => $angkatan[$r->id_mahasiswa] ?? null,
+            ];
         }
 
         return $kandidat;
