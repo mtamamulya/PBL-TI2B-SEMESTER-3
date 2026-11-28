@@ -68,6 +68,10 @@
         <div class="flex flex-col gap-5">
 
             {{-- JIKA STATUS DIREVISI: TAMPILKAN CATATAN ADMIN --}}
+            <template x-if="isDosen && !loading && ['Diterima', 'Selesai'].includes(statusSekarang)">
+                <a href="{{ route('pengajuan.dosen.surat', $pengajuanId) }}" target="_blank" rel="noopener"
+                   class="justify-self-start rounded-lg bg-brand px-4 py-2 text-white">Buka Surat</a>
+            </template>
             <template x-if="statusSekarang === 'Direvisi'">
                 <section class="{{ $cardClass }}" aria-labelledby="h-keputusan-revisi">
                     <h2 id="h-keputusan-revisi" class="text-xl font-semibold">{{ $judulKeputusan }}</h2>
@@ -104,7 +108,7 @@
                                 class="flex h-10 w-full cursor-pointer items-center justify-center rounded-md bg-brand text-base text-white hover:bg-blue-700 disabled:opacity-50">
                             <span x-text="submitting ? 'Mengirim...' : 'Ajukan kembali'"></span>
                         </button>
-                        <p class="text-[15px] text-gray-400">Pastikan dokumen kegiatan sudah diperbarui sesuai catatan revisi sebelum diajukan kembali.</p>
+                        <a class="text-brand underline" href="{{ route('dosen.kegiatan.edit', request()->route('id')) }}">Perbaiki kegiatan atau ganti lampiran</a>
                     </div>
 
                     <p x-show="kembali" x-cloak class="px-4 pb-3 text-[15px] text-green-700">

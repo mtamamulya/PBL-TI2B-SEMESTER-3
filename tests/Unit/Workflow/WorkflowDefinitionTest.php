@@ -106,6 +106,19 @@ class WorkflowDefinitionTest extends TestCase
         $this->assertSame('publish', $b->codeForLabel('Dipublikasikan'));
     }
 
+    public function test_kegiatan_tanpa_riwayat_berstatus_tercatat(): void
+    {
+        $k = KegiatanWorkflow::definition();
+
+        $this->assertSame('Tercatat', $k->untrackedLabel());
+        $this->assertTrue($k->isUntrackedEditable());
+        $this->assertTrue($k->isUntrackedDeletable());
+
+        $b = BeritaWorkflow::definition();
+        $this->assertNull($b->untrackedLabel());
+        $this->assertFalse($b->isUntrackedEditable());
+    }
+
     public function test_berita_alur_publikasi(): void
     {
         $b = BeritaWorkflow::definition();

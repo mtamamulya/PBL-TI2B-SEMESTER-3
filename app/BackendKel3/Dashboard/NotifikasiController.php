@@ -78,7 +78,7 @@ class NotifikasiController extends Controller
             $kegiatan = $item->kegiatan;
             $judul = $kegiatan?->nama_kegiatan ?: 'Kegiatan #'.$item->id_kegiatan;
             $waktuRaw = $item->tanggal_status ?? $item->created_at;
-            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->locale('id') : null;
+            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->setTimezone('Asia/Jakarta')->locale('id') : null;
 
             // Bukan pembuat kegiatan, berarti dosen ini anggota tim.
             $isAnggotaTim = $kegiatan && (int) $kegiatan->id_user !== (int) $user->getKey();

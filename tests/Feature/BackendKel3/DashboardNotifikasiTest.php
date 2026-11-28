@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\Timeline;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -186,12 +187,14 @@ class DashboardNotifikasiTest extends TestCase
         ['a' => $a] = $this->skenario();
 
         $this->actingAs($a)->get('/dosen/dashboard')->assertOk()
-            ->assertViewHas('stats', function ($stats) {
-                $nilai = array_column($stats, 'value', 'label');
+            ->assertViewHas('stats', function ($s) {
+                $nilai = collect($s)->pluck('value', 'label');
 
-                return $nilai['Total Kegiatan'] === 5 && $nilai['Penelitian'] === 3
-                    && $nilai['Pengabdian'] === 2 && $nilai['Pengajaran'] === 0
-                    && $nilai['Menunggu Verifikasi'] === 3 && $nilai['Perlu Revisi'] === 1;
+                return $nilai->keys()->all() === ['Pengajaran', 'Penelitian', 'Pengabdian', 'Menunggu Verifikasi']
+                    && $nilai['Penelitian'] === 3
+                    && $nilai['Pengabdian'] === 2
+                    && $nilai['Pengajaran'] === 0
+                    && $nilai['Menunggu Verifikasi'] === 3;
             })
             ->assertViewHas('menunggu', fn ($m) => count($m) === 3);
     }
@@ -397,5 +400,28 @@ class DashboardNotifikasiTest extends TestCase
         $this->postJson('/notifikasi/baca-semua')->assertOk();
         $this->get('/prestasi')->assertOk()->assertSee('x-data="{ n: 0 }"', false);
         $this->get('/notifikasi')->assertViewHas('notifikasi', fn ($n) => collect($n)->where('unread', true)->isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // Waktu notifikasi ditampilkan dalam WIB
+    // ------------------------------------------------------------------
+
+    public function test_waktu_notifikasi_ditampilkan_dalam_wib(): void
+    {
+        $a = $this->dosen('Dosen A');
+        $kegiatan = $this->kegiatan($a, 'Penelitian', 'Riset WIB');
+
+        // Sekarang 08.00 WIB (01.00 UTC). Status dibuat 01.00 WIB tanggal 27 (18.00 UTC tanggal 26).
+        // Dengan UTC murni, notifikasi ini salah dikelompokkan sebagai "Kemarin".
+        $this->travelTo(Carbon::create(2026, 11, 27, 1, 0, 0, 'UTC'));
+        $this->tambahStatus($kegiatan, 'diajukan', Carbon::create(2026, 11, 26, 18, 0, 0, 'UTC'));
+
+        $this->sebagai($a);
+        $this->getJson(self::NOTIFIKASI)->assertOk()
+            ->assertJsonPath('data.0.waktu', '2026-11-27T01:00:00+07:00');
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($a)->get('/notifikasi')->assertOk()
+            ->assertViewHas('notifikasi', fn ($n) => $n[0]['time'] === '01.00' && $n[0]['g'] === 'Hari ini');
     }
 }
