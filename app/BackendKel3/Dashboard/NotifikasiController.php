@@ -26,18 +26,6 @@ use Illuminate\View\View;
  */
 class NotifikasiController extends Controller
 {
-    /**
-     * Notifikasi yang lebih tua dari ini tidak lagi dihitung "belum dibaca" walau belum pernah dibuka.
-     * Tujuannya agar pengguna lama tidak melihat ratusan titik biru dari riwayat sebelum fitur baca ada.
-     */
-    private const HARI_BARU = 30;
-
-    /**
-     * Waktu di database disimpan UTC (config/app.php timezone = UTC). Untuk tampilan notifikasi
-     * dikonversi ke WIB, termasuk penentuan "Hari ini" / "Kemarin", tanpa mengubah zona waktu aplikasi.
-     */
-    private const ZONA_WAKTU = 'Asia/Jakarta';
-
     /** GET /api/v1/dosen/notifikasi */
     public function index(Request $request): JsonResponse
     {
@@ -62,7 +50,7 @@ class NotifikasiController extends Controller
     /** GET /notifikasi (halaman web) */
     public function web(Request $request): View
     {
-        $notifikasi = $this->susun($request->user(), 50)->map(fn (array $n) => [
+        $notifikasi = $this->susun($request->user(), Timeline::BATAS_NOTIFIKASI_WEB)->map(fn (array $n) => [
             'id' => $n['id'],
             'g' => $n['g'],
             'type' => $n['type'],
@@ -83,30 +71,17 @@ class NotifikasiController extends Controller
             return collect();
         }
 
-        $timelines = Timeline::with('kegiatan')
-            ->whereHas('kegiatan', fn ($q) => $q->untukUser($user))
-            ->orderByDesc('tanggal_status')
-            ->orderByDesc('id_timeline')
-            ->limit($batas)
-            ->get();
+        $timelines = Timeline::notifikasiUntuk($user, $batas)->with('kegiatan')->get();
 
-        // id_timeline yang sudah dibuka OLEH USER INI (bukan pemilik/anggota lain).
-        $sudahDibaca = NotifikasiDibaca::where('id_user', $user->getKey())
-            ->whereIn('id_timeline', $timelines->pluck('id_timeline'))
-            ->pluck('id_timeline')
-            ->flip();
-
-        return $timelines->map(function (Timeline $item) use ($user, $sudahDibaca) {
+        return $timelines->map(function (Timeline $item) use ($user) {
             $status = strtolower((string) $item->status);
             $kegiatan = $item->kegiatan;
             $judul = $kegiatan?->nama_kegiatan ?: 'Kegiatan #'.$item->id_kegiatan;
             $waktuRaw = $item->tanggal_status ?? $item->created_at;
-            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->setTimezone(self::ZONA_WAKTU)->locale('id') : null;
+            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->setTimezone('Asia/Jakarta')->locale('id') : null;
 
             // Bukan pembuat kegiatan, berarti dosen ini anggota tim.
             $isAnggotaTim = $kegiatan && (int) $kegiatan->id_user !== (int) $user->getKey();
-
-            $masihBaru = $waktu ? $waktu->greaterThan(now()->subDays(self::HARI_BARU)) : false;
 
             return [
                 'id' => $item->id_timeline,
@@ -119,7 +94,7 @@ class NotifikasiController extends Controller
                 'body' => $this->isiNotifikasi($status, $judul, $item->catatan_revisi, $isAnggotaTim),
                 'g' => $this->kelompokWaktu($waktu),
                 'time' => $this->formatWaktu($waktu),
-                'unread' => $masihBaru && ! $sudahDibaca->has($item->id_timeline),
+                'unread' => $item->belumDibaca(),
                 'waktu_iso' => $waktu?->toIso8601String(),
                 'waktu_human' => $waktu ? $waktu->diffForHumans() : '-',
                 'href' => $this->detailUrl($item->id_kegiatan),
