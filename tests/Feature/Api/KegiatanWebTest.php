@@ -339,6 +339,64 @@ class KegiatanWebTest extends TestCase
             ->assertRedirect(route('kaprodi.kegiatan.index', ['tab' => 'dosen']));
     }
 
+    public function test_admin_dan_kaprodi_menerima_isian_dari_api_detail_kategori(): void
+    {
+        $field = ['id_isian_kategori' => 42, 'input' => 'Lokasi', 'jenis_input' => 'teks', 'wajib' => true, 'jumlah_isian' => 1, 'pilihan' => null];
+        Http::fake([
+            '*/kategori-kegiatan/3' => Http::response(['data' => ['kebutuhan' => 'kegiatan', 'isian' => [$field]]]),
+            '*/kategori-kegiatan/4' => Http::response(['data' => ['kebutuhan' => 'surat', 'isian' => []]]),
+        ]);
+
+        $this->admin()->getJson(route('admin.kegiatan.create.kategori', 3))->assertExactJson(['isian' => [$field]]);
+        $this->kaprodi()->getJson(route('kaprodi.kegiatan.create.kategori', 3))->assertExactJson(['isian' => [$field]]);
+        $this->kaprodi()->getJson(route('kaprodi.kegiatan.create.kategori', 4))->assertNotFound();
+        Http::assertSent(fn (Request $request) => $request->method() === 'GET'
+            && str_ends_with($request->url(), '/kategori-kegiatan/3')
+            && $request->hasHeader('Authorization', 'Bearer token-uji'));
+    }
+
+    public function test_kaprodi_mengirim_jawaban_berdasarkan_id_dan_memulihkannya_saat_validasi_gagal(): void
+    {
+        Http::fake(['*/admin/kegiatan' => Http::response([
+            'message' => 'Periksa isian.',
+            'errors' => ['detail.43' => ['Lokasi wajib diisi.']],
+        ], 422)]);
+
+        $this->kaprodi()->from(route('kaprodi.kegiatan.create'))->post(route('kaprodi.kegiatan.store'), [
+            'id_kategori' => 3,
+            'isian_dinamis' => 1,
+            'nama_kegiatan' => 'Kegiatan dinamis',
+            'anggota' => ['Dosen:1'],
+            'detail' => [42 => ['Jawaban pertama', 'Jawaban kedua']],
+        ])->assertRedirect(route('kaprodi.kegiatan.create'))
+            ->assertSessionHasErrors('detail.43')
+            ->assertSessionHasInput('detail.42.1', 'Jawaban kedua');
+
+        Http::assertSent(fn (Request $request) => $request['isian_dinamis'] === 1
+            && $request['detail[42][0]'] === 'Jawaban pertama'
+            && $request['detail[42][1]'] === 'Jawaban kedua');
+    }
+
+    public function test_admin_meneruskan_unggahan_isian_dinamis_ke_api(): void
+    {
+        Http::fake(['*/admin/kegiatan' => Http::response($this->hasilTambah(), 201)]);
+
+        $this->admin()->post(route('admin.kegiatan.store'), [
+            'id_kategori' => 3,
+            'isian_dinamis' => 1,
+            'nama_kegiatan' => 'Kegiatan dengan lampiran',
+            'anggota' => ['Dosen:1'],
+            'detail' => [
+                42 => ['Semarang'],
+                43 => [UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf')],
+            ],
+        ])->assertRedirect(route('admin.kegiatan.index', ['tab' => 'prodi']));
+
+        Http::assertSent(fn (Request $request) => $request->isMultipart()
+            && $request->hasFile('detail[43][0]', null, 'bukti.pdf')
+            && str_contains($request->body(), 'name="detail[42][0]"'));
+    }
+
     public function test_store_shows_warnings_from_api(): void
     {
         $peringatan = ['Kategori "Seminar" belum punya isian "tanggal_selesai", nilainya tidak disimpan.'];

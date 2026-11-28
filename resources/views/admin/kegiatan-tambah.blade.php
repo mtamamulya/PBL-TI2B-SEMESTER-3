@@ -25,6 +25,7 @@
 
     <form method="POST" action="{{ route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.store' : 'admin.kegiatan.store') }}" enctype="multipart/form-data" class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm sm:p-6" novalidate>
         @csrf
+        <input type="hidden" name="isian_dinamis" value="1">
 
         {{-- ============ 1. Informasi Kegiatan ============ --}}
         <section class="{{ $card }}">
@@ -67,24 +68,14 @@
                 @error('nama_kegiatan') <p class="{{ $error }}">{{ $message }}</p> @enderror
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="flex min-w-0 flex-col gap-2 md:col-span-2">
-                    <label for="penyelenggara" class="{{ $label }}">Penyelenggara</label>
-                    <input id="penyelenggara" name="penyelenggara" type="text" value="{{ old('penyelenggara') }}" placeholder="Nama penyelenggara" class="{{ $field }}">
-                    @error('penyelenggara') <p class="{{ $error }}">{{ $message }}</p> @enderror
+            <div class="flex flex-col gap-2">
+                <p id="statusIsianKategori" class="text-sm text-[#6E6E76]" role="status"></p>
+                <div id="isianKategori" class="grid gap-4 md:grid-cols-2"></div>
+                <div id="galatIsianKategori">
+                    @error('detail') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
+                    @error('api') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
                 </div>
-
-                <div class="flex min-w-0 flex-col gap-2">
-                    <label for="tanggal_mulai" class="{{ $label }}">Tanggal mulai</label>
-                    <input id="tanggal_mulai" name="tanggal_mulai" type="date" value="{{ old('tanggal_mulai') }}" class="{{ $field }}">
-                    @error('tanggal_mulai') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                </div>
-
-                <div class="flex min-w-0 flex-col gap-2">
-                    <label for="tanggal_selesai" class="{{ $label }}">Tanggal selesai</label>
-                    <input id="tanggal_selesai" name="tanggal_selesai" type="date" value="{{ old('tanggal_selesai') }}" class="{{ $field }}">
-                    @error('tanggal_selesai') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                </div>
+                <button type="button" id="muatUlangIsian" class="hidden self-start text-sm font-medium text-[#2277FF]">Coba lagi</button>
             </div>
         </section>
 
@@ -145,7 +136,7 @@
         {{-- Aksi --}}
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.index' : 'admin.kegiatan.index') }}" class="inline-flex h-10 items-center rounded-lg bg-[#FF3F3F] px-5 text-base font-medium text-white hover:bg-[#E63535]">Batal</a>
-            <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#2277FF] px-5 text-base font-medium text-white hover:bg-[#1A63D8]">Simpan</button>
+            <button type="submit" id="simpanKegiatan" disabled class="inline-flex h-10 items-center rounded-lg bg-[#2277FF] px-5 text-base font-medium text-white hover:bg-[#1A63D8] disabled:cursor-not-allowed disabled:opacity-50">Simpan</button>
         </div>
     </form>
 </main>
@@ -162,15 +153,6 @@
 
     var $ = function (id) { return document.getElementById(id); };
 
-    /* Jenis kegiatan otomatis mengikuti kategori yang dipilih (kategori sudah terikat ke satu jenis). */
-    var selKategori = $('id_kategori'), jenisTampil = $('jenis_kegiatan_tampil'), jenisHidden = $('jenis_kegiatan');
-    function isiJenis() {
-        var opt = selKategori.options[selKategori.selectedIndex];
-        var j = opt && opt.dataset.jenis ? opt.dataset.jenis : '';
-        jenisTampil.value = j; jenisHidden.value = j;
-    }
-    selKategori.addEventListener('change', isiJenis);
-    isiJenis();
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -263,6 +245,123 @@
     var FIELD = 'h-10 w-full rounded-lg border border-[#E8E8EC] bg-white px-3 text-base text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
     var LABEL = 'text-base font-medium text-[#0A0A0A]';
     var CHEV = '<svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
+
+    var urlKategori = {{ Illuminate\Support\Js::from(route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.create.kategori' : 'admin.kegiatan.create.kategori', ['id' => 0], false)) }};
+    var kategoriLama = {{ Illuminate\Support\Js::from((string) old('id_kategori', '')) }};
+    var jawabanLama = {{ Illuminate\Support\Js::from(old('detail', [])) }};
+    var galatIsian = {{ Illuminate\Support\Js::from($errors->getBag('default')->messages()) }};
+    var selKategori = $('id_kategori');
+    var permintaanIsian = 0;
+
+    function kartuIsian(field, lama, errors) {
+        var id = field.id_isian_kategori;
+        var nama = 'detail.' + id;
+        var banyak = Number(field.jumlah_isian) === 0;
+        var file = field.jenis_input === 'berkas';
+        var barisLama = lama[id] && typeof lama[id] === 'object' ? lama[id] : {};
+        var indeks = Object.keys(barisLama).filter(function (key) { return /^\d+$/.test(key); });
+        if (!banyak) indeks = indeks.slice(0, 1);
+        var berikutnya = 0;
+        var grup = document.createElement('fieldset');
+        grup.className = 'flex min-w-0 flex-col gap-2';
+        var judul = document.createElement('legend');
+        judul.className = LABEL;
+        judul.textContent = field.input + (field.wajib ? ' *' : ' (opsional)');
+        grup.append(judul);
+        var baris = document.createElement('div');
+        baris.className = 'flex flex-col gap-2';
+        grup.append(baris);
+
+        function pesanIsian(wadah, key) {
+            if (!errors[key]) return;
+            var pesan = document.createElement('p');
+            pesan.className = 'text-sm text-[#FF3F3F]';
+            pesan.textContent = errors[key][0];
+            wadah.append(pesan);
+        }
+        function tambahBaris(i) {
+            berikutnya = Math.max(berikutnya, Number(i) + 1);
+            var wadah = document.createElement('div');
+            wadah.className = 'flex flex-col gap-1';
+            var tag = Array.isArray(field.pilihan) ? 'select' : field.jenis_input === 'paragraf' ? 'textarea' : 'input';
+            var kontrol = document.createElement(tag);
+            var nilai = String(barisLama[i] ?? '');
+            kontrol.name = 'detail[' + id + '][' + i + ']';
+            kontrol.setAttribute('aria-label', field.input + (banyak ? ' ' + (Number(i) + 1) : ''));
+            kontrol.className = tag === 'textarea' ? FIELD + ' min-h-24 py-2' : FIELD;
+            if (tag === 'select') {
+                kontrol.add(new Option('Pilih ' + field.input, ''));
+                field.pilihan.forEach(function (opsi) { kontrol.add(new Option(opsi.label, opsi.nilai)); });
+            } else if (tag === 'input') {
+                kontrol.type = { tanggal: 'date', angka: 'number', rupiah: 'number', berkas: 'file' }[field.jenis_input] || 'text';
+                if (kontrol.type === 'number') kontrol.step = 'any';
+                if (file) kontrol.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt';
+            }
+            if (!file) kontrol.value = nilai;
+            wadah.append(kontrol);
+            if (banyak && Number(i) !== 0) {
+                var hapus = document.createElement('button');
+                hapus.type = 'button';
+                hapus.className = 'self-start text-sm text-[#E5484D]';
+                hapus.textContent = 'Hapus isian';
+                hapus.addEventListener('click', function () { wadah.remove(); });
+                wadah.append(hapus);
+            }
+            pesanIsian(wadah, nama + '.' + i);
+            baris.append(wadah);
+        }
+        (indeks.length ? indeks : [0]).forEach(tambahBaris);
+
+        if (banyak) {
+            var tambah = document.createElement('button');
+            tambah.type = 'button';
+            tambah.className = 'self-start text-sm font-medium text-[#2277FF]';
+            tambah.textContent = file ? '+ Tambah berkas' : '+ Tambah isian';
+            tambah.addEventListener('click', function () { tambahBaris(berikutnya); });
+            grup.append(tambah);
+        }
+        pesanIsian(grup, nama);
+        return grup;
+    }
+
+    async function muatIsian(pulihkan) {
+        var nomor = ++permintaanIsian;
+        var id = selKategori.value;
+        var jenis = selKategori.selectedOptions[0]?.dataset.jenis || '';
+        var wadah = $('isianKategori'), status = $('statusIsianKategori');
+        $('jenis_kegiatan_tampil').value = jenis;
+        $('jenis_kegiatan').value = jenis;
+        $('simpanKegiatan').disabled = true;
+        $('muatUlangIsian').classList.add('hidden');
+        if (!pulihkan) $('galatIsianKategori').hidden = true;
+        wadah.replaceChildren();
+        status.textContent = id ? 'Memuat isian kategori…' : 'Pilih kategori untuk melihat isiannya.';
+        if (!id) return;
+
+        try {
+            var respons = await fetch(urlKategori.replace(/0$/, id), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+            if (!respons.ok) throw new Error('Isian kategori gagal dimuat.');
+            var data = await respons.json();
+            if (nomor !== permintaanIsian) return;
+            var pulihkanKategori = pulihkan && id === kategoriLama;
+            data.isian.forEach(function (field) {
+                wadah.append(kartuIsian(field, pulihkanKategori ? jawabanLama : {}, pulihkanKategori ? galatIsian : {}));
+            });
+            status.textContent = data.isian.length ? '' : 'Kategori ini belum memiliki isian tambahan.';
+            $('simpanKegiatan').disabled = false;
+        } catch (_) {
+            if (nomor !== permintaanIsian) return;
+            status.textContent = 'Isian kategori gagal dimuat. Silakan coba lagi.';
+            $('muatUlangIsian').classList.remove('hidden');
+        }
+    }
+
+    selKategori.addEventListener('change', function () {
+        kategoriLama = '';
+        muatIsian(false);
+    });
+    $('muatUlangIsian').addEventListener('click', function () { muatIsian(selKategori.value === kategoriLama); });
+    muatIsian(true);
 
     function errDok(i, f) {
         var m = ERR_DOK['dokumen.' + i + '.' + f];

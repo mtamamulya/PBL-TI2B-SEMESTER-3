@@ -49,16 +49,10 @@ class KegiatanAdminSimpan
     }
 
     /** @return array<string, array<int, mixed>> */
-    public static function aturan(): array
+    public static function aturan(bool $dinamis = false): array
     {
         return [
-            'jenis_kegiatan' => ['required', 'in:'.implode(',', self::JENIS)],
-            'id_kategori' => ['nullable', 'integer', 'required_without:kategori'],
-            'kategori' => ['nullable', 'string', 'max:100', 'required_without:id_kategori'],
             'nama_kegiatan' => ['required', 'string', 'max:255'],
-            'penyelenggara' => ['required', 'string', 'max:150'],
-            'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
-            'tanggal_selesai' => ['required', 'date_format:Y-m-d', 'after_or_equal:tanggal_mulai'],
             'anggota' => ['required', 'array', 'min:1'],
             'anggota.*' => ['required', 'string', 'regex:/^(dosen|mahasiswa):\d+$/i'],
             'dokumen' => ['nullable', 'array'],
@@ -68,22 +62,39 @@ class KegiatanAdminSimpan
             'dokumen.*.id_jenis_dokumen' => ['nullable', 'integer'],
             'dokumen.*.keterangan' => ['nullable', 'string', 'max:500'],
             'dokumen.*.tautan' => ['nullable', 'url', 'max:255'],
-        ];
+        ] + ($dinamis ? [
+            'id_kategori' => ['required', 'integer'],
+            'detail' => ['sometimes', 'array'],
+            'detail.*' => ['array'],
+        ] : [
+            'jenis_kegiatan' => ['required', 'in:'.implode(',', self::JENIS)],
+            'id_kategori' => ['nullable', 'integer', 'required_without:kategori'],
+            'kategori' => ['nullable', 'string', 'max:100', 'required_without:id_kategori'],
+            'penyelenggara' => ['required', 'string', 'max:150'],
+            'tanggal_mulai' => ['required', 'date_format:Y-m-d'],
+            'tanggal_selesai' => ['required', 'date_format:Y-m-d', 'after_or_equal:tanggal_mulai'],
+        ]);
     }
 
     /** @return array{kegiatan: Kegiatan, peringatan: string[]} */
-    public function simpan(array $d, User $pembuat): array
+    public function simpan(array $d, User $pembuat, bool $dinamis = false): array
     {
-        $kategori = $this->kategori($d);
-        $anggota = $this->anggota((array) $d['anggota']);
-        $pemilik = $this->pemilik($d['jenis_kegiatan'], $anggota, $pembuat);
-        $dokumen = $this->dokumen((array) ($d['dokumen'] ?? []));
-
         $tersimpan = [];
         $peringatan = [];
 
         try {
-            $kegiatan = DB::transaction(function () use ($d, $kategori, $anggota, $pemilik, $dokumen, &$tersimpan, &$peringatan) {
+            $kegiatan = DB::transaction(function () use ($d, $pembuat, $dinamis, &$tersimpan, &$peringatan) {
+                $kategori = $this->kategori($d, $dinamis);
+                $jenis = $dinamis ? $kategori->jenisKegiatan?->nama_jenis_kegiatan : $d['jenis_kegiatan'];
+                if ($dinamis && ($kategori->kebutuhan !== 'kegiatan' || ! in_array($jenis, self::JENIS, true))) {
+                    throw ValidationException::withMessages(['id_kategori' => 'Pilih kategori yang tersedia untuk Langsung kegiatan.']);
+                }
+                $anggota = $this->anggota((array) $d['anggota']);
+                $pemilik = $this->pemilik($jenis, $anggota, $pembuat);
+                $dokumen = $this->dokumen((array) ($d['dokumen'] ?? []));
+                if ($dinamis) {
+                    [$fields, $jawaban] = IsianKegiatanAdmin::validasi($kategori, $d['detail'] ?? []);
+                }
                 $k = Kegiatan::query()->create([
                     'id_kategori' => $kategori->id_kategori,
                     'id_user' => $pemilik,
@@ -96,7 +107,7 @@ class KegiatanAdminSimpan
                     'tanggal_status' => now(),
                 ]);
 
-                foreach (self::ISIAN_FORM as $input) {
+                foreach ($dinamis ? [] : self::ISIAN_FORM as $input) {
                     $isian = IsianKategori::query()
                         ->where('id_kategori', $kategori->id_kategori)->where('input', $input)->first();
                     if (! $isian) {
@@ -111,6 +122,31 @@ class KegiatanAdminSimpan
                     ]);
                 }
 
+                if ($dinamis) {
+                    foreach ($jawaban as $idIsian => $baris) {
+                        foreach ($baris as $nilai) {
+                            if ($nilai instanceof UploadedFile) {
+                                $nilai = $nilai->store('lampiran-isian', 'public');
+                                if ($nilai === false) {
+                                    throw ValidationException::withMessages(["detail.$idIsian" => 'Berkas tidak dapat disimpan. Coba unggah lagi.']);
+                                }
+                                $tersimpan[] = $nilai;
+                            }
+                            $detail = [
+                                'id_kegiatan' => $k->id_kegiatan,
+                                'id_isian_kategori' => $idIsian,
+                                'isian' => (string) $nilai,
+                            ];
+                            if ($fields[$idIsian]['jumlah_isian'] === 0) {
+                                // Master memakai 0 untuk isian berulang; model umum memperlakukan 0 sebagai batas literal.
+                                DB::table('detail_kegiatan')->insert($detail + ['created_at' => now(), 'updated_at' => now()]);
+                            } else {
+                                DetailKegiatan::query()->create($detail);
+                            }
+                        }
+                    }
+                }
+
                 foreach ($anggota as $idUser) {
                     AnggotaKegiatan::query()->create([
                         'id_kegiatan' => $k->id_kegiatan,
@@ -119,11 +155,14 @@ class KegiatanAdminSimpan
                     ]);
                 }
 
-                foreach ($dokumen as $dok) {
+                foreach ($dokumen as $indeks => $dok) {
                     $link = $dok['tautan'];
                     $tipe = 'tautan';
                     if ($dok['file'] instanceof UploadedFile) {
                         $link = $dok['file']->store('kegiatan', 'public');
+                        if ($link === false) {
+                            throw ValidationException::withMessages(["dokumen.$indeks.file" => 'Berkas tidak dapat disimpan. Coba unggah lagi.']);
+                        }
                         $tersimpan[] = $link;
                         $tipe = strtolower($dok['file']->getClientOriginalExtension());
                     }
@@ -149,14 +188,14 @@ class KegiatanAdminSimpan
         return ['kegiatan' => $kegiatan, 'peringatan' => $peringatan];
     }
 
-    private function kategori(array $d): Kategori
+    private function kategori(array $d, bool $dinamis): Kategori
     {
         $k = ! empty($d['id_kategori'])
-            ? Kategori::query()->find((int) $d['id_kategori'])
-            : Kategori::query()->where('nama_kategori', $d['kategori'])->orderBy('id_kategori')->first();
+            ? Kategori::query()->lockForUpdate()->find((int) $d['id_kategori'])
+            : Kategori::query()->where('nama_kategori', $d['kategori'])->orderBy('id_kategori')->lockForUpdate()->first();
 
         if (! $k) {
-            throw ValidationException::withMessages(['kategori' => 'Kategori tidak ditemukan.']);
+            throw ValidationException::withMessages([$dinamis ? 'id_kategori' : 'kategori' => 'Kategori tidak ditemukan.']);
         }
 
         return $k;

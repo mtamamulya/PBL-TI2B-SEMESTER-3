@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\BackendKel1\KegiatanAdmin\IsianKegiatanAdmin;
 use App\Support\ApiClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Halaman "Tambah Kegiatan" (admin DAN kaprodi, dibedakan dari nama route): informasi kegiatan, anggota (dosen/mahasiswa), unggah dokumen.
@@ -40,16 +44,26 @@ class AdminKegiatanTambahController extends Controller
         ]);
     }
 
+    public function kategori(int $id): JsonResponse
+    {
+        $kategori = ApiClient::pengguna()->get('/kategori-kegiatan/'.$id)['data'] ?? [];
+        abort_unless(($kategori['kebutuhan'] ?? null) === 'kegiatan', 404);
+
+        $isian = IsianKegiatanAdmin::tanpaPadanan($kategori['isian']);
+        foreach ($isian as &$field) {
+            $field['pilihan'] ??= IsianKegiatanAdmin::pilihanLama($field['input'], $field['jenis_input']);
+        }
+
+        return response()->json(['isian' => $isian]);
+    }
+
     /** Simpan kegiatan baru lewat API. */
     public function store(Request $request): RedirectResponse
     {
+        $dinamis = $request->boolean('isian_dinamis') || $request->has('detail');
         $data = $request->validate([
             'id_kategori' => ['required', 'integer'],
-            'jenis_kegiatan' => ['required', Rule::in(self::JENIS_KEGIATAN)],
             'nama_kegiatan' => ['required', 'string', 'max:200'],
-            'penyelenggara' => ['required', 'string', 'max:150'],
-            'tanggal_mulai' => ['required', 'date'],
-            'tanggal_selesai' => ['required', 'date', 'after_or_equal:tanggal_mulai'],
             'anggota' => ['required', 'array', 'min:1'],
             'anggota.*' => ['required', 'regex:/^(Dosen|Mahasiswa):\d+$/'],
             'dokumen' => ['nullable', 'array'],
@@ -58,7 +72,15 @@ class AdminKegiatanTambahController extends Controller
             'dokumen.*.jenis' => ['nullable', 'required_with:dokumen.*.file', Rule::in(self::JENIS_DOKUMEN)],
             'dokumen.*.keterangan' => ['nullable', 'string', 'max:500'],
             'dokumen.*.tautan' => ['nullable', 'url', 'max:255'],
-        ], [
+        ] + ($dinamis ? [
+            'detail' => ['sometimes', 'array'],
+            'detail.*' => ['array'],
+        ] : [
+            'jenis_kegiatan' => ['required', Rule::in(self::JENIS_KEGIATAN)],
+            'penyelenggara' => ['required', 'string', 'max:150'],
+            'tanggal_mulai' => ['required', 'date'],
+            'tanggal_selesai' => ['required', 'date', 'after_or_equal:tanggal_mulai'],
+        ]), [
             'id_kategori.required' => 'Kategori wajib dipilih.',
             'id_kategori.integer' => 'Kategori tidak valid.',
             'jenis_kegiatan.required' => 'Jenis kegiatan wajib dipilih.',
@@ -78,20 +100,38 @@ class AdminKegiatanTambahController extends Controller
 
         // Multipart tidak boleh berisi larik bersarang, jadi pakai kunci berkurung (API menormalkannya sendiri).
         $kirim = [
-            'jenis_kegiatan' => $data['jenis_kegiatan'],
             'id_kategori' => $data['id_kategori'],
             'nama_kegiatan' => $data['nama_kegiatan'],
-            'penyelenggara' => $data['penyelenggara'],
-            'tanggal_mulai' => $data['tanggal_mulai'],
-            'tanggal_selesai' => $data['tanggal_selesai'],
         ];
+        $berkas = [];
+        if ($dinamis) {
+            $kirim['isian_dinamis'] = 1;
+            foreach ($data['detail'] ?? [] as $idIsian => $jawaban) {
+                foreach ($jawaban as $baris => $nilai) {
+                    // Kunci numerik juga menjaga konstruksi nama field multipart tetap konsisten.
+                    if (! ctype_digit((string) $idIsian) || ! ctype_digit((string) $baris)) {
+                        throw ValidationException::withMessages(['detail' => 'Format jawaban kategori tidak valid.']);
+                    }
+                    $kunci = "detail[$idIsian][$baris]";
+                    if ($nilai instanceof UploadedFile) {
+                        $berkas[$kunci] = $nilai;
+                    } else {
+                        if ($nilai !== null && ! is_scalar($nilai)) {
+                            throw ValidationException::withMessages(['detail' => 'Format jawaban kategori tidak valid.']);
+                        }
+                        $kirim[$kunci] = $nilai ?? '';
+                    }
+                }
+            }
+        } else {
+            $kirim += array_intersect_key($data, array_flip(['jenis_kegiatan', 'penyelenggara', 'tanggal_mulai', 'tanggal_selesai']));
+        }
 
         // Urutan anggota penting: dosen/mahasiswa PERTAMA menjadi pemilik (ketua) kegiatan dosen/mahasiswa.
         foreach (array_values($data['anggota']) as $i => $a) {
             $kirim["anggota[$i]"] = $a;
         }
 
-        $berkas = [];
         $n = 0;
         foreach ($request->input('dokumen', []) as $i => $dok) {
             $file = $request->file("dokumen.$i.file");
@@ -115,7 +155,7 @@ class AdminKegiatanTambahController extends Controller
 
         $hasil = ApiClient::pengguna()->post('/admin/kegiatan', $kirim, $berkas);
 
-        $tab = $hasil['data']['jenis'] ?? self::TAB[$data['jenis_kegiatan']];
+        $tab = $hasil['data']['jenis'] ?? self::TAB[$data['jenis_kegiatan'] ?? ''] ?? 'semua';
         $peringatan = array_values(array_filter((array) ($hasil['peringatan'] ?? [])));
         $prefix = $request->routeIs('kaprodi.*') ? 'kaprodi' : 'admin';
 

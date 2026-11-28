@@ -174,6 +174,55 @@ class KegiatanAdminApiTest extends TestCase
         $this->getJson('/api/v1/admin/kegiatan?jenis=prodi')->assertJsonCount(1, 'data');
     }
 
+    public function test_tambah_dinamis_memeriksa_master_terbaru_dan_menyimpan_jawaban_berulang(): void
+    {
+        $lokasi = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Lokasi', 'jenis_input' => 'teks',
+            'aturan' => 'NOT NULL', 'jumlah_isian' => 0,
+        ]);
+        $this->masuk(2);
+        $payload = [
+            'isian_dinamis' => 1,
+            'id_kategori' => $this->kategori,
+            'nama_kegiatan' => 'Kegiatan dinamis',
+            'anggota' => ['Dosen:'.$this->idDosen($this->user(3))],
+        ];
+
+        $this->postJson('/api/v1/admin/kegiatan', $payload)->assertUnprocessable()->assertJsonValidationErrors("detail.$lokasi");
+        $this->postJson('/api/v1/admin/kegiatan', $payload + ['detail' => [999999 => ['Lokasi lain']]])
+            ->assertUnprocessable()->assertJsonValidationErrors('detail');
+        $this->assertDatabaseMissing('kegiatan', ['nama_kegiatan' => 'Kegiatan dinamis']);
+
+        $hasil = $this->postJson('/api/v1/admin/kegiatan', $payload + [
+            "detail[$lokasi][0]" => 'Semarang',
+            "detail[$lokasi][2]" => 'Kendal',
+        ])->assertCreated()->assertJsonPath('data.jenis', 'prodi')->assertJsonPath('peringatan', []);
+        $id = $hasil->json('data.id');
+        foreach (['Semarang', 'Kendal'] as $nilai) {
+            $this->assertDatabaseHas('detail_kegiatan', ['id_kegiatan' => $id, 'id_isian_kategori' => $lokasi, 'isian' => $nilai]);
+        }
+        $this->assertSame(2, DB::table('detail_kegiatan')->where('id_kegiatan', $id)->count());
+    }
+
+    public function test_tambah_dinamis_menyimpan_berkas_isian(): void
+    {
+        $bukti = DB::table('isian_kategori')->insertGetId([
+            'id_kategori' => $this->kategori, 'input' => 'Bukti', 'jenis_input' => 'berkas',
+            'aturan' => 'NOT NULL', 'jumlah_isian' => 1,
+        ]);
+        $this->masuk(1);
+        $payload = $this->payload(['isian_dinamis' => 1]);
+        $this->postJson('/api/v1/admin/kegiatan', $payload + ['detail' => [$bukti => ['bukti.pdf']]])
+            ->assertUnprocessable()->assertJsonValidationErrors("detail.$bukti.0");
+
+        $hasil = $this->post('/api/v1/admin/kegiatan', $payload + [
+            'detail' => [$bukti => [UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf')]],
+        ], ['Accept' => 'application/json'])->assertCreated();
+        $path = DB::table('detail_kegiatan')->where('id_kegiatan', $hasil->json('data.id'))
+            ->where('id_isian_kategori', $bukti)->value('isian');
+        Storage::disk('public')->assertExists($path);
+    }
+
     public function test_kaprodi_tambah_kegiatan_dosen_pemilik_dosen_pertama(): void
     {
         $this->masuk(2);

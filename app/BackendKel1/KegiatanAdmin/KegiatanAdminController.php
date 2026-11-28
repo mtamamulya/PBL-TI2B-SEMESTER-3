@@ -70,9 +70,10 @@ class KegiatanAdminController extends Controller
     public function store(Request $request, KegiatanAdminSimpan $simpan): JsonResponse
     {
         $request->merge(KegiatanAdminSimpan::normalisasi($request->input()));
-        $data = $request->validate(KegiatanAdminSimpan::aturan());
+        $dinamis = $request->boolean('isian_dinamis') || $request->has('detail');
+        $data = $request->validate(KegiatanAdminSimpan::aturan($dinamis));
 
-        $hasil = $simpan->simpan($data, $request->user());
+        $hasil = $simpan->simpan($data, $request->user(), $dinamis);
 
         return response()->json([
             'success' => true,
