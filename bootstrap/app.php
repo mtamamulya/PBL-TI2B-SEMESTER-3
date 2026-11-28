@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Middleware\PastikanAkunAktif;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -13,8 +17,30 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Akun yang dinonaktifkan langsung dikeluarkan, walau sesinya masih berlaku.
+        $middleware->web(append: [
+            PastikanAkunAktif::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data yang dikirim tidak valid. Periksa kembali isian Anda.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+        });
+
+        // API tanpa token (atau token salah) selalu dijawab 401 JSON, bukan dialihkan ke halaman login.
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Belum login atau token tidak valid.',
+                    'errors' => (object) [],
+                ], 401);
+            }
+        });
     })->create();
