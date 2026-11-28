@@ -19,7 +19,6 @@ class DosenDashboardController extends Controller
 
         $tahun = $this->ringkasan->tahunAkademik($request->integer('tahun_akademik') ?: null);
         $semua = $this->ringkasan->kegiatan($user);
-        $perluRevisi = $this->ringkasan->perluRevisi($semua);
 
         // Kartu kegiatan menghitung SEMUA tahun; hanya kartu Pengajaran dibatasi satu tahun akademik.
         // Keterangan di bawah angka membuat perbedaan itu terlihat oleh dosen.
@@ -30,8 +29,6 @@ class DosenDashboardController extends Controller
             ['label' => 'Penelitian', 'value' => $this->ringkasan->hitungJenis($semua, 'penelitian'), 'keterangan' => $semuaTahun, 'url' => url('/penelitian'), 'aria' => 'Lihat detail penelitian', 'alert' => false],
             ['label' => 'Pengabdian', 'value' => $this->ringkasan->hitungJenis($semua, 'pengabdian'), 'keterangan' => $semuaTahun, 'url' => url('/pengabdian'), 'aria' => 'Lihat detail pengabdian', 'alert' => false],
             ['label' => 'Menunggu Verifikasi', 'value' => $this->ringkasan->menunggu($semua)->count(), 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat pengajuan menunggu verifikasi', 'alert' => true],
-            ['label' => 'Total Kegiatan', 'value' => $semua->count(), 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan'), 'aria' => 'Lihat semua kegiatan', 'alert' => false],
-            ['label' => 'Perlu Revisi', 'value' => $perluRevisi, 'keterangan' => $semuaTahun, 'url' => url('/dosen/kegiatan?status=direvisi'), 'aria' => 'Lihat kegiatan yang perlu direvisi', 'alert' => $perluRevisi > 0],
         ];
 
         $menunggu = $this->ringkasan->menunggu($semua)->map(function ($item) {
