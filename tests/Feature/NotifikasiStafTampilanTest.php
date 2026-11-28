@@ -93,13 +93,18 @@ class NotifikasiStafTampilanTest extends TestCase
 
         $akun = $this->masuk($prefix, $idRole);
 
+        $akun->get(route("{$prefix}.notifikasi"))
+            ->assertOk()
+            ->assertSee("aria-label=\"Notifikasi, {$jumlahAwal} belum dibaca\"", false);
+
         $akun->postJson(route("{$prefix}.notifikasi.baca-semua"))
             ->assertOk();
 
         $akun->get(route("{$prefix}.notifikasi"))
             ->assertOk()
             ->assertSee('Notifikasi')
-            ->assertDontSee("Notifikasi, {$jumlahAwal} belum dibaca")
+            ->assertSee('aria-label="Notifikasi"', false)
+            ->assertDontSee("aria-label=\"Notifikasi, {$jumlahAwal} belum dibaca\"", false)
             ->assertSee('data-notif-badge', false)
             ->assertSee('style="display: none;"', false);
     }
@@ -119,6 +124,7 @@ class NotifikasiStafTampilanTest extends TestCase
 
         $this->blade('<x-notifikasi-lonceng prefix="tidak-ada" />')
             ->assertSee('Notifikasi')
+            ->assertSee('aria-label="Notifikasi"', false)
             ->assertDontSee('data-notif-badge', false);
 
         $this->blade('<x-notifikasi-lonceng prefix="admin" />')

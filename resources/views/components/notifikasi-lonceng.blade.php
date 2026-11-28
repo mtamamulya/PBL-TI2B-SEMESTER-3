@@ -5,10 +5,14 @@
     $href = \Illuminate\Support\Facades\Route::has($prefix.'.notifikasi')
         ? route($prefix.'.notifikasi')
         : '#';
+    $labelAwal = ($jumlah ?? 0) > 0
+        ? "Notifikasi, {$jumlah} belum dibaca"
+        : 'Notifikasi';
 @endphp
 
 <a href="{{ $href }}"
-   aria-label="Notifikasi"
+   aria-label="{{ $labelAwal }}"
+   :aria-label="n > 0 ? `Notifikasi, ${n} belum dibaca` : 'Notifikasi'"
    x-data="{ n: {{ (int) ($jumlah ?? 0) }} }"
    x-on:notif-count.window="n = $event.detail"
    class="relative ml-auto inline-flex size-9 min-h-[36px] min-w-[36px] shrink-0 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
@@ -17,9 +21,7 @@
         <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
     </svg>
 
-    <span class="sr-only" x-text="n > 0 ? `Notifikasi, ${n} belum dibaca` : 'Notifikasi'">
-        {{ ($jumlah ?? 0) > 0 ? "Notifikasi, {$jumlah} belum dibaca" : 'Notifikasi' }}
-    </span>
+    <span class="sr-only" x-text="n > 0 ? `Notifikasi, ${n} belum dibaca` : 'Notifikasi'">{{ $labelAwal }}</span>
 
     @if ($jumlah !== null)
         <span data-notif-badge

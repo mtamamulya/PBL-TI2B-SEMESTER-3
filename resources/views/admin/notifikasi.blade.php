@@ -26,7 +26,7 @@
                 </nav>
             </div>
 
-            <button type="button" x-on:click="tandaiSemua()" :disabled="belumDibaca === 0"
+            <button type="button" x-on:click="tandaiSemua()" :disabled="belumDibaca === 0 || sedangMenandaiSemua || aksiBerjalan > 0"
                     class="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white">
                 <svg class="size-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 13l4 4 7-9M11 15.5l1.5 1.5 8-10"/>
@@ -133,6 +133,9 @@
         Alpine.data('notifikasi', (daftar, konfig) => ({
             daftar: daftar,
             filter: 'semua',
+            sedangMenandaiSemua: false,
+            aksiBerjalan: 0,
+            sudahTersimpan: {},
 
             label: { kegiatan: 'Kegiatan', berita: 'Berita' },
             warna: {
@@ -141,6 +144,11 @@
             },
 
             init() {
+                this.daftar.forEach((n) => {
+                    if (!n.unread) {
+                        this.sudahTersimpan[n.id] = true;
+                    }
+                });
                 this.$watch('belumDibaca', (n) => window.dispatchEvent(new CustomEvent('notif-count', { detail: n })));
                 window.dispatchEvent(new CustomEvent('notif-count', { detail: this.belumDibaca }));
             },
@@ -195,14 +203,20 @@
                     event.preventDefault();
                 }
 
-                if (n.unread) {
+                if (n.unread && !this.sedangMenandaiSemua && !n._sedangDibuka) {
+                    n._sedangDibuka = true;
+                    this.aksiBerjalan++;
                     try {
                         const response = await this.kirim(konfig.urlBaca.replace('__ID__', encodeURIComponent(n.id)));
                         if (response.ok) {
+                            this.sudahTersimpan[n.id] = true;
                             n.unread = false;
                         }
                     } catch {
                         // Biarkan status belum dibaca jika gagal menyimpan ke server.
+                    } finally {
+                        n._sedangDibuka = false;
+                        this.aksiBerjalan--;
                     }
                 }
 
@@ -212,6 +226,11 @@
             },
 
             async tandaiSemua() {
+                if (this.sedangMenandaiSemua || this.aksiBerjalan > 0 || this.belumDibaca === 0) {
+                    return;
+                }
+
+                this.sedangMenandaiSemua = true;
                 const belum = this.daftar.filter(n => n.unread);
                 belum.forEach(n => { n.unread = false; });
 
@@ -220,8 +239,17 @@
                     if (!r.ok) {
                         throw new Error('gagal');
                     }
+                    belum.forEach(n => {
+                        this.sudahTersimpan[n.id] = true;
+                    });
                 } catch {
-                    belum.forEach(n => { n.unread = true; });
+                    belum.forEach(n => {
+                        if (!this.sudahTersimpan[n.id]) {
+                            n.unread = true;
+                        }
+                    });
+                } finally {
+                    this.sedangMenandaiSemua = false;
                 }
             },
         }));
