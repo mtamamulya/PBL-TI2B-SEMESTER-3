@@ -27,7 +27,12 @@
                         </svg>
                     </a>
                 </div>
-                <div class="text-5xl leading-none font-bold {{ $s['alert'] ? 'text-red-600' : '' }}">{{ $s['value'] }}</div>
+                <div class="flex flex-col gap-1.5">
+                    <div class="text-5xl leading-none font-bold {{ $s['alert'] ? 'text-red-600' : '' }}">{{ $s['value'] }}</div>
+                    @isset($s['keterangan'])
+                        <p class="text-xs text-gray-500">{{ $s['keterangan'] }}</p>
+                    @endisset
+                </div>
             </div>
         @endforeach
     </div>
@@ -107,7 +112,6 @@
                             <td class="px-2 py-2">{{ $k['jenis'] }}</td>
                             <td class="px-2 py-2">{{ $k['tanggal'] }}</td>
                             <td class="px-2 py-1">
-                                {{-- Semua baris sementara membuka contoh Detail Pengajuan Dosen kondisi Direview (id 2). Nanti diganti id kegiatan yang sebenarnya. --}}
                                 <a href="{{ route('dosen.kegiatan.show', $k['id']) }}" aria-label="Lihat detail {{ $k['nama'] }}"
                                    class="flex size-10 items-center justify-center rounded-lg bg-blue-100 text-brand hover:bg-blue-200">
                                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

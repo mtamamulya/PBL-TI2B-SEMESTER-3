@@ -10,7 +10,7 @@
     $mhsId      = $mahasiswa['id'] ?? request()->route('id');
     $mahasiswa  = $mahasiswa ?? [];
     $tahun      = $tahun ?? range((int) date('Y'), (int) date('Y') - 9);
-    $statusAkad = $statusAkad ?? ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
+    $statusAkad = $statusAkad ?? ($mahasiswa['allowed_statuses'] ?? ['Aktif', 'Cuti', 'Drop Out', 'Meninggal Dunia']);
     $fotoUrl    = $fotoUrl ?? null;
 
     $field  = 'w-full rounded-lg border border-black/[0.06] bg-white px-4 py-1.5 text-base tracking-[-0.18px] text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
@@ -25,7 +25,15 @@
 <main class="flex flex-col gap-8 px-4 py-8 lg:px-6">
     <div class="flex flex-col gap-2">
         <h1 class="text-[32px] font-bold leading-[38px] tracking-[-0.2px]">Edit Mahasiswa</h1>
-        <div class="text-lg font-medium text-[#A8A8A8] lg:text-2xl lg:leading-[30px] lg:tracking-[-0.15px]">Dashboard / Data Mahasiswa / Detail / Edit</div>
+        <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-lg font-medium text-[#A8A8A8] lg:text-2xl lg:leading-[30px] lg:tracking-[-0.15px]">
+            <a href="{{ \Illuminate\Support\Facades\Route::has('admin.dashboard') ? route('admin.dashboard', [], false) : '/admin/dashboard' }}" class="transition-colors hover:text-[#2277FF]">Dashboard</a>
+            <span>/</span>
+            <a href="{{ route('admin.mahasiswa', [], false) }}" class="transition-colors hover:text-[#2277FF]">Data Mahasiswa</a>
+            <span>/</span>
+            <a href="{{ route('admin.mahasiswa.show', ['id' => $mhsId], false) }}" class="transition-colors hover:text-[#2277FF]">Detail</a>
+            <span>/</span>
+            <span>Edit</span>
+        </nav>   
     </div>
 
     @if ($errors->any())
@@ -176,6 +184,11 @@
     var errFoto = document.getElementById('err-foto');
     var hapusFoto = document.getElementById('hapus_foto');
     var allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    var selectAngkatan = document.getElementById('angkatan');
+    var selectStatus = document.getElementById('status');
+    var statusAwal = @json($mahasiswa['status'] ?? 'Aktif');
+    var STATUS_REGULER = ['Aktif', 'Cuti', 'Drop Out', 'Meninggal Dunia'];
+    var STATUS_SEMUA = ['Aktif', 'Cuti', 'Drop Out', 'Skripsi/TA', 'Lulus', 'Meninggal Dunia'];
 
     if (inputFoto) {
         inputFoto.addEventListener('change', function () {
@@ -210,6 +223,31 @@
             inputFoto.value = '';
             preview.classList.add('hidden');
             inisial.classList.remove('hidden');
+        });
+    }
+
+    function hitungSemesterDariAngkatan(angkatan) {
+        var now = new Date();
+        var bulan = now.getMonth() + 1;
+        var tahun = now.getFullYear();
+        var isGenap = bulan < 7;
+        var tahunAwal = isGenap ? tahun - 1 : tahun;
+        return Math.max(1, ((tahunAwal - angkatan) * 2) + (isGenap ? 2 : 1));
+    }
+
+    if (selectAngkatan && selectStatus) {
+        selectAngkatan.addEventListener('change', function () {
+            var angkatan = parseInt(selectAngkatan.value, 10);
+            var sem = hitungSemesterDariAngkatan(angkatan);
+            var pilihanSaatIni = selectStatus.value;
+            var bolehTaLulus = sem > 8 || statusAwal === 'Skripsi/TA' || statusAwal === 'Lulus';
+            var opsi = bolehTaLulus ? STATUS_SEMUA : STATUS_REGULER;
+
+            selectStatus.innerHTML = opsi.map(function (s) {
+                return '<option value="' + s + '">' + s + '</option>';
+            }).join('');
+
+            selectStatus.value = opsi.includes(pilihanSaatIni) ? pilihanSaatIni : opsi[0];
         });
     }
 })();

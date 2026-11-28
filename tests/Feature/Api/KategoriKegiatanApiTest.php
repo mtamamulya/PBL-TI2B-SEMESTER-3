@@ -21,6 +21,25 @@ class KategoriKegiatanApiTest extends TestCase
 
     private const API = '/api/v1/kategori-kegiatan';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $idJenisMahasiswa = DB::table('jenis_kegiatan')
+            ->where('nama_jenis_kegiatan', 'Kegiatan Mahasiswa')
+            ->value('id_jenis_kegiatan');
+
+        if ($idJenisMahasiswa) {
+            $idKategori = DB::table('kategori')
+                ->where('id_jenis_kegiatan', $idJenisMahasiswa)
+                ->pluck('id_kategori');
+
+            DB::table('isian_kategori')->whereIn('id_kategori', $idKategori)->delete();
+            DB::table('kategori')->whereIn('id_kategori', $idKategori)->delete();
+            DB::table('jenis_kegiatan')->where('id_jenis_kegiatan', $idJenisMahasiswa)->delete();
+        }
+    }
+
     private function pengguna(string $role): User
     {
         $id = DB::table('roles')->where('nama_role', $role)->value('id_role')
@@ -248,6 +267,26 @@ class KategoriKegiatanApiTest extends TestCase
         $this->assertTrue($tipe->contains('nilai', 'teks'));
         $this->assertTrue($tipe->contains('nilai', 'tingkat_kejuaraan'));
         $this->assertTrue($tipe->contains('nilai', 'jenis_prestasi'));
+    }
+
+    public function test_tipe_anggota_tersedia_untuk_tiga_jenis_langsung_kegiatan(): void
+    {
+        $payload = $this->payload([
+            'isian' => [['input' => 'Anggota Kegiatan', 'jenis_input' => 'anggota_kegiatan', 'wajib' => true]],
+        ]);
+        $this->sebagai()->postJson(self::API, $payload)->assertUnprocessable()->assertJsonValidationErrors('isian.0.jenis_input');
+        $payload['kebutuhan'] = 'kegiatan';
+        unset($payload['id_jenis_kegiatan']);
+        $payload['jenis'] = 'Kegiatan Prodi';
+        $this->sebagai()->postJson(self::API, array_replace($payload, ['nama_kategori' => '']))
+            ->assertUnprocessable()->assertJsonValidationErrors('nama_kategori');
+        $this->assertDatabaseMissing('jenis_kegiatan', ['nama_jenis_kegiatan' => 'Kegiatan Prodi']);
+        foreach (['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'] as $jenis) {
+            $payload['jenis'] = $jenis;
+            $this->sebagai()->postJson(self::API, $payload)->assertCreated()
+                ->assertJsonPath('data.jenis', $jenis)
+                ->assertJsonPath('data.isian.0.jenis_input', 'anggota_kegiatan');
+        }
     }
 
     // ---------- ubah ----------

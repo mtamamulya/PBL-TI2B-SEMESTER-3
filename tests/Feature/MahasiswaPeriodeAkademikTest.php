@@ -6,6 +6,7 @@ use App\BackendKel2\Akademik\PeriodeAkademik;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MahasiswaPeriodeAkademikTest extends TestCase
@@ -48,7 +49,7 @@ class MahasiswaPeriodeAkademikTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_semester_berjalan_berhasil_memuat_periode_akademik()
     {
         $periode = PeriodeAkademik::sekarang();
@@ -61,14 +62,16 @@ class MahasiswaPeriodeAkademikTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
+                'semester',
                 'periode_akademik',
                 'summary',
                 'data_mata_kuliah',
-                'dosen_pengampu',
+                'meta',
             ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_riwayat_akademik_berhasil_diakses()
     {
         // Tes akses ke endpoint riwayat akademik
@@ -78,9 +81,10 @@ class MahasiswaPeriodeAkademikTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'periode_aktif',
                 'data',
-                'dosen_pengampu',
+                'meta',
             ]);
     }
 }

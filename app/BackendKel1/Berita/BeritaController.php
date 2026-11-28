@@ -276,7 +276,7 @@ class BeritaController extends Controller
             $berita->catatan_revisi = null;
             $pesan = 'Berita berhasil disetujui dan dipublikasikan.';
         } elseif ($data['aksi'] === 'revisi') {
-            $berita->status = 'revisi';
+            $berita->status = 'direvisi';
             $berita->tanggal_publish = null;
             $berita->catatan_revisi = $data['catatan_revisi'] ?? null;
             $pesan = 'Berita dikembalikan untuk direvisi.';

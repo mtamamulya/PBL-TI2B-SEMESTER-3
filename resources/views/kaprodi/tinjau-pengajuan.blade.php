@@ -65,7 +65,7 @@
     </div>
 
     @if (session('success'))
-        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">{{ session('success') }}</div>
+        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status" data-success-banner>{{ session('success') }}</div>
     @endif
     @error('aksi')
         <div class="rounded-md border border-[#FAA8A8] bg-[#FFF0F0] px-4 py-3 text-sm text-[#C00]" role="alert">{{ $message }}</div>

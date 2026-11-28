@@ -17,7 +17,7 @@
 <main class="flex flex-col gap-8 px-4 py-8 sm:px-6">
 
     @if (session('status'))
-        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm font-medium text-[#4C7D08]" role="status">{{ session('status') }}</div>
+        <div class="rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm font-medium text-[#4C7D08]" role="status" data-success-banner>{{ session('status') }}</div>
     @endif
 
     {{-- Judul + tombol --}}

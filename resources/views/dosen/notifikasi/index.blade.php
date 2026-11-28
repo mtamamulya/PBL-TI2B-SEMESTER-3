@@ -4,8 +4,16 @@
 
 @section('content')
 
+    @php
+        // Alamat untuk menyimpan status "dibaca" ke server (supaya tidak hilang saat halaman dimuat ulang).
+        $konfig = [
+            'csrf' => csrf_token(),
+            'urlBaca' => url('/notifikasi/__ID__/baca'),
+            'urlSemua' => url('/notifikasi/baca-semua'),
+        ];
+    @endphp
 
-    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi ?? []))">
+    <div class="flex flex-col gap-5" x-data="notifikasi(@js($notifikasi ?? []), @js($konfig))">
 
         {{-- Judul + tombol --}}
         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -41,7 +49,7 @@
                     <ul class="overflow-hidden rounded-lg bg-white shadow-sm">
                         <template x-for="n in g.item" :key="n.id">
                             <li class="border-t border-gray-200 first:border-t-0">
-                                <a :href="n.href" x-on:click="n.href === '#' && $event.preventDefault(); baca(n)"
+                                <a :href="n.href" x-on:click="buka(n, $event)"
                                    :class="n.unread ? 'bg-blue-50' : 'bg-white'"
                                    class="flex items-start gap-3.5 px-5 py-4 hover:bg-blue-50/60">
                                     {{-- ikon sesuai jenis --}}
@@ -93,7 +101,7 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('notifikasi', (daftar) => ({
+        Alpine.data('notifikasi', (daftar, konfig) => ({
             daftar: daftar,
             filter: 'semua',
 
@@ -127,8 +135,44 @@
                     .filter(g => g.item.length > 0);
             },
 
-            baca(n) { n.unread = false; },
-            tandaiSemua() { this.daftar.forEach(n => { n.unread = false; }); },
+            // Kirim ke server. keepalive supaya permintaan tetap jalan walau halaman langsung berpindah ke detail.
+            kirim(url) {
+                return fetch(url, {
+                    method: 'POST',
+                    keepalive: true,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRF-TOKEN': konfig.csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+            },
+
+            async buka(n, event) {
+                const navigasiBiasa = !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
+                if (n.href === '#' || navigasiBiasa) event.preventDefault();
+                if (n.unread) {
+                    try {
+                        const response = await this.kirim(konfig.urlBaca.replace('__ID__', n.id));
+                        if (response.ok) n.unread = false;
+                    } catch {
+                        // Biarkan notifikasi belum dibaca jika penyimpanan gagal.
+                    }
+                }
+                if (navigasiBiasa && n.href !== '#') window.location.assign(n.href);
+            },
+
+            async tandaiSemua() {
+                const belum = this.daftar.filter(n => n.unread);
+                belum.forEach(n => { n.unread = false; });
+                try {
+                    const r = await this.kirim(konfig.urlSemua);
+                    if (!r.ok) throw new Error('gagal');
+                } catch (e) {
+                    belum.forEach(n => { n.unread = true; }); // batalkan bila server gagal menyimpan
+                }
+            },
         }));
     });
 </script>

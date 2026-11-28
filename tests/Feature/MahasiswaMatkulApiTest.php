@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class MahasiswaMatkulApiTest extends TestCase
@@ -14,7 +15,6 @@ class MahasiswaMatkulApiTest extends TestCase
     {
         parent::setUp();
 
-        // Memalsukan respons API luar (Kelompok 1)
         Http::fake([
             '*' => Http::response([
                 'status' => 'success',
@@ -38,7 +38,7 @@ class MahasiswaMatkulApiTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_katalog_mk_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/katalog-mk');
@@ -46,12 +46,13 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'data',
                 'meta',
             ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_semester_berjalan_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/semester-berjalan');
@@ -59,15 +60,16 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
+                'semester',
                 'periode_akademik',
                 'summary',
                 'data_mata_kuliah',
                 'meta',
-                'dosen_pengampu',
             ]);
     }
 
-    /** @test */
+    #[Test]
     public function endpoint_riwayat_akademik_dapat_diakses()
     {
         $response = $this->getJson('/api/v1/mahasiswa/riwayat');
@@ -75,10 +77,10 @@ class MahasiswaMatkulApiTest extends TestCase
             ->assertJsonStructure([
                 'status',
                 'message',
+                'angkatan',
                 'periode_aktif',
                 'data',
                 'meta',
-                'dosen_pengampu',
             ]);
     }
 }

@@ -3,25 +3,30 @@
 @section('title', 'Ajukan Kegiatan')
 
 @php
-    // DATA TIRUAN. Nanti diganti data dari controller / database oleh tim backend.
-    $daftarKategori = ['Lomba', 'Kunjungan Industri', 'Seminar', 'Pelatihan', 'Penelitian', 'Pengabdian'];
-    $daftarJenis    = ['Kegiatan dosen', 'Kegiatan Prodi', 'Prodi dan mahasiswa', 'Kegiatan mahasiswa'];
-
     // Isian tambahan per kategori (edit daftarnya di _medan-kategori.php) dan nilai awal form
     $medanKategori = require resource_path('views/dosen/kegiatan/_medan-kategori.php');
+    foreach (['Penelitian', 'Pengabdian'] as $modul) {
+        $sebelumnya = \App\Models\Kegiatan::untukUser(auth()->user())
+            ->whereHas('kategori', fn ($q) => $q->where('nama_kategori', $modul))
+            ->pluck('nama_kegiatan', 'id_kegiatan');
+        foreach ($medanKategori[$modul]['medan'] as &$field) {
+            if ($field['nama'] === 'sebelumnya') {
+                $field['opsi'] = $sebelumnya->keys()->values();
+                $field['labels'] = $sebelumnya;
+            }
+        }
+        unset($field);
+    }
     $awal = ['kategori' => '', 'nilai' => []];
 
-    // Calon anggota yang bisa dicari: nama => status
-    $kandidat = [
-        'Kuwat Santoso , S.T., M.Kom.' => 'Dosen',
-        'Wiktasari'                    => 'Dosen',
-        'Angga Wahyu Wibowo'           => 'Dosen',
-        'Arif Setyawan'                => 'Dosen',
-        'Mukhlis Pratama Mulya'        => 'Mahasiswa',
-    ];
-
-    // Pengaju = akun yang login. Nanti diganti nama user dari backend.
-    $pengaju = 'Kuwat Santoso , S.T., M.Kom.';
+    $kandidat = [];
+    foreach ((auth()->user()?->dosen ? ['mahasiswa' => 'Mahasiswa', 'dosen' => 'Dosen'] : []) as $tabel => $peran) {
+        foreach (DB::table($tabel)->whereNotNull('id_user')->get(['id_user', 'nama']) as $akun) {
+            $kandidat[] = ['id_user' => $akun->id_user, 'nama' => $akun->nama, 'status' => $peran,
+                'label' => $akun->nama.' ('.$peran.' #'.$akun->id_user.')'];
+        }
+    }
+    $pengaju = auth()->user()?->dosen?->nama ?? auth()->user()?->email ?? 'Pengaju';
 
     $inputClass   = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-[15px] text-gray-900 placeholder:text-gray-400';
     $selectClass  = 'h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white pr-10 pl-3.5 text-[15px] text-gray-900';
@@ -48,6 +53,9 @@
           method="POST" action="#" enctype="multipart/form-data"
           class="flex flex-col gap-5 rounded-lg bg-white p-4.5 shadow-sm">
         @csrf
+        <ul x-show="pesanValidasi.length" x-cloak role="alert" class="list-disc rounded-md bg-red-50 py-2 pl-8 text-sm text-red-800">
+            <template x-for="(pesan, i) in pesanValidasi" :key="i"><li x-text="pesan"></li></template>
+        </ul>
 
         {{-- 1. INFORMASI KEGIATAN --}}
         <section class="{{ $sectionClass }}" aria-labelledby="h-info">
@@ -60,25 +68,20 @@
                 <div class="flex flex-col gap-2">
                     <label for="kategori" class="{{ $labelClass }}">Kategori</label>
                     <div class="relative">
-                        <select id="kategori" name="kategori" required x-model="kategori" class="{{ $selectClass }}">
+                        <select id="kategori" name="id_kategori" required x-model="kategoriId" class="{{ $selectClass }}">
                             <option value="">Pilih kategori</option>
-                            @foreach ($daftarKategori as $k)
-                                <option>{{ $k }}</option>
-                            @endforeach
+                            <template x-for="opsi in daftarKategori" :key="opsi.id_kategori">
+                                <option :value="opsi.id_kategori" x-text="opsi.nama_kategori"></option>
+                            </template>
                         </select>
                         {!! $chevron !!}
+                        <p x-show="pesanKategori" x-text="pesanKategori" role="status"></p>
                     </div>
                 </div>
                 <div class="flex flex-col gap-2">
                     <label for="jenis" class="{{ $labelClass }}">Jenis kegiatan</label>
                     <div class="relative">
-                        <select id="jenis" name="jenis_kegiatan" required class="{{ $selectClass }}">
-                            <option value="">Pilih jenis kegiatan</option>
-                            @foreach ($daftarJenis as $j)
-                                <option>{{ $j }}</option>
-                            @endforeach
-                        </select>
-                        {!! $chevron !!}
+                        <input id="jenis" name="jenis_kegiatan" readonly :value="pilihan?.jenis || ''" class="{{ $inputClass }}">
                     </div>
                 </div>
 
@@ -137,20 +140,15 @@
                            x-on:keydown.enter.prevent="tambah()"
                            placeholder="Cari dosen atau mahasiswa..." class="{{ $inputClass }} pl-10">
                     <datalist id="daftar-kandidat">
-                        @foreach ($kandidat as $nama => $status)
-                            <option value="{{ $nama }}">{{ $status }}</option>
+                        @foreach ($kandidat as $akun)
+                            <option value="{{ $akun['label'] }}"></option>
                         @endforeach
                     </datalist>
                 </div>
 
                 <div class="relative w-full sm:w-44">
                     <label for="status-anggota" class="sr-only">Status anggota</label>
-                    <select id="status-anggota" x-model="status" class="{{ $selectClass }}">
-                        <option value="">Pilih status</option>
-                        <option>Dosen</option>
-                        <option>Mahasiswa</option>
-                    </select>
-                    {!! $chevron !!}
+                    <input id="status-anggota" :value="calon?.status || ''" readonly placeholder="Status anggota" class="{{ $inputClass }}">
                 </div>
 
                 <button type="button" x-on:click="tambah()"
@@ -174,13 +172,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="(a, i) in anggota" :key="a.nama">
+                        <template x-for="(a, i) in anggota" :key="a.id_user">
                             <tr class="border-t border-gray-300">
                                 <td class="px-2.5 py-2.5">
                                     <span x-text="a.nama"></span>
                                     {{-- data yang dikirim ke backend --}}
-                                    <input type="hidden" :name="`anggota[${i}][nama]`" :value="a.nama">
-                                    <input type="hidden" :name="`anggota[${i}][status]`" :value="a.status">
+                                    <input type="hidden" :disabled="a.kunci" :name="`anggota[${i}][id_user]`" :value="a.id_user">
                                 </td>
                                 <td class="px-2.5 py-2.5" x-text="a.status"></td>
                                 <td class="px-2.5 py-1.5">
@@ -273,7 +270,7 @@
 
         {{-- TOMBOL --}}
         <div class="flex flex-wrap items-center justify-end gap-3 pt-4">
-            <a href="{{ route('kegiatan.index') }}"
+            <a href="{{ route('dosen.kegiatan.index') }}"
                class="flex h-11 items-center rounded-md bg-red-500 px-6 text-base text-white hover:bg-red-600">Batal</a>
             <button type="submit"
                     class="h-11 cursor-pointer rounded-md bg-brand px-6 text-base text-white hover:bg-blue-700">Simpan</button>
@@ -290,7 +287,32 @@
 
             // Isian tambahan menurut kategori (daftar isian ada di _medan-kategori.php)
             medanKategori,
-            kategori: awal.kategori,
+            daftarKategori: [],
+            kategoriId: '',
+            get pilihan() { return this.daftarKategori.find(k => String(k.id_kategori) === String(this.kategoriId)); },
+            get kategori() { return this.pilihan?.modul || ''; },
+            async muatKategori() {
+                try {
+                    let page = 1;
+                    const opsi = [];
+                    while (true) {
+                        const response = await fetch('/api/v1/kategori-kegiatan?jenis=Kegiatan+Dosen&per_page=100&page=' + page, {headers: {Accept: 'application/json'}});
+                        const hasil = await response.json();
+                        if (!response.ok) throw new Error(hasil.message || 'Kategori gagal dimuat.');
+                        for (const k of hasil.data) {
+                            const modul = ['Penelitian', 'Pengabdian'].find(nama => k.nama_kategori.toLowerCase().startsWith(nama.toLowerCase()));
+                            if (modul) opsi.push({...k, modul});
+                        }
+                        if (page >= hasil.meta.last_page) break;
+                        page++;
+                    }
+                    this.daftarKategori = opsi;
+                    if (!opsi.length) this.pesanKategori = 'Kategori penelitian dan pengabdian belum tersedia.';
+                } catch (error) {
+                    this.pesanKategori = 'Gagal memuat master kategori. Muat ulang halaman untuk mencoba lagi.';
+                }
+            },
+            pesanKategori: '',
             nilai: { ...awal.nilai },
             // Kartu Anggota: selalu ada, kecuali kategori Lomba yang bentuknya belum / bukan Tim
             get perluAnggota() { return this.kategori !== 'Lomba' || this.nilai.bentuk === 'Tim'; },
@@ -300,39 +322,30 @@
 
             // Anggota: akun yang login (pengaju) selalu ada dan terkunci. Anggota lain kosong di awal.
             anggota: [
-                { nama: pengaju, status: kandidat[pengaju] || 'Dosen', kunci: true },
+                { id_user: @js(auth()->id()), nama: pengaju, status: 'Dosen', kunci: true },
             ],
             cari: '',
-            status: '',
+            get calon() { return kandidat.find(a => a.label === this.cari.trim()); },
             errorAnggota: '',
 
-            // Kalau nama yang diketik ada di daftar, status otomatis terisi (masih bisa diubah)
             init() {
                 // Ganti kategori = isian tambahan kategori lain dikosongkan
-                this.$watch('kategori', () => { this.nilai = {}; });
-                this.$watch('cari', v => {
-                    const nama = Object.keys(kandidat).find(n => n.toLowerCase() === v.trim().toLowerCase());
-                    if (nama) this.status = kandidat[nama];
-                });
+                this.muatKategori();
+                this.$watch('kategoriId', () => { this.nilai = {}; });
             },
 
             tambah() {
-                const nama = this.cari.trim();
-                if (!nama) {
-                    this.errorAnggota = 'Ketik nama dosen atau mahasiswa terlebih dahulu.';
+                const calon = this.calon;
+                if (!calon) {
+                    this.errorAnggota = 'Pilih akun dari daftar dosen atau mahasiswa.';
                     return;
                 }
-                if (!this.status) {
-                    this.errorAnggota = 'Pilih status anggota (Dosen atau Mahasiswa) terlebih dahulu.';
-                    return;
-                }
-                if (this.anggota.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
+                if (this.anggota.some(a => Number(a.id_user) === Number(calon.id_user))) {
                     this.errorAnggota = 'Anggota ini sudah ada di daftar.';
                     return;
                 }
-                this.anggota.push({ nama, status: this.status, kunci: false });
+                this.anggota.push({ ...calon, kunci: false });
                 this.cari = '';
-                this.status = '';
                 this.errorAnggota = '';
             },
             hapus(i) { this.anggota.splice(i, 1); },
@@ -346,8 +359,8 @@
                 this.dokumen.push({ id: this.nextId++, nama: '', jenis: '', keterangan: '', tautan: '' });
             },
             hapusDokumen(i) { this.dokumen.splice(i, 1); },
-// Simpan (simulasi)
-            tersimpan: false,
+
+            pesanValidasi: [],
             sedangMenyimpan: false,
             async simpan() {
                 if (this.sedangMenyimpan) return;
@@ -356,9 +369,14 @@
                 const formElement = this.$el;
                 const formData = new FormData(formElement);
 
-                // Tentukan endpoint tujuan (khusus Penelitian nembak ke API penelitian)
+                // ID kategori berasal dari master Kelompok 1.
+                if (['Penelitian', 'Pengabdian'].includes(this.kategori)) {
+                    formData.delete('detail[sebelumnya]');
+                    if (this.nilai.sebelumnya) formData.set('id_kegiatan_sebelumnya', this.nilai.sebelumnya);
+                }
                 const url = '/api/v1/dosen/' + (this.kategori === 'Penelitian' ? 'penelitian' : 'pengabdian');
 
+                this.pesanValidasi = [];
                 this.sedangMenyimpan = true;
                 try {
                     if (!['Penelitian', 'Pengabdian'].includes(this.kategori)) {
@@ -376,10 +394,19 @@
                     const result = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(result.message || 'Terjadi kesalahan validasi saat menyimpan.');
+                        if (response.status === 422) {
+                            this.pesanValidasi = Object.entries(result.errors || {}).flatMap(([kolom, pesan]) => {
+                                const label = kolom.split('.').map(bagian =>
+                                    /^\d+$/.test(bagian) ? Number(bagian) + 1 : bagian.replaceAll('_', ' ')
+                                ).join(' ');
+                                return [].concat(pesan).map(teks => label + ': ' + teks);
+                            });
+                        }
+                        throw new Error(this.pesanValidasi[0] || result.message || 'Terjadi kesalahan validasi saat menyimpan.');
                     }
 
-                    this.tersimpan = true;
+                    window.location.assign(@js(url('/pengajuan/dosen')) + '/' + result.data.id_kegiatan);
+
                     this.$dispatch('tampil-alert', {
                         tipe: 'sukses',
                         judul: 'Data berhasil disimpan',

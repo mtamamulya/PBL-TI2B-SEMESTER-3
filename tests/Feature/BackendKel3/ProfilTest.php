@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\BackendKel3;
 
+use App\Mail\PasswordResetOtp;
 use App\Models\Dosen;
 use App\Models\HistoriPangkatGolongan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -26,6 +29,27 @@ class ProfilTest extends TestCase
             'email' => $email,
             'status' => true,
         ]);
+    }
+
+    public function test_dosen_mengubah_sandi_dengan_otp_email_melalui_sesi_profil(): void
+    {
+        Mail::fake();
+        $user = $this->buatUserDosen();
+        $url = '/api/v1/dosen/profil/ganti-sandi';
+        $this->actingAs($user, 'web')->withHeader('Origin', 'http://localhost')
+            ->withSession(['api_token' => $user->createToken('web')->plainTextToken]);
+        $this->postJson("$url/kirim-otp")->assertOk();
+        $mail = Mail::sent(PasswordResetOtp::class)->sole();
+        $this->assertTrue($mail->hasTo($user->email));
+        $password = 'SandiDosenBaru26!';
+        $data = ['password' => $password, 'password_confirmation' => $password];
+        $otpId = DB::table('otp_codes')->where('id_user', $user->getKey())->value('id_otp_code');
+        $this->postJson("$url/simpan", $data + ['otp_id' => $otpId])->assertUnprocessable();
+        $this->postJson("$url/verifikasi", ['otp' => $mail->code])->assertOk()->assertJsonPath('data.otp_id', $otpId);
+        $response = $this->postJson("$url/simpan", $data + ['otp_id' => $otpId])->assertOk();
+        $response->assertSessionHas('api_token', $response->json('data.token'));
+        $this->assertTrue(Hash::check($password, $user->fresh()->password));
+        $this->postJson("$url/simpan", $data + ['otp_id' => $otpId])->assertUnprocessable();
     }
 
     public function test_dosen_dapat_melihat_profil_dan_pangkat_terakhir(): void

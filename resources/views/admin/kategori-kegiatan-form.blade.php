@@ -297,6 +297,8 @@
     ];
     const DAFTAR_TIPE = Array.isArray(TIPE_API) && TIPE_API.length ? TIPE_API : TIPE_CADANGAN;
     const TIPE = Object.fromEntries(DAFTAR_TIPE.map((t) => [t.nilai, t.label]));
+    TIPE.anggota_kegiatan = 'Anggota Kegiatan';
+    const bolehPilihAnggota = () => ['Kegiatan Mahasiswa', 'Kegiatan Dosen', 'Kegiatan Prodi'].includes($('kk-jenis').value) && kebutuhan() === 'kegiatan';
     // Tipe "pilihan baku": nilai => daftar pilihan (kosong bila isinya diambil dari tabel, mis. dosen)
     const BAKU = Object.fromEntries(DAFTAR_TIPE.filter((t) => t.baku).map((t) => [t.nilai, t.pilihan ?? []]));
     const MAKS_ISIAN = 20;
@@ -308,7 +310,7 @@
         `<svg xmlns="http://www.w3.org/2000/svg" width="${ukuran}" height="${ukuran}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IKON[n]}</svg>`;
 
     // jumlah_isian: 1 = satu isian, 0 = lebih dari satu (pengaju boleh mengisi berkali-kali)
-    const banyak = (f) => f.banyak;
+    const banyak = (f) => f.tipe !== 'anggota_kegiatan' && f.banyak;
     let isian = (Array.isArray(ROW?.isian) ? ROW.isian : []).map((f) => ({
         id: f.id_isian_kategori ?? null, label: f.input ?? '', tipe: f.jenis_input in TIPE ? f.jenis_input : 'teks',
         wajib: !!f.wajib, banyak: f.jumlah_isian === 0, buka: false,
@@ -330,12 +332,12 @@
                         <div>
                             <label class="mb-1 block text-xs font-semibold text-[#111]">Tipe</label>
                             <select data-f="tipe" class="h-9 w-full rounded-md border border-[#DEDEE3] bg-white px-2 text-sm outline-none focus:border-[#2277FF]">
-                                ${Object.entries(TIPE).map(([v, n]) => `<option value="${v}" ${v === f.tipe ? 'selected' : ''}>${n}</option>`).join('')}
+                                ${Object.entries(TIPE).filter(([v]) => v !== 'anggota_kegiatan' || bolehPilihAnggota() || v === f.tipe).map(([v, n]) => `<option value="${v}" ${v === f.tipe ? 'selected' : ''}>${n}</option>`).join('')}
                             </select>
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-semibold text-[#111]">Jumlah isian</label>
-                            <select data-f="jumlah" class="h-9 w-full rounded-md border border-[#DEDEE3] bg-white px-2 text-sm outline-none focus:border-[#2277FF]">
+                            <select data-f="jumlah" ${f.tipe === 'anggota_kegiatan' ? 'disabled' : ''} class="h-9 w-full rounded-md border border-[#DEDEE3] bg-white px-2 text-sm outline-none focus:border-[#2277FF] disabled:opacity-50">
                                 <option value="1" ${!banyak(f) ? 'selected' : ''}>Satu isian</option>
                                 <option value="0" ${banyak(f) ? 'selected' : ''}>Lebih dari satu</option>
                             </select>
@@ -391,6 +393,11 @@
                 case 'angka':    kontrol = `<input type="number" disabled placeholder="0" class="${dasar}">`; break;
                 case 'tanggal':  kontrol = `<input type="date" disabled class="${dasar}">`; break;
                 case 'berkas':   kontrol = `<div class="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#C9C9D1] text-sm text-[#6E6E76]">${banyak(f) ? 'Pilih beberapa berkas atau seret ke sini' : 'Pilih berkas atau seret ke sini'}</div>`; break;
+                case 'anggota_kegiatan': {
+                    const kelompok = $('kk-jenis').value === 'Kegiatan Dosen' ? 'semua dosen' : 'angkatan';
+                    kontrol = `<input disabled placeholder="Pilih ${kelompok} atau cari peserta satu per satu" class="${dasar}">`;
+                    break;
+                }
                 default:
                     // Tipe pilihan baku (daftar dari API); isinya bisa kosong bila diambil dari tabel (mis. dosen)
                     kontrol = (f.tipe in BAKU)
@@ -480,6 +487,7 @@
             renderForm();
         } else if (n === 'tipe') {
             f.tipe = e.target.value;
+            if (f.tipe === 'anggota_kegiatan' && !f.label.trim()) f.label = 'Anggota Kegiatan';
             renderDaftar();
             $('ik-daftar').querySelector(`li[data-i="${i}"] [data-f="tipe"]`)?.focus();
         } else if (n === 'jumlah') {
@@ -490,6 +498,8 @@
     });
 
     $('kk-nama').addEventListener('input', renderForm);
+    $('kk-jenis').addEventListener('change', renderDaftar);
+    document.querySelectorAll('input[name="kk-kebutuhan"]').forEach((input) => input.addEventListener('change', renderDaftar));
 
     // ---------- Pratinjau surat ----------
     function nilaiContoh(nama) {
@@ -580,7 +590,7 @@
             isian: isian.filter((f) => f.label.trim()).map((f) => ({
                 id_isian_kategori: f.id, // ada = diperbarui, kosong = isian baru
                 input: f.label.trim(), jenis_input: f.tipe, wajib: f.wajib,
-                jumlah_isian: f.banyak ? 0 : 1, // 1 = satu isian, 0 = lebih dari satu
+                jumlah_isian: banyak(f) ? 0 : 1, // 1 = satu isian, 0 = lebih dari satu
             })),
         };
         if (!body.name) { bukaTab('data'); tampilError('Nama kategori wajib diisi.'); $('kk-nama').focus(); return; }

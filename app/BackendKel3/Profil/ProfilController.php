@@ -2,14 +2,28 @@
 
 namespace App\BackendKel3\Profil;
 
+use App\BackendKel1\Autentikasi\PemulihanController;
 use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ProfilController extends Controller
 {
+    public function simpanSandi(Request $request, PemulihanController $pemulihan): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $pemulihan) {
+            $response = $pemulihan->simpanSandiProfilOtp($request);
+            if ($response->isSuccessful() && $request->hasSession() && $request->session()->has('api_token')) {
+                $request->session()->put('api_token', $response->getData()->data->token);
+            }
+
+            return $response;
+        });
+    }
+
     /**
      * GET /api/v1/dosen/profil
      * Mengambil profil dosen yang sedang login beserta pangkat terakhir.

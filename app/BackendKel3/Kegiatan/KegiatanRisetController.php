@@ -403,8 +403,10 @@ abstract class KegiatanRisetController extends Controller
     private function kategoriIds(): array
     {
         return DB::table('kategori')
-            ->where('nama_kategori', 'like', static::KATEGORI_LIKE)
-            ->pluck('id_kategori')->all();
+            ->join('jenis_kegiatan', 'jenis_kegiatan.id_jenis_kegiatan', '=', 'kategori.id_jenis_kegiatan')
+            ->where('jenis_kegiatan.nama_jenis_kegiatan', 'Kegiatan Dosen')
+            ->where('kategori.nama_kategori', 'like', static::KATEGORI_LIKE)
+            ->pluck('kategori.id_kategori')->all();
     }
 
     /** Pengabdian milik dosen ini atau yang dia ikuti. Penelitian dan kategori lain otomatis tersaring. */
@@ -498,7 +500,8 @@ abstract class KegiatanRisetController extends Controller
     {
         $in = $request->all();
         if (! isset($in['id_kategori']) && isset($in['kategori']) && $request->isMethod('post')) {
-            $categories = DB::table('kategori')->where('nama_kategori', 'like', static::KATEGORI_LIKE)
+            $categories = DB::table('kategori')
+                ->whereIn('id_kategori', $this->kategoriIds())
                 ->where('nama_kategori', $in['kategori'])->pluck('id_kategori');
             if ($categories->count() !== 1) {
                 throw ValidationException::withMessages(['kategori' => 'Pilih ID kategori yang sesuai dari master kategori.']);

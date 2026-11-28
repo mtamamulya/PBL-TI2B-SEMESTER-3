@@ -103,9 +103,14 @@
     .modal-btn-ya:disabled { opacity: .7; cursor: not-allowed; }
 </style>
 
+@php
+    $semesterAwal = old('semester', $defaultSemester ?? 'Ganjil');
+    $tahunAjaranAwal = old('tahun_ajaran', $defaultTahunAjaran ?? (date('Y') . '/' . (date('Y') + 1)));
+@endphp
+
 <main class="p-4 pb-10 sm:p-6" x-data="{
-    semester: '{{ old('semester', 'Ganjil') }}',
-    tahunAjaran: '{{ old('tahun_ajaran', date('Y') . '/' . (date('Y') + 1)) }}',
+    semester: @js($semesterAwal),
+    tahunAjaran: @js($tahunAjaranAwal),
     get previewLabel() {
         return `${this.semester} ${this.tahunAjaran}`;
     }
@@ -125,7 +130,7 @@
     </div>
 
     @if (session('status'))
-        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status">
+        <div class="mt-4 rounded-md border border-[#D6EDB5] bg-[#E6F3D3] px-4 py-3 text-sm text-[#4C7D08]" role="status" data-success-banner>
             {{ session('status') }}
         </div>
     @endif
@@ -155,14 +160,15 @@
                     <label for="semester" class="block text-sm font-medium text-[#1C2024]">Semester</label>
                     <select id="semester" name="semester" x-model="semester"
                             class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none focus:border-[#1F73FF]">
-                        <option value="Ganjil">Ganjil</option>
-                        <option value="Genap">Genap</option>
+                        <option value="Ganjil" @selected($semesterAwal === 'Ganjil')>Ganjil</option>
+                        <option value="Genap" @selected($semesterAwal === 'Genap')>Genap</option>
                     </select>
                 </div>
 
                 <div>
                     <label for="tahun_ajaran" class="block text-sm font-medium text-[#1C2024]">Tahun Ajaran</label>
                     <input type="text" id="tahun_ajaran" name="tahun_ajaran" x-model="tahunAjaran"
+                           value="{{ $tahunAjaranAwal }}"
                            placeholder="2026/2027"
                            class="mt-1.5 h-10 w-full rounded-md border border-[#E4E4E7] bg-white px-3.5 text-sm text-[#1C2024] outline-none placeholder:text-[#B3B3B8] focus:border-[#1F73FF]"
                            required>
@@ -170,7 +176,7 @@
                 </div>
 
                 <div class="rounded-md bg-[#F9F9FC] px-3.5 py-2.5 text-xs text-[#55555C]">
-                    Pratinjau: <strong class="text-[#1C2024]" x-text="previewLabel"></strong>
+                    Pratinjau: <strong class="text-[#1C2024]" x-text="previewLabel">{{ $semesterAwal }} {{ $tahunAjaranAwal }}</strong>
                 </div>
 
                 <button type="button" id="btnBukaModalTA"

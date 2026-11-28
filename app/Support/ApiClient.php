@@ -49,6 +49,23 @@ class ApiClient
         return $this->kirim('get', $path, $query);
     }
 
+    public function pdf(string $path): string
+    {
+        try {
+            $response = Http::baseUrl($this->urlDasar())
+                ->withToken($this->token ?? '')
+                ->accept('application/pdf, application/json')
+                ->timeout((int) config('api_client.timeout', 10))
+                ->get($path);
+        } catch (ConnectionException $e) {
+            throw new ApiException(503, 'Layanan API tidak dapat dihubungi.', [], $e);
+        }
+        $this->urai($response);
+        abort_unless(str_starts_with($response->body(), '%PDF-'), 502, 'Respons API bukan PDF.');
+
+        return $response->body();
+    }
+
     /**
      * @param  array<string, mixed>  $data
      * @param  array<string, UploadedFile>  $berkas  nama field => file unggahan

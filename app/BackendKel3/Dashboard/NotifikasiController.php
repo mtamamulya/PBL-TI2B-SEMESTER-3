@@ -3,6 +3,7 @@
 namespace App\BackendKel3\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\NotifikasiDibaca;
 use App\Models\Timeline;
 use App\Models\User;
 use App\Support\ApiResponse;
@@ -19,12 +20,12 @@ use Illuminate\View\View;
  *
  * Jenis yang bisa dihasilkan dari timeline hanya "pengajuan" dan "tim".
  * Jenis "sistem" tidak punya sumber data, jadi tidak pernah dikirim.
+ *
+ * Status "sudah dibaca" disimpan per pengguna di tabel notifikasi_dibaca, jadi tetap
+ * tersimpan setelah halaman dimuat ulang atau dibuka dari perangkat lain.
  */
 class NotifikasiController extends Controller
 {
-    /** Notifikasi dianggap baru selama 3 hari. Belum ada penyimpanan "sudah dibaca" per pengguna. */
-    private const HARI_BARU = 3;
-
     /** GET /api/v1/dosen/notifikasi */
     public function index(Request $request): JsonResponse
     {
@@ -49,7 +50,7 @@ class NotifikasiController extends Controller
     /** GET /notifikasi (halaman web) */
     public function web(Request $request): View
     {
-        $notifikasi = $this->susun($request->user(), 50)->map(fn (array $n) => [
+        $notifikasi = $this->susun($request->user(), Timeline::BATAS_NOTIFIKASI_WEB)->map(fn (array $n) => [
             'id' => $n['id'],
             'g' => $n['g'],
             'type' => $n['type'],
@@ -70,39 +71,87 @@ class NotifikasiController extends Controller
             return collect();
         }
 
-        return Timeline::with('kegiatan')
+        $timelines = Timeline::notifikasiUntuk($user, $batas)->with('kegiatan')->get();
+
+        return $timelines->map(function (Timeline $item) use ($user) {
+            $status = strtolower((string) $item->status);
+            $kegiatan = $item->kegiatan;
+            $judul = $kegiatan?->nama_kegiatan ?: 'Kegiatan #'.$item->id_kegiatan;
+            $waktuRaw = $item->tanggal_status ?? $item->created_at;
+            $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->setTimezone('Asia/Jakarta')->locale('id') : null;
+
+            // Bukan pembuat kegiatan, berarti dosen ini anggota tim.
+            $isAnggotaTim = $kegiatan && (int) $kegiatan->id_user !== (int) $user->getKey();
+
+            return [
+                'id' => $item->id_timeline,
+                'id_kegiatan' => $item->id_kegiatan,
+                'judul_kegiatan' => $judul,
+                'status' => $status,
+                'catatan_revisi' => $item->catatan_revisi,
+                'type' => $isAnggotaTim ? 'tim' : 'pengajuan',
+                'title' => $this->judulNotifikasi($status, $isAnggotaTim),
+                'body' => $this->isiNotifikasi($status, $judul, $item->catatan_revisi, $isAnggotaTim),
+                'g' => $this->kelompokWaktu($waktu),
+                'time' => $this->formatWaktu($waktu),
+                'unread' => $item->belumDibaca(),
+                'waktu_iso' => $waktu?->toIso8601String(),
+                'waktu_human' => $waktu ? $waktu->diffForHumans() : '-',
+                'href' => $this->detailUrl($item->id_kegiatan),
+            ];
+        });
+    }
+
+    /**
+     * POST /api/v1/dosen/notifikasi/{idTimeline}/baca  dan  POST /notifikasi/{idTimeline}/baca
+     * Idempoten: memanggil dua kali tidak error. Timeline milik dosen lain menghasilkan 404 (tidak bocor).
+     */
+    public function tandaiDibaca(Request $request, int $idTimeline): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return ApiResponse::gagal('Belum login.', 401);
+        }
+
+        $boleh = Timeline::whereKey($idTimeline)
             ->whereHas('kegiatan', fn ($q) => $q->untukUser($user))
-            ->orderByDesc('tanggal_status')
-            ->orderByDesc('id_timeline')
-            ->limit($batas)
-            ->get()
-            ->map(function (Timeline $item) use ($user) {
-                $status = strtolower((string) $item->status);
-                $kegiatan = $item->kegiatan;
-                $judul = $kegiatan?->nama_kegiatan ?: 'Kegiatan #'.$item->id_kegiatan;
-                $waktuRaw = $item->tanggal_status ?? $item->created_at;
-                $waktu = $waktuRaw ? Carbon::parse($waktuRaw)->locale('id') : null;
+            ->exists();
 
-                // Bukan pembuat kegiatan, berarti dosen ini anggota tim.
-                $isAnggotaTim = $kegiatan && (int) $kegiatan->id_user !== (int) $user->getKey();
+        if (! $boleh) {
+            return ApiResponse::gagal('Notifikasi tidak ditemukan.', 404);
+        }
 
-                return [
-                    'id' => $item->id_timeline,
-                    'id_kegiatan' => $item->id_kegiatan,
-                    'judul_kegiatan' => $judul,
-                    'status' => $status,
-                    'catatan_revisi' => $item->catatan_revisi,
-                    'type' => $isAnggotaTim ? 'tim' : 'pengajuan',
-                    'title' => $this->judulNotifikasi($status, $isAnggotaTim),
-                    'body' => $this->isiNotifikasi($status, $judul, $item->catatan_revisi, $isAnggotaTim),
-                    'g' => $this->kelompokWaktu($waktu),
-                    'time' => $this->formatWaktu($waktu),
-                    'unread' => $waktu ? $waktu->greaterThan(now()->subDays(self::HARI_BARU)) : false,
-                    'waktu_iso' => $waktu?->toIso8601String(),
-                    'waktu_human' => $waktu ? $waktu->diffForHumans() : '-',
-                    'href' => $this->detailUrl($item->id_kegiatan),
-                ];
-            });
+        NotifikasiDibaca::query()->insertOrIgnore([
+            'id_user' => $user->getKey(),
+            'id_timeline' => $idTimeline,
+            'dibaca_pada' => now(),
+        ]);
+
+        return ApiResponse::ok(['id_timeline' => $idTimeline, 'belum_dibaca' => false], 'Notifikasi ditandai sudah dibaca.');
+    }
+
+    /** POST /api/v1/dosen/notifikasi/baca-semua  dan  POST /notifikasi/baca-semua */
+    public function tandaiSemuaDibaca(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return ApiResponse::gagal('Belum login.', 401);
+        }
+
+        $sekarang = now();
+        $baris = Timeline::whereHas('kegiatan', fn ($q) => $q->untukUser($user))
+            ->pluck('id_timeline')
+            ->map(fn ($id) => [
+                'id_user' => $user->getKey(),
+                'id_timeline' => $id,
+                'dibaca_pada' => $sekarang,
+            ]);
+
+        foreach ($baris->chunk(500) as $paket) {
+            NotifikasiDibaca::query()->insertOrIgnore($paket->values()->all());
+        }
+
+        return ApiResponse::ok(['jumlah_ditandai' => $baris->count()], 'Semua notifikasi ditandai sudah dibaca.');
     }
 
     private function kelompokWaktu(?Carbon $waktu): string

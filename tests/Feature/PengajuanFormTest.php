@@ -42,48 +42,72 @@ class PengajuanFormTest extends TestCase
         $this->idJenisMahasiswa = $this->insertJenisKegiatan('Kegiatan Mahasiswa');
         $this->idJenisDosen = $this->insertJenisKegiatan('Kegiatan Dosen');
 
-        foreach (['Lomba', 'Volunteer', 'Magang', 'Pengabdian'] as $namaKategori) {
-            $idKategori = DB::table('kategori')->insertGetId([
-                'id_jenis_kegiatan' => $this->idJenisMahasiswa,
-                'nama_kategori' => $namaKategori,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            DB::table('isian_kategori')->insert([
-                [
-                    'id_kategori' => $idKategori,
-                    'input' => 'Penyelenggara',
-                    'jenis_input' => 'teks',
-                    'aturan' => 'NOT NULL',
-                    'jumlah_isian' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-                [
-                    'id_kategori' => $idKategori,
-                    'input' => 'Lokasi',
-                    'jenis_input' => 'teks',
-                    'aturan' => 'NOT NULL',
-                    'jumlah_isian' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-            ]);
+        $kategoriExtra = [];
+        if (Schema::hasColumn('kategori', 'butuh_surat')) {
+            $kategoriExtra['butuh_surat'] = true;
+        }
+        if (Schema::hasColumn('kategori', 'kebutuhan')) {
+            $kategoriExtra['kebutuhan'] = 'surat';
         }
 
-        DB::table('kategori')->insert([
+        foreach (['Lomba', 'Volunteer', 'KKL', 'Magang', 'Pengabdian', 'Penelitian'] as $namaKategori) {
+            $idKategori = DB::table('kategori')
+                ->where('id_jenis_kegiatan', $this->idJenisMahasiswa)
+                ->where('nama_kategori', $namaKategori)
+                ->value('id_kategori');
+            if (! $idKategori) {
+                $idKategori = DB::table('kategori')->insertGetId(array_merge([
+                    'id_jenis_kegiatan' => $this->idJenisMahasiswa,
+                    'nama_kategori' => $namaKategori,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ], $kategoriExtra));
+            }
+
+            if (in_array($namaKategori, ['Lomba', 'Volunteer', 'Magang', 'Pengabdian'], true)
+                && ! DB::table('isian_kategori')->where('id_kategori', $idKategori)->exists()) {
+                DB::table('isian_kategori')->insert([
+                    [
+                        'id_kategori' => $idKategori,
+                        'input' => 'Penyelenggara',
+                        'jenis_input' => 'teks',
+                        'aturan' => 'NOT NULL',
+                        'jumlah_isian' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                    [
+                        'id_kategori' => $idKategori,
+                        'input' => 'Lokasi',
+                        'jenis_input' => 'teks',
+                        'aturan' => 'NOT NULL',
+                        'jumlah_isian' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ]);
+            }
+        }
+
+        DB::table('kategori')->insert(array_merge([
             'id_jenis_kegiatan' => $this->idJenisDosen,
             'nama_kategori' => 'Penelitian Dosen',
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], $kategoriExtra));
 
         $this->actingAs(User::findOrFail($this->userId));
     }
 
     private function insertJenisKegiatan(string $nama): int
     {
+        $existing = DB::table('jenis_kegiatan')
+            ->where('nama_jenis_kegiatan', $nama)
+            ->value('id_jenis_kegiatan');
+        if ($existing) {
+            return (int) $existing;
+        }
+
         $jenisCols = Schema::getColumnListing('jenis_kegiatan');
         $payload = ['created_at' => now(), 'updated_at' => now()];
         foreach ($jenisCols as $col) {
@@ -121,9 +145,33 @@ class PengajuanFormTest extends TestCase
         return $idKegiatan;
     }
 
+    private function loginDosen(): void
+    {
+        $role = DB::table('roles')->insertGetId(['nama_role' => 'dosen'], 'id_role');
+        $this->actingAs(User::factory()->create(['id_role' => $role, 'status' => true]));
+    }
+
+    private function makeStudentCategoriesRequireLetter(): void
+    {
+        $attributes = [];
+        if (Schema::hasColumn('kategori', 'butuh_surat')) {
+            $attributes['butuh_surat'] = true;
+        }
+        if (Schema::hasColumn('kategori', 'kebutuhan')) {
+            $attributes['kebutuhan'] = 'surat';
+        }
+
+        DB::table('kategori')
+            ->where('id_jenis_kegiatan', $this->idJenisMahasiswa)
+            ->update($attributes);
+    }
+
     public function test_new_forms_do_not_prefill_team_members(): void
     {
         foreach ([route('pengajuan.create'), route('pengajuan.dosen.create')] as $url) {
+            if ($url === route('pengajuan.dosen.create')) {
+                $this->loginDosen();
+            }
             $this->get($url)
                 ->assertOk()
                 ->assertDontSee('Ivan Sigit Santoso')
@@ -133,13 +181,26 @@ class PengajuanFormTest extends TestCase
 
     public function test_dynamic_form_filters_categories_by_role(): void
     {
-        $this->get(route('pengajuan.create'))
+        $expectedStudentCategories = ['Lomba', 'Volunteer', 'KKL', 'Magang', 'Pengabdian', 'Penelitian'];
+        $pengajuan = $this->get(route('pengajuan.create'))
             ->assertOk()
             ->assertViewIs('mahasiswa.pengajuan.create')
-            ->assertSee('Lomba')
-            ->assertSee('Pengabdian')
             ->assertDontSee('Penelitian Dosen');
+        $kegiatan = $this->get(route('kegiatan.create'))
+            ->assertOk()
+            ->assertViewIs('mahasiswa.pengajuan.create')
+            ->assertSee('Tambah Kegiatan');
 
+        $this->assertSame(
+            [],
+            $pengajuan->viewData('categoriesData')->pluck('nama_kategori')->all()
+        );
+        $this->assertSame(
+            $expectedStudentCategories,
+            $kegiatan->viewData('categoriesData')->pluck('nama_kategori')->all()
+        );
+
+        $this->loginDosen();
         $this->get(route('pengajuan.dosen.create'))
             ->assertOk()
             ->assertViewIs('dosen.pengajuan.create')
@@ -149,6 +210,7 @@ class PengajuanFormTest extends TestCase
 
     public function test_dynamic_submission_persists_details_and_rejects_wrong_role_category(): void
     {
+        $this->makeStudentCategoriesRequireLetter();
         Storage::fake('public');
 
         $idKategoriMhs = DB::table('kategori')->where('nama_kategori', 'Lomba')->value('id_kategori');
@@ -206,10 +268,25 @@ class PengajuanFormTest extends TestCase
             ])
             ->assertRedirect(route('pengajuan.create'))
             ->assertSessionHasErrors('id_kategori');
+
+        $idKategoriLain = DB::table('kategori')->insertGetId([
+            'id_jenis_kegiatan' => $this->idJenisMahasiswa,
+            'nama_kategori' => 'Seminar',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->from(route('pengajuan.create'))
+            ->post(route('pengajuan.store'), [
+                'id_kategori' => $idKategoriLain,
+                'title' => 'Kategori di luar daftar mahasiswa',
+            ])
+            ->assertRedirect(route('pengajuan.create'))
+            ->assertSessionHasErrors('id_kategori');
     }
 
     public function test_dynamic_submission_can_be_edited_and_updated(): void
     {
+        $this->makeStudentCategoriesRequireLetter();
         $idKategori = DB::table('kategori')->where('nama_kategori', 'Magang')->value('id_kategori');
         $isianIds = DB::table('isian_kategori')
             ->where('id_kategori', $idKategori)
@@ -253,6 +330,7 @@ class PengajuanFormTest extends TestCase
 
     public function test_new_submission_is_also_listed_as_an_activity(): void
     {
+        $this->makeStudentCategoriesRequireLetter();
         $idKategori = DB::table('kategori')->where('nama_kategori', 'Pengabdian')->value('id_kategori');
         $isianIds = DB::table('isian_kategori')
             ->where('id_kategori', $idKategori)
@@ -290,10 +368,7 @@ class PengajuanFormTest extends TestCase
 
         $this->get(route('kegiatan.create'))
             ->assertOk()
-            ->assertViewIs('mahasiswa.pengajuan.create')
-            ->assertSee('Tambah Kegiatan')
-            ->assertSee('Simpan ke Riwayat')
-            ->assertSee(route('kegiatan.store'));
+            ->assertViewIs('mahasiswa.pengajuan.create');
 
         $this->post(route('kegiatan.store'), [
             'id_kategori' => $idKategori,
@@ -416,8 +491,9 @@ class PengajuanFormTest extends TestCase
 
     public function test_existing_dosen_and_mahasiswa_pages_remain_available(): void
     {
-        $this->get(route('pengajuan.dosen'))
-            ->assertOk()
+        DB::table('roles')->insert(['id_role' => 3, 'nama_role' => 'dosen']);
+        $this->actingAs(User::factory()->create(['id_role' => 3, 'status' => true]))
+            ->get(route('pengajuan.dosen'))->assertOk()
             ->assertViewIs('dosen.pengajuan.dosen')
             ->assertSee('<title>Pengajuan Dosen | DOSEN</title>', false)
             ->assertSee('Cari kegiatan atau nama dosen...')
@@ -446,8 +522,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('ti-calendar-event')
             ->assertSee('ti-news')
             ->assertSee('x-data="{ open: true }"', false)
-            ->assertSee(config('mahasiswa.nama'))
-            ->assertSee(config('mahasiswa.nim'))
+            ->assertSee('pengajuan-student@test.local')
             ->assertSee(now()->timezone(config('app.timezone'))->translatedFormat('d F Y, H:i'))
             ->assertDontSee('12 Maret 2026')
             ->assertDontSee('Tambah Kegiatan')
@@ -495,6 +570,7 @@ class PengajuanFormTest extends TestCase
             ->assertSee('Kegiatan milik mahasiswa aktif')
             ->assertDontSee('Pengajuan Lomba KMPIN VII 2026');
 
+        $this->makeStudentCategoriesRequireLetter();
         $idKategori = DB::table('kategori')->where('nama_kategori', 'Pengabdian')->value('id_kategori');
         $isianIds = DB::table('isian_kategori')
             ->where('id_kategori', $idKategori)

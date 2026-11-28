@@ -4,23 +4,26 @@
 
 @section('content')
 @php
-    $nama     = $mahasiswa->nama     ?? config('mahasiswa.nama');
-    $angkatan = $mahasiswa->angkatan ?? config('mahasiswa.angkatan');
-    $email    = auth()->user()?->email ?? $mahasiswa->email ?? config('mahasiswa.email');
-    $nim      = $mahasiswa->nim      ?? config('mahasiswa.nim');
-    $prodi    = $mahasiswa->prodi    ?? config('mahasiswa.prodi');
-    $status   = $mahasiswa->status   ?? config('mahasiswa.status');
+    $nama     = $mahasiswa->nama;
+    $angkatan = $mahasiswa->angkatan;
+    $email    = $mahasiswa->email;
+    $nim      = $mahasiswa->nim;
+    $prodi    = $mahasiswa->prodi;
+    $jenjang  = $mahasiswa->jenjang;
+    $status   = $mahasiswa->status;
 
     $user = auth()->user();
-    $isOtpTestStudent = app()->environment('local')
+    $usesLocalOtpOverride = app()->environment('local')
         && $user
         && (int) $user->id_role === 4
         && filled(config('mahasiswa.otp_email'))
         && filled(config('mahasiswa.otp_test_nim'))
-        && (string) $user->mahasiswa?->nim === (string) config('mahasiswa.otp_test_nim');
-    $emailOtp = $isOtpTestStudent ? config('mahasiswa.otp_email') : $email;
-    [$local, $domain] = explode('@', $emailOtp, 2);
-    $maskedEmail = substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
+        && (string) $nim === (string) config('mahasiswa.otp_test_nim');
+    $emailOtp = $usesLocalOtpOverride ? config('mahasiswa.otp_email') : $email;
+    [$local, $domain] = array_pad(explode('@', $emailOtp, 2), 2, '');
+    $maskedEmail = $domain === ''
+        ? $emailOtp
+        : substr($local, 0, 1).str_repeat('*', max(strlen($local) - 1, 3)).'@'.$domain;
 @endphp
 
 <div class="mx-auto flex w-full max-w-7xl flex-col gap-6"
@@ -115,7 +118,7 @@
             <div class="rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] p-3.5">
                 <span class="text-xs font-medium text-[#6B7280]">Prodi (Program Studi)</span>
                 <p class="mt-1 text-xs font-bold text-[#111827] sm:text-sm">{{ $prodi }}</p>
-                <span class="mt-0.5 block text-[10px] text-[#9CA3AF]">Diploma IV / Sarjana Terapan</span>
+                <span class="mt-0.5 block text-[10px] text-[#9CA3AF]">{{ $jenjang ? 'Jenjang '.$jenjang : 'Program studi saat ini' }}</span>
             </div>
 
             <div class="rounded-xl border border-[#F3F4F6] bg-[#F9FAFB] p-3.5">
@@ -617,7 +620,7 @@
                 this.pesanError = '';
 
                 try {
-                    const response = await fetch('/api/v1/profil/ganti-sandi/kirim-otp', {
+                    const response = await fetch(@js(route('mahasiswa.profil.sandi.kirim-otp')), {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
@@ -648,6 +651,7 @@
                 if (! await this.requestOtp()) return;
 
                 this.step = 2;
+                this.otpId = null;
                 this.otp = ['', '', '', '', '', ''];
                 this.startTimer();
                 setTimeout(() => this.focusOtp(0), 150);
@@ -720,26 +724,28 @@
 
                 try {
                     const otp = this.otp.join('');
-                    const verifyResponse = await fetch('/api/v1/profil/ganti-sandi/verifikasi', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers,
-                        body: JSON.stringify({ otp }),
-                    });
-                    const verifyData = await verifyResponse.json().catch(() => ({}));
-
-                    if (! verifyResponse.ok) {
-                        this.pesanError = verifyData.message || verifyData.errors?.otp?.[0] || 'Kode OTP tidak valid.';
-                        return;
-                    }
-
-                    this.otpId = verifyData.data?.otp_id;
                     if (! this.otpId) {
-                        this.pesanError = 'Sesi OTP tidak valid. Kirim ulang kode.';
-                        return;
+                        const verifyResponse = await fetch(@js(route('mahasiswa.profil.sandi.verifikasi')), {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers,
+                            body: JSON.stringify({ otp }),
+                        });
+                        const verifyData = await verifyResponse.json().catch(() => ({}));
+
+                        if (! verifyResponse.ok) {
+                            this.pesanError = verifyData.message || verifyData.errors?.otp?.[0] || 'Kode OTP tidak valid.';
+                            return;
+                        }
+
+                        this.otpId = verifyData.data?.otp_id;
+                        if (! this.otpId) {
+                            this.pesanError = 'Sesi OTP tidak valid. Kirim ulang kode.';
+                            return;
+                        }
                     }
 
-                    const saveResponse = await fetch('/api/v1/profil/ganti-sandi/simpan', {
+                    const saveResponse = await fetch(@js(route('mahasiswa.profil.sandi.simpan')), {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers,
@@ -758,14 +764,18 @@
 
                     alert(saveData.message || 'Kata sandi berhasil disimpan!');
 
-                    await fetch('/logout', {
+                    const logoutResponse = await fetch(@js(route('logout')), {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
                             Accept: 'text/html',
                             'X-CSRF-TOKEN': @js(csrf_token()),
                         },
-                    }).catch(() => {});
+                    });
+                    if (! logoutResponse.ok) {
+                        this.pesanError = 'Kata sandi berhasil diubah, tetapi sesi gagal ditutup. Silakan keluar secara manual.';
+                        return;
+                    }
 
                     window.location.href = @js(route('login'));
                 } catch (error) {

@@ -1,7 +1,6 @@
 {{--
     resources/views/admin/kegiatan-tambah.blade.php
-    Form "Tambah Kegiatan": 1 Informasi kegiatan, 2 Anggota kegiatan, 3 Unggah dokumen.
-    Anggota & dokumen dinamis (JavaScript biasa). Simpan lewat API POST /admin/kegiatan (lihat controller).
+    Form Tambah Kegiatan Admin dan Kaprodi, dengan kolom dari master kategori.
 --}}
 @extends(request()->routeIs('kaprodi.*') ? 'layouts.kaprodi' : 'layouts.admin')
 
@@ -25,6 +24,7 @@
 
     <form method="POST" action="{{ route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.store' : 'admin.kegiatan.store') }}" enctype="multipart/form-data" class="flex flex-col gap-6 rounded-lg bg-white p-4 shadow-sm sm:p-6" novalidate>
         @csrf
+        <input type="hidden" name="isian_dinamis" value="1">
 
         {{-- ============ 1. Informasi Kegiatan ============ --}}
         <section class="{{ $card }}">
@@ -56,7 +56,6 @@
                 <div class="flex min-w-0 flex-col gap-2">
                     <label for="jenis_kegiatan_tampil" class="{{ $label }}">Jenis kegiatan <span class="text-[#A8A8A8]">(otomatis dari kategori)</span></label>
                     <input id="jenis_kegiatan_tampil" type="text" value="{{ old('jenis_kegiatan') }}" placeholder="Pilih kategori dulu" readonly tabindex="-1" class="{{ $field }} cursor-not-allowed bg-[#F5F5F7]">
-                    <input id="jenis_kegiatan" name="jenis_kegiatan" type="hidden" value="{{ old('jenis_kegiatan') }}">
                     @error('jenis_kegiatan') <p class="{{ $error }}">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -67,276 +66,338 @@
                 @error('nama_kegiatan') <p class="{{ $error }}">{{ $message }}</p> @enderror
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="flex min-w-0 flex-col gap-2 md:col-span-2">
-                    <label for="penyelenggara" class="{{ $label }}">Penyelenggara</label>
-                    <input id="penyelenggara" name="penyelenggara" type="text" value="{{ old('penyelenggara') }}" placeholder="Nama penyelenggara" class="{{ $field }}">
-                    @error('penyelenggara') <p class="{{ $error }}">{{ $message }}</p> @enderror
+            <div id="bagianPemilik" class="hidden space-y-2">
+                <label for="pemilik" class="{{ $label }}">Pemilik kegiatan <span class="{{ $error }}">*</span></label>
+                <select id="pemilik" name="pemilik" class="{{ $field }}" required disabled></select>
+                @error('pemilik') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <p id="statusIsianKategori" class="text-sm text-[#6E6E76]" role="status"></p>
+                <div id="isianKategori" class="grid gap-4 md:grid-cols-2"></div>
+                <div id="galatIsianKategori">
+                    @error('detail') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
+                    @error('api') <p class="{{ $error }}" role="alert">{{ $message }}</p> @enderror
                 </div>
-
-                <div class="flex min-w-0 flex-col gap-2">
-                    <label for="tanggal_mulai" class="{{ $label }}">Tanggal mulai</label>
-                    <input id="tanggal_mulai" name="tanggal_mulai" type="date" value="{{ old('tanggal_mulai') }}" class="{{ $field }}">
-                    @error('tanggal_mulai') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                </div>
-
-                <div class="flex min-w-0 flex-col gap-2">
-                    <label for="tanggal_selesai" class="{{ $label }}">Tanggal selesai</label>
-                    <input id="tanggal_selesai" name="tanggal_selesai" type="date" value="{{ old('tanggal_selesai') }}" class="{{ $field }}">
-                    @error('tanggal_selesai') <p class="{{ $error }}">{{ $message }}</p> @enderror
-                </div>
-            </div>
-        </section>
-
-        {{-- ============ 2. Anggota Kegiatan ============ --}}
-        <section class="{{ $card }}">
-            <div class="flex items-center gap-[11px]">
-                <span class="flex size-6 items-center justify-center rounded-full bg-[#2277FF] text-sm font-semibold text-white">2</span>
-                <h2 class="text-sm font-semibold text-[#0A0A0A]">Anggota Kegiatan</h2>
-            </div>
-
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
-                <div class="relative min-w-0 flex-1">
-                    <div class="flex items-center gap-2 rounded-lg border border-[#E8E8EC] bg-white px-3 focus-within:border-[#2277FF]">
-                        <svg class="size-5 shrink-0 text-[#A8A8A8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg>
-                        <input id="cariAnggota" type="text" autocomplete="off" placeholder="Cari dosen atau mahasiswa..." class="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[#A8A8A8]">
-                    </div>
-                    <ul id="saranAnggota" class="absolute inset-x-0 top-[calc(100%+4px)] z-10 hidden max-h-60 overflow-y-auto rounded-lg border border-[#E8E8EC] bg-white py-1 shadow-lg"></ul>
-                </div>
-                <button type="button" id="btnTambahAnggota" class="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg bg-[#2277FF] px-4 text-base font-medium text-white hover:bg-[#1A63D8]">
-                    <span class="text-lg leading-none">+</span> Tambah Anggota
-                </button>
-            </div>
-            <p id="pesanAnggota" class="{{ $error }} hidden"></p>
-            @error('anggota') <p class="{{ $error }}">{{ $message }}</p> @enderror
-            @error('anggota.*') <p class="{{ $error }}">{{ $message }}</p> @enderror
-
-            <div class="overflow-x-auto rounded-md border border-[#00002F]/15 bg-white/80">
-                <table class="w-full min-w-[480px] table-fixed border-collapse text-left text-sm text-[#1C2024]">
-                    <thead>
-                        <tr class="bg-[#000055]/[0.02]">
-                            <th class="p-2 font-[510]">Nama Anggota</th>
-                            <th class="w-40 p-2 font-[510]">Status</th>
-                            <th class="w-24 p-2 font-[510]">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyAnggota"></tbody>
-                </table>
-            </div>
-            <div id="hiddenAnggota"></div>
-        </section>
-
-        {{-- ============ 3. Unggah Dokumen ============ --}}
-        <section class="{{ $card }}">
-            <div class="flex items-center gap-[11px]">
-                <span class="flex size-6 items-center justify-center rounded-full bg-[#2277FF] text-sm font-semibold text-white">3</span>
-                <h2 class="text-sm font-semibold text-[#0A0A0A]">Unggah Dokumen</h2>
-            </div>
-
-            <div id="daftarDokumen" class="flex flex-col gap-4"></div>
-
-            <div>
-                <button type="button" id="btnTambahDokumen" class="inline-flex h-9 items-center gap-1 rounded-lg border border-[#2277FF] bg-white px-3 text-sm font-medium text-[#2277FF] hover:bg-[#F1F6FF]">
-                    <span class="text-base leading-none">+</span> Tambah dokumen
-                </button>
+                <button type="button" id="muatUlangIsian" class="hidden self-start text-sm font-medium text-[#2277FF]">Coba lagi</button>
             </div>
         </section>
 
         {{-- Aksi --}}
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.index' : 'admin.kegiatan.index') }}" class="inline-flex h-10 items-center rounded-lg bg-[#FF3F3F] px-5 text-base font-medium text-white hover:bg-[#E63535]">Batal</a>
-            <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#2277FF] px-5 text-base font-medium text-white hover:bg-[#1A63D8]">Simpan</button>
+            <button type="submit" id="simpanKegiatan" disabled class="inline-flex h-10 items-center rounded-lg bg-[#2277FF] px-5 text-base font-medium text-white hover:bg-[#1A63D8] disabled:cursor-not-allowed disabled:opacity-50">Simpan</button>
         </div>
     </form>
+    <template id="pilihPesertaKegiatan">
+        <fieldset class="flex min-w-0 flex-col gap-3 rounded-lg border border-[#E8E8EC] p-3 md:col-span-2">
+            <legend class="{{ $label }} px-1" data-judul></legend>
+            <fieldset>
+                <legend class="text-sm font-medium" data-judul-kelompok></legend>
+                <div class="mt-2 flex flex-wrap gap-3" data-kelompok></div>
+            </fieldset>
+            <label class="flex flex-col gap-1 text-sm font-medium">Cari peserta satu per satu
+                <input type="search" placeholder="Nama, NIM, atau NIP" class="{{ $field }}" data-cari>
+            </label>
+            <ul class="hidden max-h-60 overflow-y-auto rounded-lg border border-[#E8E8EC] bg-white" aria-label="Hasil pencarian peserta" data-kandidat></ul>
+            <p class="hidden text-sm text-[#6E6E76]" role="status" data-status-cari></p>
+            <ul class="space-y-1 text-sm" aria-label="Peserta yang ditambahkan satu per satu" data-peserta></ul>
+            <p class="text-sm text-[#6E6E76]" aria-live="polite" data-jumlah></p>
+            <div data-nilai></div>
+            <p class="{{ $error }} hidden" role="alert" data-galat></p>
+        </fieldset>
+    </template>
 </main>
 @endsection
 
 @push('scripts')
 <script>
 (function () {
-    var KANDIDAT = @json($kandidat);
-    var JENIS_DOK = @json($jenisDokumen);
-    var OLD_ANGGOTA = @json(old('anggota', []));
-    var OLD_DOKUMEN = @json(old('dokumen', []));
-    var ERR_DOK = @json($errors->getBag('default')->messages());
+    var KANDIDAT = {{ Illuminate\Support\Js::from($kandidat) }};
+    var pemilikLama = {{ Illuminate\Support\Js::from(old('pemilik', '')) }};
 
     var $ = function (id) { return document.getElementById(id); };
 
-    /* Jenis kegiatan otomatis mengikuti kategori yang dipilih (kategori sudah terikat ke satu jenis). */
-    var selKategori = $('id_kategori'), jenisTampil = $('jenis_kegiatan_tampil'), jenisHidden = $('jenis_kegiatan');
-    function isiJenis() {
-        var opt = selKategori.options[selKategori.selectedIndex];
-        var j = opt && opt.dataset.jenis ? opt.dataset.jenis : '';
-        jenisTampil.value = j; jenisHidden.value = j;
-    }
-    selKategori.addEventListener('change', isiJenis);
-    isiJenis();
-    function esc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
-    }
-
-    /* =================== ANGGOTA =================== */
-    var anggota = [];          // daftar key "Tipe:id"
-    var terpilih = null;       // kandidat yang dipilih dari daftar saran
-    var cari = $('cariAnggota'), saran = $('saranAnggota'), pesan = $('pesanAnggota');
-    var tbody = $('tbodyAnggota'), hidden = $('hiddenAnggota');
-
-    function infoKandidat(key) {
-        for (var i = 0; i < KANDIDAT.length; i++) if (KANDIDAT[i].key === key) return KANDIDAT[i];
-        return null;
-    }
-    function tampilPesan(t) { pesan.textContent = t || ''; pesan.classList.toggle('hidden', !t); }
-
-    function renderAnggota() {
-        tbody.innerHTML = anggota.length ? anggota.map(function (key) {
-            var k = infoKandidat(key); if (!k) return '';
-            return '<tr class="border-t border-[#00002F]/15">' +
-                '<td class="truncate p-2">' + esc(k.nama) + '</td>' +
-                '<td class="p-2">' + esc(k.tipe) + '</td>' +
-                '<td class="p-2"><button type="button" data-hapus="' + esc(key) + '" title="Hapus" aria-label="Hapus anggota" class="rounded-md bg-[#FFD9D9] p-1.5 text-[#E5484D] hover:bg-[#FFC9C9]">' +
-                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3" /></svg></button></td></tr>';
-        }).join('') : '<tr class="border-t border-[#00002F]/15"><td colspan="3" class="p-4 text-center text-sm text-[#A8A8A8]">Belum ada anggota.</td></tr>';
-
-        hidden.innerHTML = anggota.map(function (key) {
-            return '<input type="hidden" name="anggota[]" value="' + esc(key) + '">';
-        }).join('');
-    }
-
-    function cocok(q) {
-        q = q.toLowerCase();
-        return KANDIDAT.filter(function (k) {
-            return anggota.indexOf(k.key) === -1 && k.nama.toLowerCase().indexOf(q) !== -1;
-        });
-    }
-    function tutupSaran() { saran.classList.add('hidden'); saran.innerHTML = ''; }
-
-    function tambah(key) {
-        if (anggota.indexOf(key) === -1) anggota.push(key);
-        terpilih = null; cari.value = ''; tutupSaran(); tampilPesan(''); renderAnggota();
-    }
-
-    cari.addEventListener('input', function () {
-        terpilih = null; tampilPesan('');
-        var q = cari.value.trim();
-        if (!q) { tutupSaran(); return; }
-        var hasil = cocok(q).slice(0, 8);
-        saran.innerHTML = hasil.length ? hasil.map(function (k) {
-            return '<li><button type="button" data-pilih="' + esc(k.key) + '" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-[#F1F6FF]">' +
-                   '<span class="truncate">' + esc(k.nama) + '</span><span class="shrink-0 text-xs text-[#80838D]">' + esc(k.tipe) + '</span></button></li>';
-        }).join('') : '<li class="px-3 py-2 text-sm text-[#A8A8A8]">Tidak ditemukan.</li>';
-        saran.classList.remove('hidden');
-    });
-    saran.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-pilih]'); if (!b) return;
-        terpilih = infoKandidat(b.dataset.pilih);
-        cari.value = terpilih.nama; tutupSaran(); cari.focus();
-    });
-    document.addEventListener('click', function (e) {
-        if (!saran.contains(e.target) && e.target !== cari) tutupSaran();
-    });
-    cari.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); $('btnTambahAnggota').click(); }
-    });
-    $('btnTambahAnggota').addEventListener('click', function () {
-        var q = cari.value.trim();
-        if (terpilih && terpilih.nama === q) { tambah(terpilih.key); return; }
-        if (!q) { tampilPesan('Ketik nama dosen atau mahasiswa, lalu pilih dari daftar.'); return; }
-        var hasil = cocok(q);
-        var persis = hasil.filter(function (k) { return k.nama.toLowerCase() === q.toLowerCase(); });
-        if (persis.length === 1) { tambah(persis[0].key); return; }
-        if (hasil.length === 1) { tambah(hasil[0].key); return; }
-        tampilPesan(hasil.length ? 'Ada beberapa hasil. Pilih salah satu dari daftar.' : 'Nama tidak ditemukan.');
-    });
-    tbody.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-hapus]'); if (!b) return;
-        anggota = anggota.filter(function (k) { return k !== b.dataset.hapus; });
-        renderAnggota();
-    });
-
-    OLD_ANGGOTA.forEach(function (k) { if (infoKandidat(k) && anggota.indexOf(k) === -1) anggota.push(k); });
-    renderAnggota();
-
-    /* =================== DOKUMEN =================== */
-    var daftar = $('daftarDokumen'), seq = 0;
     var FIELD = 'h-10 w-full rounded-lg border border-[#E8E8EC] bg-white px-3 text-base text-[#2E2E2E] outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]';
     var LABEL = 'text-base font-medium text-[#0A0A0A]';
-    var CHEV = '<svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#1C2024]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6" /></svg>';
 
-    function errDok(i, f) {
-        var m = ERR_DOK['dokumen.' + i + '.' + f];
-        return m ? '<p class="text-sm text-[#FF3F3F]">' + esc(m[0]) + '</p>' : '';
-    }
+    var urlKategori = {{ Illuminate\Support\Js::from(route(request()->routeIs('kaprodi.*') ? 'kaprodi.kegiatan.create.kategori' : 'admin.kegiatan.create.kategori', ['id' => 0], false)) }};
+    var kategoriLama = {{ Illuminate\Support\Js::from((string) old('id_kategori', '')) }};
+    var jawabanLama = {{ Illuminate\Support\Js::from(old('detail', [])) }};
+    var galatIsian = {{ Illuminate\Support\Js::from($errors->getBag('default')->messages()) }};
+    var selKategori = $('id_kategori');
+    var permintaanIsian = 0;
 
-    function kartuDokumen(n, v) {
-        v = v || {};
-        var opsi = '<option value="">Pilih jenis dokumen</option>' + JENIS_DOK.map(function (j) {
-            return '<option value="' + esc(j) + '"' + (v.jenis === j ? ' selected' : '') + '>' + esc(j) + '</option>';
-        }).join('');
-        var p = 'dokumen[' + n + ']';
-        return '<div class="dok overflow-hidden rounded-lg border border-black/[0.08] bg-white" data-n="' + n + '">' +
-            '<div class="flex items-center justify-between bg-[#00205B] px-4 py-2.5 text-sm font-semibold text-white">' +
-                '<span class="dok-judul">Dokumen</span>' +
-                '<button type="button" data-hapus-dok class="hidden rounded-md px-2 py-0.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white">Hapus</button>' +
-            '</div>' +
-            '<div class="flex flex-col gap-4 p-4">' +
-                '<div class="flex flex-col gap-2"><span class="' + LABEL + '">File</span>' +
-                    '<label for="dok-file-' + n + '" class="flex min-h-[90px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#4D8DFF] bg-[#F5F8FF] px-4 py-4 text-center hover:bg-[#EDF3FF]">' +
-                        '<span class="flex items-center gap-2 text-base font-medium text-[#2277FF]">' +
-                            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M9 15l3 3l3 -3" /><path d="M12 12l0 9" /></svg>' +
-                            '<span class="dok-file-nama">Pilih file dari perangkat</span></span>' +
-                        '<span class="text-xs text-[#80838D]">pdf, jpg, jpeg, png, doc, docx, xls, xlsx, txt, maksimal 5 MB</span>' +
-                    '</label>' +
-                    '<input id="dok-file-' + n + '" name="' + p + '[file]" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt" class="sr-only">' +
-                    errDok(n, 'file') +
-                '</div>' +
-                '<div class="grid gap-4 md:grid-cols-2">' +
-                    '<div class="flex min-w-0 flex-col gap-2"><label for="dok-nama-' + n + '" class="' + LABEL + '">Nama dokumen</label>' +
-                        '<input id="dok-nama-' + n + '" name="' + p + '[nama]" type="text" value="' + esc(v.nama) + '" placeholder="Contoh: Proposal pengabdian" class="' + FIELD + '">' + errDok(n, 'nama') + '</div>' +
-                    '<div class="flex min-w-0 flex-col gap-2"><label for="dok-jenis-' + n + '" class="' + LABEL + '">Jenis dokumen</label>' +
-                        '<div class="relative"><select id="dok-jenis-' + n + '" name="' + p + '[jenis]" class="' + FIELD + ' appearance-none pr-10">' + opsi + '</select>' + CHEV + '</div>' + errDok(n, 'jenis') + '</div>' +
-                '</div>' +
-                '<div class="flex flex-col gap-2"><label for="dok-ket-' + n + '" class="' + LABEL + '">Keterangan</label>' +
-                    '<textarea id="dok-ket-' + n + '" name="' + p + '[keterangan]" rows="3" placeholder="Keterangan singkat tentang dokumen ini" class="w-full rounded-lg border border-[#E8E8EC] bg-white px-3 py-2 text-base outline-none placeholder:text-[#A8A8A8] focus:border-[#2277FF]">' + esc(v.keterangan) + '</textarea>' + errDok(n, 'keterangan') + '</div>' +
-                '<div class="flex flex-col gap-2"><label for="dok-url-' + n + '" class="' + LABEL + '">Tautan dokumen <span class="text-[#A8A8A8]">(opsional)</span></label>' +
-                    '<input id="dok-url-' + n + '" name="' + p + '[tautan]" type="url" value="' + esc(v.tautan) + '" placeholder="https://" class="' + FIELD + '">' + errDok(n, 'tautan') + '</div>' +
-            '</div></div>';
-    }
+    function tampilPemilik(jenis, pulihkan) {
+        var tipe = { 'Kegiatan Dosen': 'Dosen', 'Kegiatan Mahasiswa': 'Mahasiswa' }[jenis];
+        var pilih = $('pemilik');
+        $('bagianPemilik').classList.toggle('hidden', !tipe);
+        pilih.disabled = !tipe;
+        pilih.replaceChildren(new Option('Pilih pemilik kegiatan', ''));
+        if (!tipe) return;
 
-    function nomori() {
-        var kartu = daftar.querySelectorAll('.dok');
-        kartu.forEach(function (el, i) {
-            el.querySelector('.dok-judul').textContent = 'Dokumen ' + (i + 1);
-            el.querySelector('[data-hapus-dok]').classList.toggle('hidden', kartu.length === 1);
+        KANDIDAT.filter(function (kandidat) { return kandidat.tipe === tipe; }).forEach(function (kandidat) {
+            pilih.add(new Option(kandidat.nama, kandidat.key));
         });
-    }
-    function tambahDokumen(v, idx) {
-        // idx = indeks asli dari old input, supaya pesan error cocok dengan kartunya
-        var n = (idx != null && !isNaN(idx)) ? parseInt(idx, 10) : seq;
-        seq = Math.max(seq, n) + 1;
-        daftar.insertAdjacentHTML('beforeend', kartuDokumen(n, v));
-        nomori();
-    }
-
-    $('btnTambahDokumen').addEventListener('click', function () { tambahDokumen(); });
-    daftar.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-hapus-dok]'); if (!b) return;
-        b.closest('.dok').remove(); nomori();
-    });
-    daftar.addEventListener('change', function (e) {
-        if (e.target.type !== 'file') return;
-        var kartu = e.target.closest('.dok');
-        var f = e.target.files && e.target.files[0];
-        var nama = kartu.querySelector('.dok-file-nama');
-        if (f && f.size > 5 * 1024 * 1024) {
-            alert('Ukuran file maksimal 5 MB.'); e.target.value = ''; nama.textContent = 'Pilih file dari perangkat'; return;
+        if (pulihkan && Array.from(pilih.options).some(function (opsi) { return opsi.value === pemilikLama; })) {
+            pilih.value = pemilikLama;
         }
-        nama.textContent = f ? f.name : 'Pilih file dari perangkat';
-    });
+    }
 
-    var kunciLama = Object.keys(OLD_DOKUMEN || {});
-    if (kunciLama.length) kunciLama.forEach(function (k) { tambahDokumen(OLD_DOKUMEN[k], k); }); else tambahDokumen();
+    function kartuPeserta(field, lama, errors, jenis) {
+        var kartu = $('pilihPesertaKegiatan').content.firstElementChild.cloneNode(true);
+        var id = field.id_isian_kategori;
+        var nama = 'detail.' + id;
+        var elemen = function (key) { return kartu.querySelector('[data-' + key + ']'); };
+        elemen('judul').textContent = field.input + (field.wajib ? ' *' : ' (opsional)');
+        var pilihan = new Set(Object.values(lama[id] || {}).filter(function (nilai) { return typeof nilai === 'string'; }));
+        var aktif = KANDIDAT.filter(function (kandidat) { return kandidat.aktif; });
+        var kegiatanDosen = jenis === 'Kegiatan Dosen';
+        var pesertaAktif = new Set(aktif.map(function (kandidat) { return kandidat.key; }));
+        var jumlahKelompok = new Map();
+        function kelompokPeserta(kandidat) {
+            if (kegiatanDosen) return kandidat.tipe === 'Dosen' ? 'SemuaDosen' : null;
+            return kandidat.angkatan ? 'Angkatan:' + kandidat.angkatan : null;
+        }
+        elemen('judul-kelompok').textContent = kegiatanDosen ? 'Pilih dosen sekaligus' : 'Pilih angkatan';
+        aktif.forEach(function (kandidat) {
+            var key = kelompokPeserta(kandidat);
+            if (key) jumlahKelompok.set(key, (jumlahKelompok.get(key) || 0) + 1);
+        });
+        Array.from(jumlahKelompok).sort(function (a, b) { return b[0].localeCompare(a[0]); }).forEach(function (baris) {
+            var label = document.createElement('label');
+            label.className = 'inline-flex items-center gap-2 text-sm';
+            var kotak = document.createElement('input');
+            kotak.type = 'checkbox';
+            kotak.checked = pilihan.has(baris[0]);
+            kotak.addEventListener('change', function () {
+                if (kotak.checked) pilihan.add(baris[0]); else pilihan.delete(baris[0]);
+                renderPilihan();
+            });
+            var namaKelompok = kegiatanDosen ? 'Semua Dosen (' + baris[1] + ' aktif)' : baris[0].split(':')[1] + ' (' + baris[1] + ' mahasiswa)';
+            label.append(kotak, namaKelompok);
+            elemen('kelompok').append(label);
+        });
+        if (!jumlahKelompok.size) {
+            elemen('kelompok').textContent = kegiatanDosen ? 'Belum ada dosen aktif.' : 'Belum ada angkatan dengan mahasiswa aktif di prodi ini.';
+        }
+
+        var cari = elemen('cari'), hasil = elemen('kandidat'), statusCari = elemen('status-cari');
+        function tutupHasil() {
+            hasil.replaceChildren();
+            hasil.classList.add('hidden');
+            statusCari.textContent = '';
+            statusCari.classList.add('hidden');
+        }
+        function cariKandidat() {
+            var query = cari.value.trim().toLowerCase();
+            tutupHasil();
+            if (!query) return;
+
+            var cocok = aktif.filter(function (kandidat) {
+                return !pilihan.has(kandidat.key) && [kandidat.nama, kandidat.identitas].some(function (nilai) {
+                    return String(nilai ?? '').toLowerCase().includes(query);
+                });
+            }).slice(0, 30);
+            if (!cocok.length) {
+                statusCari.classList.remove('hidden');
+                statusCari.textContent = 'Tidak ada hasil. Peserta yang sudah dipilih secara manual tidak ditampilkan.';
+                return;
+            }
+            cocok.forEach(function (kandidat) {
+                var baris = document.createElement('li');
+                var tombol = document.createElement('button');
+                tombol.type = 'button';
+                tombol.className = 'block w-full px-3 py-2 text-left text-sm hover:bg-[#F1F6FF] focus:bg-[#F1F6FF]';
+                tombol.textContent = kandidat.nama + ' · ' + kandidat.tipe + (kandidat.identitas ? ' · ' + kandidat.identitas : '');
+                tombol.addEventListener('click', function () {
+                    pilihan.add(kandidat.key);
+                    cari.value = '';
+                    renderPilihan();
+                    cari.focus();
+                });
+                baris.append(tombol);
+                hasil.append(baris);
+            });
+            hasil.classList.remove('hidden');
+        }
+        function renderPilihan() {
+            var manual = elemen('peserta'), nilai = elemen('nilai');
+            manual.replaceChildren();
+            nilai.replaceChildren();
+            var jumlah = 0;
+            aktif.forEach(function (kandidat) {
+                var dipilihManual = pilihan.has(kandidat.key);
+                var lewatKelompok = pilihan.has(kelompokPeserta(kandidat));
+                if (dipilihManual || lewatKelompok) jumlah++;
+                if (!dipilihManual) return;
+                var item = document.createElement('li');
+                var hapus = document.createElement('button');
+                hapus.type = 'button';
+                hapus.className = 'ml-2 text-[#E5484D]';
+                hapus.textContent = 'Hapus pilihan manual';
+                hapus.setAttribute('aria-label', 'Hapus pilihan manual ' + kandidat.nama);
+                hapus.addEventListener('click', function () { pilihan.delete(kandidat.key); renderPilihan(); });
+                item.append(kandidat.nama + ' · ' + kandidat.tipe + (lewatKelompok ? ' (juga dipilih lewat kelompok)' : ''), hapus);
+                manual.append(item);
+            });
+            Array.from(pilihan).filter(function (key) {
+                return jumlahKelompok.has(key) || pesertaAktif.has(key);
+            }).forEach(function (key, i) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'detail[' + id + '][' + i + ']';
+                input.value = key;
+                nilai.append(input);
+            });
+            elemen('jumlah').textContent = jumlah + ' peserta unik. Batalkan pilihan ' + (kegiatanDosen ? 'Semua Dosen' : 'angkatan') + ' untuk mengeluarkan peserta yang ditambahkan lewat pilihan itu.';
+            cariKandidat();
+        }
+        cari.addEventListener('input', cariKandidat);
+        cari.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') tutupHasil();
+            if (event.key !== 'ArrowDown' && event.key !== 'Enter') return;
+            event.preventDefault();
+            if (hasil.classList.contains('hidden')) cariKandidat();
+            var awal = hasil.querySelector('button');
+            if (!awal) return;
+            if (event.key === 'Enter' && hasil.children.length === 1) awal.click();
+            else awal.focus();
+        });
+        hasil.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                tutupHasil();
+                cari.focus();
+                return;
+            }
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            event.preventDefault();
+            var baris = event.target.closest('li');
+            var berikutnya = event.key === 'ArrowDown' ? baris?.nextElementSibling : baris?.previousElementSibling;
+            if (berikutnya) berikutnya.querySelector('button').focus();
+            else if (event.key === 'ArrowUp') cari.focus();
+        });
+        var galat = Object.keys(errors).find(function (key) { return key === nama || key.startsWith(nama + '.'); });
+        if (galat) {
+            elemen('galat').textContent = errors[galat][0];
+            elemen('galat').classList.remove('hidden');
+        }
+        renderPilihan();
+        return kartu;
+    }
+
+    function kartuIsian(field, lama, errors) {
+        var id = field.id_isian_kategori;
+        var nama = 'detail.' + id;
+        var banyak = Number(field.jumlah_isian) === 0;
+        var file = field.jenis_input === 'berkas';
+        var barisLama = lama[id] && typeof lama[id] === 'object' ? lama[id] : {};
+        var indeks = Object.keys(barisLama).filter(function (key) { return /^\d+$/.test(key); });
+        if (!banyak) indeks = indeks.slice(0, 1);
+        var berikutnya = 0;
+        var grup = document.createElement('fieldset');
+        grup.className = 'flex min-w-0 flex-col gap-2';
+        var judul = document.createElement('legend');
+        judul.className = LABEL;
+        judul.textContent = field.input + (field.wajib ? ' *' : ' (opsional)');
+        grup.append(judul);
+        var baris = document.createElement('div');
+        baris.className = 'flex flex-col gap-2';
+        grup.append(baris);
+
+        function pesanIsian(wadah, key) {
+            if (!errors[key]) return;
+            var pesan = document.createElement('p');
+            pesan.className = 'text-sm text-[#FF3F3F]';
+            pesan.textContent = errors[key][0];
+            wadah.append(pesan);
+        }
+        function tambahBaris(i) {
+            berikutnya = Math.max(berikutnya, Number(i) + 1);
+            var wadah = document.createElement('div');
+            wadah.className = 'flex flex-col gap-1';
+            var tag = Array.isArray(field.pilihan) ? 'select' : field.jenis_input === 'paragraf' ? 'textarea' : 'input';
+            var kontrol = document.createElement(tag);
+            var nilai = String(barisLama[i] ?? '');
+            kontrol.name = 'detail[' + id + '][' + i + ']';
+            kontrol.required = field.wajib && !banyak;
+            kontrol.setAttribute('aria-label', field.input + (banyak ? ' ' + (Number(i) + 1) : ''));
+            kontrol.className = tag === 'textarea' ? FIELD + ' min-h-24 py-2' : FIELD;
+            if (tag === 'select') {
+                kontrol.add(new Option('Pilih ' + field.input, ''));
+                field.pilihan.forEach(function (opsi) { kontrol.add(new Option(opsi.label, opsi.nilai)); });
+            } else if (tag === 'input') {
+                kontrol.type = { tanggal: 'date', angka: 'number', rupiah: 'number', berkas: 'file' }[field.jenis_input] || 'text';
+                if (kontrol.type === 'number') kontrol.step = 'any';
+                if (file) kontrol.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt';
+            }
+            if (!file) kontrol.value = nilai;
+            wadah.append(kontrol);
+            if (banyak && Number(i) !== 0) {
+                var hapus = document.createElement('button');
+                hapus.type = 'button';
+                hapus.className = 'self-start text-sm text-[#E5484D]';
+                hapus.textContent = 'Hapus isian';
+                hapus.addEventListener('click', function () { wadah.remove(); });
+                wadah.append(hapus);
+            }
+            pesanIsian(wadah, nama + '.' + i);
+            baris.append(wadah);
+        }
+        (indeks.length ? indeks : [0]).forEach(tambahBaris);
+
+        if (banyak) {
+            var tambah = document.createElement('button');
+            tambah.type = 'button';
+            tambah.className = 'self-start text-sm font-medium text-[#2277FF]';
+            tambah.textContent = file ? '+ Tambah berkas' : '+ Tambah isian';
+            tambah.addEventListener('click', function () { tambahBaris(berikutnya); });
+            grup.append(tambah);
+        }
+        pesanIsian(grup, nama);
+        return grup;
+    }
+
+    async function muatIsian(pulihkan) {
+        var nomor = ++permintaanIsian;
+        var id = selKategori.value;
+        var jenis = selKategori.selectedOptions[0]?.dataset.jenis || '';
+        var pulihkanKategori = pulihkan && id === kategoriLama;
+        var wadah = $('isianKategori'), status = $('statusIsianKategori');
+        $('jenis_kegiatan_tampil').value = jenis;
+        tampilPemilik(jenis, pulihkanKategori);
+        $('simpanKegiatan').disabled = true;
+        $('muatUlangIsian').classList.add('hidden');
+        if (!pulihkan) $('galatIsianKategori').hidden = true;
+        wadah.replaceChildren();
+        status.textContent = id ? 'Memuat isian kategori…' : 'Pilih kategori untuk melihat isiannya.';
+        if (!id) return;
+
+        try {
+            var respons = await fetch(urlKategori.replace(/0$/, id), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+            if (!respons.ok) throw new Error('Isian kategori gagal dimuat.');
+            var data = await respons.json();
+            if (nomor !== permintaanIsian) return;
+            data.isian.forEach(function (field) {
+                var render = field.jenis_input === 'anggota_kegiatan' ? kartuPeserta : kartuIsian;
+                wadah.append(render(field, pulihkanKategori ? jawabanLama : {}, pulihkanKategori ? galatIsian : {}, jenis));
+            });
+            status.textContent = data.isian.length ? '' : 'Kategori ini belum memiliki isian tambahan.';
+            $('simpanKegiatan').disabled = false;
+        } catch (_) {
+            if (nomor !== permintaanIsian) return;
+            status.textContent = 'Isian kategori gagal dimuat. Silakan coba lagi.';
+            $('muatUlangIsian').classList.remove('hidden');
+        }
+    }
+
+    selKategori.addEventListener('change', function () {
+        kategoriLama = '';
+        muatIsian(false);
+    });
+    $('muatUlangIsian').addEventListener('click', function () { muatIsian(selKategori.value === kategoriLama); });
+    muatIsian(true);
+
 })();
 </script>
 @endpush
